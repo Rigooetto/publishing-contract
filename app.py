@@ -107,7 +107,17 @@ FORM_HTML = """<!DOCTYPE html>
           <div class='col'>
           <input type="text" name="fakeusernameremembered" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; opacity:0;">
             <label class='form-label'>Writer</label>
-            <input id='writerInput' class='form-control' name='x7f9_k2_writer_field' placeholder='Writer Name' autocomplete='new-password' autocorrect='off' autocapitalize='off' spellcheck='false'>
+            <input 
+  id='writerInput' 
+  class='form-control' 
+  name='writer_name_custom_123' 
+  placeholder='Writer Name'
+  autocomplete='off'
+  autocorrect='off'
+  autocapitalize='off'
+  spellcheck='false'
+  readonly
+  onfocus="this.removeAttribute('readonly');">
             <input type="hidden" name="x7f9_k2_writer_field" id="realWriterField">
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
