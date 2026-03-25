@@ -10,7 +10,14 @@ import os
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
 
-raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
+raw_db_url = os.getenv('DATABASE_URL', 'sqlite:///writers.db')
+
+if raw_db_url.startswith('postgres://'):
+    raw_db_url = raw_db_url.replace('postgres://', 'postgresql://', 1)
+
+# 👇 ADD THIS (VERY IMPORTANT)
+if 'postgresql://' in raw_db_url and 'sslmode=' not in raw_db_url:
+    raw_db_url += '?sslmode=require'
 if raw_db_url.startswith("postgres://"):
     raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
 
@@ -646,7 +653,10 @@ def fill_contract(data, works):
     return buffer
 
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print("DB INIT ERROR:", e)
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
