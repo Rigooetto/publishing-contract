@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, , send_file, session, redirect, url_for, jsonify, flash
+from flask import Flask, render_template_string, request, send_file, session, redirect, url_for, jsonify, flash
 from docx import Document
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
@@ -105,7 +105,7 @@ FORM_HTML = """<!DOCTYPE html>
         <h4 class='mb-3'>Writer</h4>
         <div class='row mb-3 position-relative'>
           <div class='col'>
-          <input type="text" name="fakeusernameremembered" style="display:none">
+          <input type="text" name="fakeusernameremembered" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; opacity:0;">
             <label class='form-label'>Writer Name</label>
             <input id='writerInput' class='form-control' name='writer_name_custom_123' placeholder='Writer Name' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
             <div id='writerSuggestions' class='autocomplete-box'></div>
@@ -350,7 +350,8 @@ def formulario():
         suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
         data['Date'] = f"{date_obj.strftime('%B')} {day}{suffix}, {date_obj.year}"
         data['Fecha'] = format_date(date_obj, format="d 'de' MMMM 'del' y", locale='es')
-
+        data['WriterName'] = data.get('writer_name_custom_123', '').strip()
+        
         save_writer(
             writer_name=data.get('writer_name_custom_123', '').strip(),
             writer_address_line1=data.get('WriterAddressLine1', '').strip(),
@@ -376,7 +377,7 @@ def search_writers():
     if auth_required():
         return jsonify([])
 
-    q = .args.get('q', '').strip()
+    q = request.args.get('q', '').strip()
     if len(q) < 2:
         return jsonify([])
 
