@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, send_file, session, redirect, url_for, jsonify, flash
+from flask import Flask, render_template_string, , send_file, session, redirect, url_for, jsonify, flash
 from docx import Document
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
@@ -105,8 +105,9 @@ FORM_HTML = """<!DOCTYPE html>
         <h4 class='mb-3'>Writer</h4>
         <div class='row mb-3 position-relative'>
           <div class='col'>
+          <input type="text" name="fakeusernameremembered" style="display:none">
             <label class='form-label'>Writer Name</label>
-            <input class='form-control' name='WriterName' id='WriterName' placeholder='Writer Name' autocomplete='new-password' required>
+            <input class='form-control' name='writer_name_custom_123' placeholder='Writer Name' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
         </div>
@@ -197,7 +198,7 @@ function addWorkRow() {
   container.appendChild(div);
 }
 
-const writerInput = document.getElementById('WriterName');
+const writerInput = document.getElementById('writer_name_custom_123');
 const suggestionsBox = document.getElementById('writerSuggestions');
 
 function hideSuggestions() {
@@ -351,7 +352,7 @@ def formulario():
         data['Fecha'] = format_date(date_obj, format="d 'de' MMMM 'del' y", locale='es')
 
         save_writer(
-            writer_name=data.get('WriterName', '').strip(),
+            writer_name=data.get('writer_name_custom_123', '').strip(),
             writer_address_line1=data.get('WriterAddressLine1', '').strip(),
             writer_address_line2=data.get('WriterAddressLine2', '').strip(),
             pro=data.get('PRO', '').strip(),
@@ -363,7 +364,7 @@ def formulario():
             flash(f'Template not found: {TEMPLATE_PATH}')
             return render_template_string(FORM_HTML)
 
-        writer_name = data.get('WriterName', 'Writer').strip() or 'Writer'
+        writer_name = data.get('writer_name_custom_123', 'Writer').strip() or 'Writer'
         filename = f"PA {writer_name}.docx"
         return send_file(filled, as_attachment=True, download_name=filename)
 
@@ -375,7 +376,7 @@ def search_writers():
     if auth_required():
         return jsonify([])
 
-    q = request.args.get('q', '').strip()
+    q = .args.get('q', '').strip()
     if len(q) < 2:
         return jsonify([])
 
@@ -456,7 +457,7 @@ def fill_contract(data, works):
             for title, split in works:
                 row = table.add_row().cells
                 row[0].text = title
-                row[1].text = data.get('WriterName', '')
+                row[1].text = data.get('writer_name_custom_123', '')
                 row[2].text = f'{split}%'
                 row[3].text = data.get('PublisherName', '')
                 row[4].text = f'{split}%'
