@@ -33,7 +33,7 @@ class Writer(db.Model):
     writer_name = db.Column(db.String(200), nullable=False, unique=True, index=True)
     writer_address_line1 = db.Column(db.String(255), default='')
     writer_address_line2 = db.Column(db.String(255), default='')
-    ipi_number = db.Column(db.String(50), default='')
+    writer_ipi = db.Column(db.String(50), default='')
     pro = db.Column(db.String(20), default='')
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
