@@ -101,7 +101,7 @@ FORM_HTML = """<!DOCTYPE html>
         {% endif %}
       </div>
 
-      <form method='post'>
+      <form method='post' autocomplete='off'>
         <h4 class='mb-3'>Writer</h4>
         <div class='row mb-3 position-relative'>
           <div class='col'>
