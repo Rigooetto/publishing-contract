@@ -106,18 +106,18 @@ FORM_HTML = """<!DOCTYPE html>
         <div class='row mb-3 position-relative'>
           <div class='col'>
             <label class='form-label'>Writer Name</label>
-            <input class='form-control' name='WriterName' id='WriterName' placeholder='Writer Name' autocomplete='off' required>
+            <input class='form-control' name='WriterName' id='WriterName' placeholder='Writer Name' autocomplete='new-password' required>
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
         </div>
         <div class='row mb-3'>
           <div class='col'>
             <label class='form-label'>Writer Address Line 1</label>
-            <input class='form-control' name='WriterAddressLine1' id='WriterAddressLine1' placeholder='Writer Address Line 1'>
+            <input class='form-control' name='WriterAddressLine1' id='WriterAddressLine1' placeholder='Writer Address Line 1' autocomplete='new-password'>
           </div>
           <div class='col'>
             <label class='form-label'>Writer Address Line 2</label>
-            <input class='form-control' name='WriterAddressLine2' id='WriterAddressLine2' placeholder='Writer Address Line 2'>
+            <input class='form-control' name='WriterAddressLine2' id='WriterAddressLine2' placeholder='Writer Address Line 2' autocomplete='new-password'>
           </div>
         </div>
 
@@ -134,7 +134,7 @@ FORM_HTML = """<!DOCTYPE html>
           </div>
           <div class='col'>
             <label class='form-label'>Publisher Name</label>
-            <input class='form-control' name='PublisherName' id='PublisherName' placeholder='Publisher Name'>
+            <input class='form-control' name='PublisherName' id='PublisherName' placeholder='Publisher Name' autocomplete='new-password'>
           </div>
         </div>
         <div class='row mb-3'>
@@ -159,10 +159,10 @@ FORM_HTML = """<!DOCTYPE html>
         <div id='workRows'>
           <div class='row mb-2 work-row'>
             <div class='col-md-8'>
-              <input class='form-control' name='WorkTitle' placeholder='Work Title'>
+              <input class='form-control' name='WorkTitle' placeholder='Work Title' autocomplete='new-password'>
             </div>
             <div class='col-md-4 input-group'>
-              <input class='form-control' name='WriterSplit' placeholder='Writer Split'>
+              <input class='form-control' name='WriterSplit' placeholder='Writer Split' autocomplete='new-password'>
               <span class='input-group-text'>%</span>
             </div>
           </div>
