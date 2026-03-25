@@ -106,8 +106,9 @@ FORM_HTML = """<!DOCTYPE html>
         <div class='row mb-3 position-relative'>
           <div class='col'>
           <input type="text" name="fakeusernameremembered" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; opacity:0;">
-            <label class='form-label'>Writer Name</label>
+            <label class='form-label'>Writer</label>
             <input id='writerInput' class='form-control' name='x7f9_k2_writer_field' placeholder='Writer Name' autocomplete='new-password' autocorrect='off' autocapitalize='off' spellcheck='false'>
+            <input type="hidden" name="x7f9_k2_writer_field" id="realWriterField">
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
         </div>
@@ -200,6 +201,9 @@ function addWorkRow() {
 
 const writerInput = document.getElementById('writerInput');
 const suggestionsBox = document.getElementById('writerSuggestions');
+writerInput.addEventListener('input', function () {
+  document.getElementById('realWriterField').value = this.value;
+});
 
 function hideSuggestions() {
   suggestionsBox.style.display = 'none';
@@ -208,6 +212,7 @@ function hideSuggestions() {
 
 function fillWriter(writer) {
   writerInput.value = writer.writer_name || '';
+  document.getElementById('realWriterField').value = writer.writer_name || '';
   document.getElementById('WriterAddressLine1').value = writer.writer_address_line1 || '';
   document.getElementById('WriterAddressLine2').value = writer.writer_address_line2 || '';
   if (writer.pro) {
