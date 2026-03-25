@@ -107,7 +107,7 @@ FORM_HTML = """<!DOCTYPE html>
           <div class='col'>
           <input type="text" name="fakeusernameremembered" style="display:none">
             <label class='form-label'>Writer Name</label>
-            <input class='form-control' name='writer_name_custom_123' placeholder='Writer Name' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
+            <input id='writerInput' class='form-control' name='writer_name_custom_123' placeholder='Writer Name' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
         </div>
@@ -198,7 +198,7 @@ function addWorkRow() {
   container.appendChild(div);
 }
 
-const writerInput = document.getElementById('writer_name_custom_123');
+const writerInput = document.getElementById('writerInput');
 const suggestionsBox = document.getElementById('writerSuggestions');
 
 function hideSuggestions() {
