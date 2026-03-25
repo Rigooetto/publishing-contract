@@ -4,54 +4,121 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, or_
 from babel.dates import format_date
 import io
-import datetime
 import os
+import re
+import zipfile
+import datetime
+from pathlib import Path
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
 
-raw_db_url = os.getenv('DATABASE_URL', 'sqlite:///writers.db')
-
-if raw_db_url.startswith('postgres://'):
-    raw_db_url = raw_db_url.replace('postgres://', 'postgresql://', 1)
-
-# 👇 ADD THIS (VERY IMPORTANT)
-if 'postgresql://' in raw_db_url and 'sslmode=' not in raw_db_url:
-    raw_db_url += '?sslmode=require'
+raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
 if raw_db_url.startswith("postgres://"):
     raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+if raw_db_url.startswith("postgresql://") and "sslmode=" not in raw_db_url:
+    joiner = "&" if "?" in raw_db_url else "?"
+    raw_db_url = f"{raw_db_url}{joiner}sslmode=require"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-TEMPLATE_PATH = os.getenv("TEMPLATE_PATH", "template/PUBLISHING_AGREEMENT_CONTRACT.docx")
-OUTPUT_DIR = os.getenv("OUTPUT_DIR", "contratos_generados")
+BASE_TEMPLATE_DIR = os.getenv("TEMPLATE_DIR", "template")
+FULL_CONTRACT_TEMPLATE = os.getenv(
+    "FULL_CONTRACT_TEMPLATE",
+    os.path.join(BASE_TEMPLATE_DIR, "PUBLISHING_AGREEMENT_CONTRACT.docx"),
+)
+SCHEDULE_1_TEMPLATE = os.getenv(
+    "SCHEDULE_1_TEMPLATE",
+    os.path.join(BASE_TEMPLATE_DIR, "SCHEDULE_1.docx"),
+)
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "generated_contracts")
+
 TEAM_USERNAME = os.getenv("TEAM_USERNAME")
 TEAM_PASSWORD = os.getenv("TEAM_PASSWORD")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
+def slugify(value: str) -> str:
+    value = value.strip()
+    value = re.sub(r"[^\w\s-]", "", value, flags=re.UNICODE)
+    value = re.sub(r"[-\s]+", "_", value)
+    return value or "file"
+
+
+class Camp(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    works = db.relationship("Work", backref="camp", lazy=True)
+
+
 class Writer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    writer_first_name = db.Column(db.String(100), default="", index=True)
-    writer_middle_name = db.Column(db.String(100), default="")
-    writer_last_names = db.Column(db.String(150), default="")
-    writer_full_name = db.Column(db.String(250), nullable=False, unique=True, index=True)
+    first_name = db.Column(db.String(100), default="", index=True)
+    middle_name = db.Column(db.String(100), default="")
+    last_names = db.Column(db.String(150), default="")
+    full_name = db.Column(db.String(250), nullable=False, unique=True, index=True)
 
-    writer_address = db.Column(db.String(255), default="")
-    writer_city = db.Column(db.String(100), default="")
-    writer_state = db.Column(db.String(100), default="")
-    writer_zip_code = db.Column(db.String(20), default="")
-
-    writer_ipi = db.Column(db.String(50), default="")
+    ipi = db.Column(db.String(50), default="", index=True)
     pro = db.Column(db.String(20), default="")
 
+    address = db.Column(db.String(255), default="")
+    city = db.Column(db.String(100), default="")
+    state = db.Column(db.String(100), default="")
+    zip_code = db.Column(db.String(20), default="")
+
+    has_master_contract = db.Column(db.Boolean, default=False)
+
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
+
+
+class Work(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False, index=True)
+    aka_title = db.Column(db.String(255), default="")
+    camp_id = db.Column(db.Integer, db.ForeignKey("camp.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    work_writers = db.relationship("WorkWriter", backref="work", lazy=True)
+    contract_documents = db.relationship("ContractDocument", backref="work", lazy=True)
+
+
+class WorkWriter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
+    writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
+
+    writer_percentage = db.Column(db.Float, default=0.0)
+    publisher = db.Column(db.String(255), default="")
+
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    writer = db.relationship("Writer", backref="work_links")
+
+
+class ContractDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
+    writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
+
+    document_type = db.Column(db.String(50), nullable=False)  # full_contract / schedule_1
+    file_name = db.Column(db.String(255), nullable=False)
+    generated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    writer = db.relationship("Writer", backref="contract_documents")
 
 
 def init_db():
@@ -66,43 +133,72 @@ def inject_globals():
     }
 
 
-FORM_HTML = """<!DOCTYPE html>
+LOGIN_HTML = """
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset='UTF-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1'>
-  <title>Publishing Agreement</title>
-  <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team Login</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <h3 class="mb-3">Team Login</h3>
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                {% for message in messages %}
+                  <div class="alert alert-danger">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+            <form method="post">
+              <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input class="form-control" name="username" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" name="password" required>
+              </div>
+              <button class="btn btn-primary w-100">Log in</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+FORM_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create Work</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background: #f8f9fa; }
     .card { border-radius: 18px; }
-
-    h4 {
-      margin-top: 8px;
-      margin-bottom: 14px;
-      font-weight: 700;
-    }
-
-    .form-label {
-      font-weight: 600;
-      font-size: 0.95rem;
-      margin-bottom: 6px;
-    }
-
-    .card-body {
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    .row.mb-4 {
-      padding-bottom: 8px;
-      border-bottom: 1px solid #f1f3f5;
-    }
-
-    .autocomplete-wrap {
+    h4 { margin-top: 8px; margin-bottom: 14px; font-weight: 700; }
+    .form-label { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+    .card-body { max-width: 1200px; margin: 0 auto; }
+    .writer-row {
+      border: 1px solid #e9ecef;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #fff;
       position: relative;
     }
-
+    .autocomplete-wrap { position: relative; }
     .autocomplete-box {
       position: absolute;
       top: 100%;
@@ -115,145 +211,88 @@ FORM_HTML = """<!DOCTYPE html>
       max-height: 220px;
       overflow-y: auto;
       display: none;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
     }
-
     .autocomplete-item {
       padding: 10px 12px;
       cursor: pointer;
       border-bottom: 1px solid #f1f3f5;
     }
-
-    .autocomplete-item:hover {
-      background: #f1f5ff;
+    .autocomplete-item:hover { background: #f1f5ff; }
+    .status-pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-right: 8px;
     }
+    .status-new { background: #fff3cd; color: #7a5a00; }
+    .status-existing { background: #d1e7dd; color: #0f5132; }
+    .status-full { background: #cfe2ff; color: #084298; }
+    .status-s1 { background: #d1e7dd; color: #0f5132; }
+    .writer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .writer-meta { min-height: 28px; }
   </style>
 </head>
 <body>
-<div class='container py-4'>
+<div class="container py-4">
   {% with messages = get_flashed_messages() %}
     {% if messages %}
       {% for message in messages %}
-        <div class='alert alert-warning'>{{ message }}</div>
+        <div class="alert alert-warning">{{ message }}</div>
       {% endfor %}
     {% endif %}
   {% endwith %}
 
-  <div class='card shadow-sm'>
-    <div class='card-body p-4'>
-      <div class='d-flex justify-content-between align-items-center mb-4'>
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 class='mb-1'>Publishing Agreement</h2>
-          <p class='text-muted mb-0'>Generate contracts and save writer info for future auto-fill.</p>
+          <h2 class="mb-1">Create Work</h2>
+          <p class="text-muted mb-0">Create one work, add multiple writers, and generate the correct contract per writer.</p>
         </div>
-        {% if team_auth_enabled and session.get('logged_in') %}
-          <a href='{{ url_for("logout") }}' class='btn btn-outline-secondary btn-sm'>Log out</a>
-        {% endif %}
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('works_list') }}" class="btn btn-outline-primary btn-sm">Works</a>
+          {% if team_auth_enabled and session.get('logged_in') %}
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-sm">Log out</a>
+          {% endif %}
+        </div>
       </div>
 
-      <form method='post' autocomplete='off'>
-        <h4 class='mb-3'>Writer</h4>
-
-        <div class='row mb-3'>
-          <div class='col-md-4 autocomplete-wrap'>
-            <label class='form-label'>First Name</label>
-            <input class='form-control' name='WriterFirstName' id='WriterFirstName' placeholder='First Name'
-              autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
-            <div id='writerSuggestions' class='autocomplete-box'></div>
-          </div>
-
-          <div class='col-md-4'>
-            <label class='form-label'>Middle Name</label>
-            <input class='form-control' name='WriterMiddleName' id='WriterMiddleName' placeholder='Middle Name'
-              autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
-          </div>
-
-          <div class='col-md-4'>
-            <label class='form-label'>Last Name(s)</label>
-            <input class='form-control' name='WriterLastNames' id='WriterLastNames' placeholder='Last Name(s)'
-              autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
-          </div>
-        </div>
-
-        <div class='row mb-3'>
-          <div class='col-md-4'>
-            <label class='form-label'>Writer IPI #</label>
-            <input class='form-control' name='WriterIPI' id='WriterIPI' placeholder='IPI Number' autocomplete='off'>
-          </div>
-        </div>
-
-        <div class='row mb-4'>
-          <div class='col-md-6'>
-            <label class='form-label'>Address</label>
-            <input class='form-control' name='WriterAddress' id='WriterAddress' placeholder='Address' autocomplete='new-password'>
-          </div>
-          <div class='col-md-2'>
-            <label class='form-label'>City</label>
-            <input class='form-control' name='WriterCity' id='WriterCity' placeholder='City' autocomplete='new-password'>
-          </div>
-          <div class='col-md-2'>
-            <label class='form-label'>State</label>
-            <input class='form-control' name='WriterState' id='WriterState' placeholder='State' autocomplete='new-password'>
-          </div>
-          <div class='col-md-2'>
-            <label class='form-label'>Zip Code</label>
-            <input class='form-control' name='WriterZipCode' id='WriterZipCode' placeholder='Zip Code' autocomplete='new-password'>
-          </div>
-        </div>
-
-        <h4 class='mb-3'>Publisher</h4>
-
-        <div class='row mb-3'>
-          <div class='col-md-4'>
-            <label class='form-label'>PRO</label>
-            <select class='form-control' name='PRO' id='PRO' onchange='updatePublisher()'>
-              <option value=''>Select PRO</option>
-              <option value='BMI'>BMI</option>
-              <option value='ASCAP'>ASCAP</option>
-              <option value='SESAC'>SESAC</option>
+      <form method="post">
+        <h4>Work</h4>
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <label class="form-label">Camp</label>
+            <select class="form-control" name="camp_id">
+              <option value="">Select existing camp</option>
+              {% for camp in camps %}
+                <option value="{{ camp.id }}">{{ camp.name }}</option>
+              {% endfor %}
             </select>
           </div>
-
-          <div class='col-md-8'>
-            <label class='form-label'>Publisher Name</label>
-            <input class='form-control' name='PublisherName' id='PublisherName' placeholder='Publisher Name' autocomplete='new-password'>
+          <div class="col-md-4">
+            <label class="form-label">Or Create New Camp</label>
+            <input class="form-control" name="new_camp_name" placeholder="New Camp Name">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Work Title</label>
+            <input class="form-control" name="work_title" required placeholder="Work Title">
           </div>
         </div>
 
-        <div class='row mb-4'>
-          <div class='col-md-6'>
-            <label class='form-label'>Publisher Address Line 1</label>
-            <input class='form-control' name='PublisherAddressLine1' id='PublisherAddressLine1' placeholder='Publisher Address Line 1' value='3840 E. Miraloma Ave'>
-          </div>
-          <div class='col-md-6'>
-            <label class='form-label'>Publisher Address Line 2</label>
-            <input class='form-control' name='PublisherAddressLine2' id='PublisherAddressLine2' placeholder='Publisher Address Line 2' value='Anaheim CA 92806'>
-          </div>
-        </div>
+        <h4>Writers</h4>
+        <div id="writerRows"></div>
 
-        <h4 class='mb-3'>Contract</h4>
-        <div class='row mb-3'>
-          <div class='col-md-4'>
-            <label class='form-label'>Date</label>
-            <input class='form-control' name='Date' type='date' required>
-          </div>
-        </div>
-
-        <div id='workRows'>
-          <div class='row mb-2 work-row'>
-            <div class='col-md-8'>
-              <input class='form-control' name='WorkTitle' placeholder='Work Title' autocomplete='new-password'>
-            </div>
-            <div class='col-md-4 input-group'>
-              <input class='form-control' name='WriterSplit' placeholder='Writer Split' autocomplete='new-password'>
-              <span class='input-group-text'>%</span>
-            </div>
-          </div>
-        </div>
-
-        <div class='d-flex gap-2 mt-3'>
-          <button type='button' class='btn btn-outline-primary' onclick='addWorkRow()'>Add Another Work</button>
-          <button type='submit' class='btn btn-success'>Generate Contract</button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary" onclick="addWriterRow()">Add Writer</button>
+          <button type="submit" class="btn btn-success">Create Work & Generate Documents</button>
         </div>
       </form>
     </div>
@@ -261,158 +300,371 @@ FORM_HTML = """<!DOCTYPE html>
 </div>
 
 <script>
-function updatePublisher() {
-  const pro = document.getElementById('PRO').value;
-  const map = {
-    BMI: 'Songs of Afinarte',
-    ASCAP: 'Melodies of Afinarte',
-    SESAC: 'Music of Afinarte'
-  };
-  document.getElementById('PublisherName').value = map[pro] || '';
+const proPublisherMap = {
+  BMI: 'Songs of Afinarte',
+  ASCAP: 'Melodies of Afinarte',
+  SESAC: 'Music of Afinarte'
+};
+
+let writerRowIndex = 0;
+
+function statusHtml(writerStatus, contractType) {
+  const writerClass = writerStatus === 'Existing Writer' ? 'status-existing' : 'status-new';
+  const contractClass = contractType === 'Schedule 1' ? 'status-s1' : 'status-full';
+  return `
+    <span class="status-pill ${writerClass}">${writerStatus}</span>
+    <span class="status-pill ${contractClass}">${contractType}</span>
+  `;
 }
 
-function addWorkRow() {
-  const container = document.getElementById('workRows');
-  const div = document.createElement('div');
-  div.className = 'row mb-2 work-row';
-  div.innerHTML = `
-    <div class='col-md-8'><input class='form-control' name='WorkTitle' placeholder='Work Title' autocomplete='new-password'></div>
-    <div class='col-md-4 input-group'>
-      <input class='form-control' name='WriterSplit' placeholder='Writer Split' autocomplete='new-password'>
-      <span class='input-group-text'>%</span>
-    </div>`;
-  container.appendChild(div);
+function writerRowTemplate(index) {
+  return `
+    <div class="writer-row" data-index="${index}">
+      <div class="writer-header">
+        <strong>Writer ${index + 1}</strong>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeWriterRow(this)">Remove</button>
+      </div>
+
+      <input type="hidden" name="writer_id" class="writer-id-field">
+      <div class="writer-meta">${statusHtml('New Writer', 'Full Contract')}</div>
+
+      <div class="row mt-3">
+        <div class="col-md-4 autocomplete-wrap">
+          <label class="form-label">First Name</label>
+          <input class="form-control writer-first-name" name="writer_first_name" placeholder="First Name" autocomplete="off">
+          <div class="autocomplete-box writer-suggestions"></div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Middle Name</label>
+          <input class="form-control writer-middle-name" name="writer_middle_name" placeholder="Middle Name" autocomplete="off">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Last Name(s)</label>
+          <input class="form-control writer-last-names" name="writer_last_names" placeholder="Last Name(s)" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="row mt-3">
+        <div class="col-md-3">
+          <label class="form-label">Writer IPI #</label>
+          <input class="form-control writer-ipi" name="writer_ipi" placeholder="IPI Number">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">PRO</label>
+          <select class="form-control writer-pro" name="writer_pro" onchange="syncPublisherFromPro(this)">
+            <option value="">Select PRO</option>
+            <option value="BMI">BMI</option>
+            <option value="ASCAP">ASCAP</option>
+            <option value="SESAC">SESAC</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Writer %</label>
+          <input class="form-control writer-split" name="writer_percentage" placeholder="Writer %" type="number" step="0.01" min="0" max="100">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Publisher</label>
+          <input class="form-control writer-publisher" name="writer_publisher" placeholder="Publisher">
+        </div>
+      </div>
+
+      <div class="row mt-3">
+        <div class="col-md-6">
+          <label class="form-label">Address</label>
+          <input class="form-control writer-address" name="writer_address" placeholder="Address">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">City</label>
+          <input class="form-control writer-city" name="writer_city" placeholder="City">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">State</label>
+          <input class="form-control writer-state" name="writer_state" placeholder="State">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Zip Code</label>
+          <input class="form-control writer-zip" name="writer_zip_code" placeholder="Zip Code">
+        </div>
+      </div>
+    </div>
+  `;
 }
 
-const writerFirstName = document.getElementById('WriterFirstName');
-const writerMiddleName = document.getElementById('WriterMiddleName');
-const writerLastNames = document.getElementById('WriterLastNames');
-const writerSuggestions = document.getElementById('writerSuggestions');
-
-function getWriterSearchText() {
-  return [
-    writerFirstName.value.trim(),
-    writerMiddleName.value.trim(),
-    writerLastNames.value.trim()
-  ].filter(Boolean).join(' ');
+function addWriterRow() {
+  const container = document.getElementById('writerRows');
+  container.insertAdjacentHTML('beforeend', writerRowTemplate(writerRowIndex));
+  setupWriterRow(container.lastElementChild);
+  writerRowIndex += 1;
 }
 
-function hideSuggestions() {
-  writerSuggestions.style.display = 'none';
-  writerSuggestions.innerHTML = '';
+function removeWriterRow(button) {
+  const row = button.closest('.writer-row');
+  row.remove();
 }
 
-function fillWriter(writer) {
-  document.getElementById('WriterFirstName').value = writer.writer_first_name || '';
-  document.getElementById('WriterMiddleName').value = writer.writer_middle_name || '';
-  document.getElementById('WriterLastNames').value = writer.writer_last_names || '';
-  document.getElementById('WriterIPI').value = writer.writer_ipi || '';
-  document.getElementById('WriterAddress').value = writer.writer_address || '';
-  document.getElementById('WriterCity').value = writer.writer_city || '';
-  document.getElementById('WriterState').value = writer.writer_state || '';
-  document.getElementById('WriterZipCode').value = writer.writer_zip_code || '';
-
-  if (writer.pro) {
-    document.getElementById('PRO').value = writer.pro;
-    updatePublisher();
+function syncPublisherFromPro(selectEl) {
+  const row = selectEl.closest('.writer-row');
+  const publisherInput = row.querySelector('.writer-publisher');
+  const selectedPro = selectEl.value;
+  if (selectedPro && !publisherInput.value.trim()) {
+    publisherInput.value = proPublisherMap[selectedPro] || '';
   }
-
-  hideSuggestions();
 }
 
-let writerSearchTimeout;
+function getFullNameFromRow(row) {
+  const first = row.querySelector('.writer-first-name').value.trim();
+  const middle = row.querySelector('.writer-middle-name').value.trim();
+  const last = row.querySelector('.writer-last-names').value.trim();
+  return [first, middle, last].filter(Boolean).join(' ');
+}
 
-async function runWriterSearch() {
-  clearTimeout(writerSearchTimeout);
+function setRowStatus(row, writerStatus, contractType) {
+  row.querySelector('.writer-meta').innerHTML = statusHtml(writerStatus, contractType);
+}
 
-  const q = getWriterSearchText();
-  if (q.length < 2) {
-    hideSuggestions();
-    return;
-  }
+function fillWriterRow(row, writer) {
+  row.querySelector('.writer-id-field').value = writer.id || '';
+  row.querySelector('.writer-first-name').value = writer.first_name || '';
+  row.querySelector('.writer-middle-name').value = writer.middle_name || '';
+  row.querySelector('.writer-last-names').value = writer.last_names || '';
+  row.querySelector('.writer-ipi').value = writer.ipi || '';
+  row.querySelector('.writer-pro').value = writer.pro || '';
+  row.querySelector('.writer-address').value = writer.address || '';
+  row.querySelector('.writer-city').value = writer.city || '';
+  row.querySelector('.writer-state').value = writer.state || '';
+  row.querySelector('.writer-zip').value = writer.zip_code || '';
+  row.querySelector('.writer-publisher').value = writer.default_publisher || (proPublisherMap[writer.pro] || '');
+  setRowStatus(
+    row,
+    'Existing Writer',
+    writer.has_master_contract ? 'Schedule 1' : 'Full Contract'
+  );
+  hideSuggestions(row);
+}
 
-  writerSearchTimeout = setTimeout(async () => {
+function hideSuggestions(row) {
+  const box = row.querySelector('.writer-suggestions');
+  box.style.display = 'none';
+  box.innerHTML = '';
+}
+
+function resetRowToNew(row) {
+  row.querySelector('.writer-id-field').value = '';
+  setRowStatus(row, 'New Writer', 'Full Contract');
+}
+
+function setupWriterRow(row) {
+  const firstName = row.querySelector('.writer-first-name');
+  const middleName = row.querySelector('.writer-middle-name');
+  const lastNames = row.querySelector('.writer-last-names');
+  const suggestionsBox = row.querySelector('.writer-suggestions');
+
+  async function searchWriters() {
+    const q = getFullNameFromRow(row);
+    if (q.length < 2) {
+      hideSuggestions(row);
+      resetRowToNew(row);
+      return;
+    }
+
     const resp = await fetch(`/writers/search?q=${encodeURIComponent(q)}`);
     const writers = await resp.json();
 
     if (!writers.length) {
-      hideSuggestions();
+      hideSuggestions(row);
+      resetRowToNew(row);
       return;
     }
 
-    writerSuggestions.innerHTML = writers.map(writer => `
+    suggestionsBox.innerHTML = writers.map(writer => `
       <div class="autocomplete-item" data-writer='${JSON.stringify(writer).replaceAll("'", "&#39;")}'>
-        <strong>${writer.writer_full_name}</strong><br>
-        <small>${writer.writer_city || ''}${writer.writer_city && writer.writer_state ? ', ' : ''}${writer.writer_state || ''}</small>
+        <strong>${writer.full_name}</strong><br>
+        <small>${writer.city || ''}${writer.city && writer.state ? ', ' : ''}${writer.state || ''}</small>
       </div>
     `).join('');
+    suggestionsBox.style.display = 'block';
 
-    writerSuggestions.style.display = 'block';
-
-    writerSuggestions.querySelectorAll('.autocomplete-item').forEach(item => {
-      item.addEventListener('click', () => fillWriter(JSON.parse(item.dataset.writer)));
+    suggestionsBox.querySelectorAll('.autocomplete-item').forEach(item => {
+      item.addEventListener('click', () => {
+        fillWriterRow(row, JSON.parse(item.dataset.writer));
+      });
     });
-  }, 200);
+  }
+
+  [firstName, middleName, lastNames].forEach(input => {
+    input.addEventListener('input', () => {
+      row.querySelector('.writer-id-field').value = '';
+      setRowStatus(row, 'New Writer', 'Full Contract');
+      searchWriters();
+    });
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!suggestionsBox.contains(e.target) &&
+        e.target !== firstName &&
+        e.target !== middleName &&
+        e.target !== lastNames) {
+      hideSuggestions(row);
+    }
+  });
 }
 
-writerFirstName.addEventListener('input', runWriterSearch);
-writerMiddleName.addEventListener('input', runWriterSearch);
-writerLastNames.addEventListener('input', runWriterSearch);
-
-document.addEventListener('click', function (e) {
-  if (
-    !writerSuggestions.contains(e.target) &&
-    e.target !== writerFirstName &&
-    e.target !== writerMiddleName &&
-    e.target !== writerLastNames
-  ) {
-    hideSuggestions();
-  }
-});
+addWriterRow();
 </script>
 </body>
 </html>
 """
 
-
-LOGIN_HTML = """<!DOCTYPE html>
+WORKS_LIST_HTML = """
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset='UTF-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1'>
-  <title>Team Login</title>
-  <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Works</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class='bg-light'>
-  <div class='container py-5'>
-    <div class='row justify-content-center'>
-      <div class='col-md-4'>
-        <div class='card shadow-sm'>
-          <div class='card-body p-4'>
-            <h3 class='mb-3'>Team Login</h3>
-            {% with messages = get_flashed_messages() %}
-              {% if messages %}
-                {% for message in messages %}
-                  <div class='alert alert-danger'>{{ message }}</div>
-                {% endfor %}
-              {% endif %}
-            {% endwith %}
-            <form method='post'>
-              <div class='mb-3'>
-                <label class='form-label'>Username</label>
-                <input class='form-control' name='username' required>
-              </div>
-              <div class='mb-3'>
-                <label class='form-label'>Password</label>
-                <input type='password' class='form-control' name='password' required>
-              </div>
-              <button class='btn btn-primary w-100'>Log in</button>
-            </form>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Works</h2>
+    <a href="{{ url_for('formulario') }}" class="btn btn-primary">Create Work</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="get" class="mb-3">
+        <div class="row">
+          <div class="col-md-6">
+            <input class="form-control" name="q" value="{{ q }}" placeholder="Search work title">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-outline-primary w-100">Search</button>
           </div>
         </div>
+      </form>
+
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Work Title</th>
+              <th>Camp</th>
+              <th>Writers</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for work in works %}
+              <tr>
+                <td>{{ work.title }}</td>
+                <td>{{ work.camp.name if work.camp else '' }}</td>
+                <td>{{ work.work_writers|length }}</td>
+                <td>{{ work.created_at.strftime('%Y-%m-%d') }}</td>
+                <td><a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-sm btn-outline-secondary">View</a></td>
+              </tr>
+            {% endfor %}
+            {% if not works %}
+              <tr><td colspan="5" class="text-center text-muted">No works found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
+</div>
+</body>
+</html>
+"""
+
+WORK_DETAIL_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Work Detail</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">{{ work.title }}</h2>
+    <a href="{{ url_for('works_list') }}" class="btn btn-outline-secondary">Back</a>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5>Work Info</h5>
+      <p class="mb-1"><strong>Camp:</strong> {{ work.camp.name if work.camp else '—' }}</p>
+      <p class="mb-0"><strong>Created:</strong> {{ work.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5>Writers & Splits</h5>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Writer</th>
+              <th>IPI</th>
+              <th>PRO</th>
+              <th>Split %</th>
+              <th>Publisher</th>
+              <th>Master Contract</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ww in work.work_writers %}
+              <tr>
+                <td>{{ ww.writer.full_name }}</td>
+                <td>{{ ww.writer.ipi }}</td>
+                <td>{{ ww.writer.pro }}</td>
+                <td>{{ ww.writer_percentage }}</td>
+                <td>{{ ww.publisher }}</td>
+                <td>{{ 'Yes' if ww.writer.has_master_contract else 'No' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5>Generated Documents</h5>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Writer</th>
+              <th>Document Type</th>
+              <th>File Name</th>
+              <th>Generated At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in documents %}
+              <tr>
+                <td>{{ doc.writer.full_name }}</td>
+                <td>{{ doc.document_type }}</td>
+                <td>{{ doc.file_name }}</td>
+                <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              </tr>
+            {% endfor %}
+            {% if not documents %}
+              <tr><td colspan="4" class="text-center text-muted">No documents generated yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
 """
@@ -422,6 +674,156 @@ def auth_required():
     if not (TEAM_USERNAME and TEAM_PASSWORD):
         return False
     return not session.get("logged_in")
+
+
+def parse_float(value: str) -> float:
+    try:
+        return float(value or 0)
+    except ValueError:
+        return 0.0
+
+
+def build_full_name(first_name: str, middle_name: str, last_names: str) -> str:
+    return " ".join(part.strip() for part in [first_name, middle_name, last_names] if part and part.strip()).strip()
+
+
+def get_or_create_camp(existing_camp_id: str, new_camp_name: str):
+    new_camp_name = (new_camp_name or "").strip()
+    if new_camp_name:
+        existing = Camp.query.filter(func.lower(Camp.name) == new_camp_name.lower()).first()
+        if existing:
+            return existing
+        camp = Camp(name=new_camp_name)
+        db.session.add(camp)
+        db.session.flush()
+        return camp
+
+    if existing_camp_id:
+        return Camp.query.get(int(existing_camp_id))
+
+    return None
+
+
+def find_existing_writer(selected_writer_id: str, full_name: str, ipi: str):
+    if selected_writer_id:
+        writer = Writer.query.get(int(selected_writer_id))
+        if writer:
+            return writer
+
+    if ipi:
+        writer = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
+        if writer:
+            return writer
+
+    if full_name:
+        writer = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
+        if writer:
+            return writer
+
+    return None
+
+
+def render_docx_template(template_path: str, data: dict, works_for_schedule=None) -> io.BytesIO:
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(template_path)
+
+    doc = Document(template_path)
+
+    def replace_all(paragraph):
+        text = "".join(run.text for run in paragraph.runs)
+        for k, v in data.items():
+            text = text.replace(f"[[{k}]]", str(v))
+        for run in paragraph.runs:
+            run.text = ""
+        if paragraph.runs:
+            paragraph.runs[0].text = text
+
+    for p in doc.paragraphs:
+        replace_all(p)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    replace_all(p)
+
+    for p in doc.paragraphs:
+        if "[[ContractTable]]" in p.text:
+            table = doc.add_table(rows=1, cols=5)
+            table.style = "Table Grid"
+            table.rows[0].cells[0].text = "Work Title"
+            table.rows[0].cells[1].text = "Songwriter Name"
+            table.rows[0].cells[2].text = "Songwriter Share"
+            table.rows[0].cells[3].text = "Publisher Name"
+            table.rows[0].cells[4].text = "Publisher Share"
+
+            for item in works_for_schedule or []:
+                row = table.add_row().cells
+                row[0].text = item.get("work_title", "")
+                row[1].text = item.get("writer_name", "")
+                row[2].text = item.get("writer_percentage", "")
+                row[3].text = item.get("publisher", "")
+                row[4].text = item.get("writer_percentage", "")
+            p.text = ""
+            p._element.addnext(table._element)
+            break
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter):
+    today = datetime.datetime.utcnow().date()
+    day = today.day
+    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+
+    return {
+        "Date": f"{today.strftime('%B')} {day}{suffix}, {today.year}",
+        "Fecha": format_date(today, format="d 'de' MMMM 'del' y", locale="es"),
+        "WriterName": writer.full_name,
+        "WriterFirstName": writer.first_name,
+        "WriterMiddleName": writer.middle_name,
+        "WriterLastNames": writer.last_names,
+        "WriterIPI": writer.ipi,
+        "WriterAddress": writer.address,
+        "WriterCity": writer.city,
+        "WriterState": writer.state,
+        "WriterZipCode": writer.zip_code,
+        "PRO": writer.pro,
+        "PublisherName": work_writer.publisher or "",
+        "WorkTitle": work.title,
+    }
+
+
+def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter):
+    if writer.has_master_contract:
+        document_type = "schedule_1"
+        template_path = SCHEDULE_1_TEMPLATE
+    else:
+        document_type = "full_contract"
+        template_path = FULL_CONTRACT_TEMPLATE
+
+    data = build_document_data(writer, work, work_writer)
+    works_for_schedule = [{
+        "work_title": work.title,
+        "writer_name": writer.full_name,
+        "writer_percentage": f"{work_writer.writer_percentage}%",
+        "publisher": work_writer.publisher or "",
+    }]
+
+    file_buffer = render_docx_template(template_path, data, works_for_schedule=works_for_schedule)
+
+    safe_writer = slugify(writer.full_name)
+    safe_work = slugify(work.title)
+    prefix = "S1" if document_type == "schedule_1" else "FULL"
+    file_name = f"{prefix}_{safe_writer}_{safe_work}.docx"
+
+    if document_type == "full_contract":
+        writer.has_master_contract = True
+
+    return document_type, file_name, file_buffer
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -452,64 +854,119 @@ def formulario():
         return redirect(url_for("login"))
 
     if request.method == "POST":
-        data = {k: request.form[k] for k in request.form if k not in ["WorkTitle", "WriterSplit"]}
+        work_title = (request.form.get("work_title") or "").strip()
+        if not work_title:
+            flash("Work title is required.")
+            return render_template_string(FORM_HTML, camps=Camp.query.order_by(Camp.name.asc()).all())
 
-        works = [
-            (title.strip(), split.strip())
-            for title, split in zip(request.form.getlist("WorkTitle"), request.form.getlist("WriterSplit"))
-            if title.strip()
-        ]
+        camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+        work = Work(title=work_title, camp_id=camp.id if camp else None)
+        db.session.add(work)
+        db.session.flush()
 
-        try:
-            date_obj = datetime.datetime.strptime(data["Date"], "%Y-%m-%d")
-        except ValueError:
-            flash("Please enter a valid contract date.")
-            return render_template_string(FORM_HTML)
+        writer_ids = request.form.getlist("writer_id")
+        first_names = request.form.getlist("writer_first_name")
+        middle_names = request.form.getlist("writer_middle_name")
+        last_names_list = request.form.getlist("writer_last_names")
+        ipis = request.form.getlist("writer_ipi")
+        pros = request.form.getlist("writer_pro")
+        percentages = request.form.getlist("writer_percentage")
+        publishers = request.form.getlist("writer_publisher")
+        addresses = request.form.getlist("writer_address")
+        cities = request.form.getlist("writer_city")
+        states = request.form.getlist("writer_state")
+        zip_codes = request.form.getlist("writer_zip_code")
 
-        day = date_obj.day
-        suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-        data["Date"] = f"{date_obj.strftime('%B')} {day}{suffix}, {date_obj.year}"
-        data["Fecha"] = format_date(date_obj, format="d 'de' MMMM 'del' y", locale="es")
+        zip_buffer = io.BytesIO()
+        generated_any = False
 
-        first_name = data.get("WriterFirstName", "").strip()
-        middle_name = data.get("WriterMiddleName", "").strip()
-        last_names = data.get("WriterLastNames", "").strip()
-        full_name = " ".join(part for part in [first_name, middle_name, last_names] if part)
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for idx in range(len(first_names)):
+                first_name = (first_names[idx] or "").strip()
+                middle_name = (middle_names[idx] or "").strip()
+                last_names = (last_names_list[idx] or "").strip()
+                full_name = build_full_name(first_name, middle_name, last_names)
 
-        data["WriterName"] = full_name
-        data["WriterFirstName"] = first_name
-        data["WriterMiddleName"] = middle_name
-        data["WriterLastNames"] = last_names
-        data["WriterIPI"] = data.get("WriterIPI", "").strip()
-        data["WriterAddress"] = data.get("WriterAddress", "").strip()
-        data["WriterCity"] = data.get("WriterCity", "").strip()
-        data["WriterState"] = data.get("WriterState", "").strip()
-        data["WriterZipCode"] = data.get("WriterZipCode", "").strip()
+                if not full_name:
+                    continue
 
-        save_writer(
-            writer_first_name=first_name,
-            writer_middle_name=middle_name,
-            writer_last_names=last_names,
-            writer_full_name=full_name,
-            writer_address=data.get("WriterAddress", "").strip(),
-            writer_city=data.get("WriterCity", "").strip(),
-            writer_state=data.get("WriterState", "").strip(),
-            writer_zip_code=data.get("WriterZipCode", "").strip(),
-            writer_ipi=data.get("WriterIPI", "").strip(),
-            pro=data.get("PRO", "").strip(),
+                ipi = (ipis[idx] or "").strip()
+                pro = (pros[idx] or "").strip()
+                publisher = (publishers[idx] or "").strip()
+                address = (addresses[idx] or "").strip()
+                city = (cities[idx] or "").strip()
+                state = (states[idx] or "").strip()
+                zip_code = (zip_codes[idx] or "").strip()
+                writer_percentage = parse_float(percentages[idx] if idx < len(percentages) else "0")
+                selected_writer_id = writer_ids[idx] if idx < len(writer_ids) else ""
+
+                writer = find_existing_writer(selected_writer_id, full_name, ipi)
+                if writer:
+                    writer.first_name = first_name
+                    writer.middle_name = middle_name
+                    writer.last_names = last_names
+                    writer.full_name = full_name
+                    writer.ipi = ipi
+                    writer.pro = pro
+                    writer.address = address
+                    writer.city = city
+                    writer.state = state
+                    writer.zip_code = zip_code
+                else:
+                    writer = Writer(
+                        first_name=first_name,
+                        middle_name=middle_name,
+                        last_names=last_names,
+                        full_name=full_name,
+                        ipi=ipi,
+                        pro=pro,
+                        address=address,
+                        city=city,
+                        state=state,
+                        zip_code=zip_code,
+                        has_master_contract=False,
+                    )
+                    db.session.add(writer)
+                    db.session.flush()
+
+                work_writer = WorkWriter(
+                    work_id=work.id,
+                    writer_id=writer.id,
+                    writer_percentage=writer_percentage,
+                    publisher=publisher,
+                )
+                db.session.add(work_writer)
+                db.session.flush()
+
+                document_type, file_name, file_buffer = generate_writer_document(writer, work, work_writer)
+                zip_file.writestr(file_name, file_buffer.getvalue())
+
+                doc_record = ContractDocument(
+                    work_id=work.id,
+                    writer_id=writer.id,
+                    document_type=document_type,
+                    file_name=file_name,
+                )
+                db.session.add(doc_record)
+                generated_any = True
+
+        db.session.commit()
+
+        if not generated_any:
+            flash("No valid writer rows were submitted.")
+            return redirect(url_for("formulario"))
+
+        zip_buffer.seek(0)
+        zip_name = f"{slugify(work.title)}_documents.zip"
+        return send_file(
+            zip_buffer,
+            as_attachment=True,
+            download_name=zip_name,
+            mimetype="application/zip",
         )
 
-        try:
-            filled = fill_contract(data, works)
-        except FileNotFoundError:
-            flash(f"Template not found: {TEMPLATE_PATH}")
-            return render_template_string(FORM_HTML)
-
-        filename_name = full_name or "Writer"
-        filename = f"PA {filename_name}.docx"
-        return send_file(filled, as_attachment=True, download_name=filename)
-
-    return render_template_string(FORM_HTML)
+    camps = Camp.query.order_by(Camp.name.asc()).all()
+    return render_template_string(FORM_HTML, camps=camps)
 
 
 @app.route("/writers/search")
@@ -517,7 +974,7 @@ def search_writers():
     if auth_required():
         return jsonify([])
 
-    q = request.args.get("q", "").strip()
+    q = (request.args.get("q") or "").strip()
     if len(q) < 2:
         return jsonify([])
 
@@ -527,13 +984,14 @@ def search_writers():
         Writer.query
         .filter(
             or_(
-                func.lower(Writer.writer_full_name).like(like_q),
-                func.lower(Writer.writer_first_name).like(like_q),
-                func.lower(Writer.writer_middle_name).like(like_q),
-                func.lower(Writer.writer_last_names).like(like_q),
+                func.lower(Writer.full_name).like(like_q),
+                func.lower(Writer.first_name).like(like_q),
+                func.lower(Writer.middle_name).like(like_q),
+                func.lower(Writer.last_names).like(like_q),
+                func.lower(Writer.ipi).like(like_q),
             )
         )
-        .order_by(Writer.writer_full_name.asc())
+        .order_by(Writer.full_name.asc())
         .limit(8)
         .all()
     )
@@ -541,122 +999,64 @@ def search_writers():
     return jsonify([
         {
             "id": writer.id,
-            "writer_first_name": writer.writer_first_name,
-            "writer_middle_name": writer.writer_middle_name,
-            "writer_last_names": writer.writer_last_names,
-            "writer_full_name": writer.writer_full_name,
-            "writer_address": writer.writer_address,
-            "writer_city": writer.writer_city,
-            "writer_state": writer.writer_state,
-            "writer_zip_code": writer.writer_zip_code,
-            "writer_ipi": writer.writer_ipi,
+            "first_name": writer.first_name,
+            "middle_name": writer.middle_name,
+            "last_names": writer.last_names,
+            "full_name": writer.full_name,
+            "ipi": writer.ipi,
             "pro": writer.pro,
+            "address": writer.address,
+            "city": writer.city,
+            "state": writer.state,
+            "zip_code": writer.zip_code,
+            "has_master_contract": writer.has_master_contract,
+            "default_publisher": proPublisherMap_py(writer.pro),
         }
         for writer in writers
     ])
 
 
-def save_writer(
-    writer_first_name="",
-    writer_middle_name="",
-    writer_last_names="",
-    writer_full_name="",
-    writer_address="",
-    writer_city="",
-    writer_state="",
-    writer_zip_code="",
-    writer_ipi="",
-    pro=""
-):
-    if not writer_full_name:
-        return
-
-    existing = Writer.query.filter(func.lower(Writer.writer_full_name) == writer_full_name.lower()).first()
-
-    if existing:
-        existing.writer_first_name = writer_first_name
-        existing.writer_middle_name = writer_middle_name
-        existing.writer_last_names = writer_last_names
-        existing.writer_full_name = writer_full_name
-        existing.writer_address = writer_address
-        existing.writer_city = writer_city
-        existing.writer_state = writer_state
-        existing.writer_zip_code = writer_zip_code
-        existing.writer_ipi = writer_ipi
-        existing.pro = pro
-    else:
-        db.session.add(Writer(
-            writer_first_name=writer_first_name,
-            writer_middle_name=writer_middle_name,
-            writer_last_names=writer_last_names,
-            writer_full_name=writer_full_name,
-            writer_address=writer_address,
-            writer_city=writer_city,
-            writer_state=writer_state,
-            writer_zip_code=writer_zip_code,
-            writer_ipi=writer_ipi,
-            pro=pro,
-        ))
-
-    db.session.commit()
+def proPublisherMap_py(pro: str) -> str:
+    return {
+        "BMI": "Songs of Afinarte",
+        "ASCAP": "Melodies of Afinarte",
+        "SESAC": "Music of Afinarte",
+    }.get(pro or "", "")
 
 
-def fill_contract(data, works):
-    if not os.path.exists(TEMPLATE_PATH):
-        raise FileNotFoundError(TEMPLATE_PATH)
+@app.route("/works")
+def works_list():
+    if auth_required():
+        return redirect(url_for("login"))
 
-    doc = Document(TEMPLATE_PATH)
+    q = (request.args.get("q") or "").strip()
+    query = Work.query
+    if q:
+        query = query.filter(func.lower(Work.title).like(f"%{q.lower()}%"))
+    works = query.order_by(Work.created_at.desc()).all()
+    return render_template_string(WORKS_LIST_HTML, works=works, q=q)
 
-    def replace_all(paragraph):
-        text = "".join(run.text for run in paragraph.runs)
-        for k, v in data.items():
-            text = text.replace(f"[[{k}]]", str(v))
-        for run in paragraph.runs:
-            run.text = ""
-        if paragraph.runs:
-            paragraph.runs[0].text = text
 
-    for p in doc.paragraphs:
-        replace_all(p)
+@app.route("/works/<int:work_id>")
+def work_detail(work_id: int):
+    if auth_required():
+        return redirect(url_for("login"))
 
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    replace_all(p)
-
-    for p in doc.paragraphs:
-        if "[[ContractTable]]" in p.text:
-            table = doc.add_table(rows=1, cols=5)
-            table.style = "Table Grid"
-            table.rows[0].cells[0].text = "Work Title"
-            table.rows[0].cells[1].text = "Songwriter Name"
-            table.rows[0].cells[2].text = "Songwriter Share"
-            table.rows[0].cells[3].text = "Publisher Name"
-            table.rows[0].cells[4].text = "Publisher Share"
-
-            for title, split in works:
-                row = table.add_row().cells
-                row[0].text = title
-                row[1].text = data.get("WriterName", "")
-                row[2].text = f"{split}%"
-                row[3].text = data.get("PublisherName", "")
-                row[4].text = f"{split}%"
-
-            p.text = ""
-            p._element.addnext(table._element)
-            break
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer
+    work = Work.query.get_or_404(work_id)
+    documents = (
+        ContractDocument.query
+        .filter_by(work_id=work.id)
+        .order_by(ContractDocument.generated_at.desc())
+        .all()
+    )
+    return render_template_string(WORK_DETAIL_HTML, work=work, documents=documents)
 
 
 try:
     init_db()
 except Exception as e:
     print("DB INIT ERROR:", e)
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
