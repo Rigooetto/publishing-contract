@@ -119,12 +119,19 @@ FORM_HTML = """<!DOCTYPE html>
   spellcheck='false'
   readonly
   onfocus="this.removeAttribute('readonly');">
-   <div class='row mb-3'>
-         <div class='col'>
-         <label class='form-label'>IPI #</label>
-         <input class='form-control' name='IPI' id='IPI' placeholder='IPI Number' autocomplete='off'>
-         </div>
-        </div>
+  <div class='row mb-3 position-relative'>
+  <div class='col-md-6'>
+    <label class='form-label'>Writer Name</label>
+    <input id='writerInput' class='form-control' name='writer_name_custom_123' placeholder='Writer Name'
+      autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
+    <div id='writerSuggestions' class='autocomplete-box'></div>
+  </div>
+
+  <div class='col-md-6'>
+    <label class='form-label'>IPI #</label>
+    <input class='form-control' name='WriterIPI' id='WriterIPI' placeholder='IPI Number' autocomplete='off'>
+  </div>
+</div>
             <input type="hidden" name="x7f9_k2_writer_field" id="realWriterField">
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
