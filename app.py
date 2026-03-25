@@ -61,6 +61,35 @@ FORM_HTML = """<!DOCTYPE html>
   <style>
     body { background: #f8f9fa; }
     .card { border-radius: 18px; }
+    <style>
+  body { background: #f8f9fa; }
+  .card { border-radius: 18px; }
+
+
+  h4 {
+    margin-top: 8px;
+    margin-bottom: 14px;
+    font-weight: 700;
+  }
+
+  .form-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+  }
+
+  .card-body {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .row.mb-4 {
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f3f5;
+  }
+
+
+  .autocomplete-box {
     .autocomplete-box {
       position: absolute;
       z-index: 1000;
@@ -226,7 +255,7 @@ function fillWriter(writer) {
   document.getElementById('realWriterField').value = writer.writer_name || '';
   document.getElementById('WriterAddressLine1').value = writer.writer_address_line1 || '';
   document.getElementById('WriterAddressLine2').value = writer.writer_address_line2 || '';
-  document.getElementById('IPI').value = writer.ipi_number || '';
+  document.getElementById('WriterIPI').value = writer.writer_ipi || '';
   if (writer.pro) {
     document.getElementById('PRO').value = writer.pro;
     updatePublisher();
