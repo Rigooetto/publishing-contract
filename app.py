@@ -33,6 +33,7 @@ class Writer(db.Model):
     writer_name = db.Column(db.String(200), nullable=False, unique=True, index=True)
     writer_address_line1 = db.Column(db.String(255), default='')
     writer_address_line2 = db.Column(db.String(255), default='')
+    ipi_number = db.Column(db.String(50), default='')
     pro = db.Column(db.String(20), default='')
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -121,6 +122,12 @@ FORM_HTML = """<!DOCTYPE html>
             <input type="hidden" name="x7f9_k2_writer_field" id="realWriterField">
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
+        </div>
+        <div class='row mb-3'>
+         <div class='col'>
+         <label class='form-label'>IPI #</label>
+         <input class='form-control' name='IPI' id='IPI' placeholder='IPI Number' autocomplete='off'>
+         </div>
         </div>
         <div class='row mb-3'>
           <div class='col'>
@@ -225,6 +232,7 @@ function fillWriter(writer) {
   document.getElementById('realWriterField').value = writer.writer_name || '';
   document.getElementById('WriterAddressLine1').value = writer.writer_address_line1 || '';
   document.getElementById('WriterAddressLine2').value = writer.writer_address_line2 || '';
+  document.getElementById('IPI').value = writer.ipi_number || '';
   if (writer.pro) {
     document.getElementById('PRO').value = writer.pro;
     updatePublisher();
@@ -368,11 +376,12 @@ def formulario():
         data['WriterName'] = data.get('x7f9_k2_writer_field', '').strip()
         
         save_writer(
-            writer_name = data.get('x7f9_k2_writer_field', '').strip(),
-            writer_address_line1=data.get('WriterAddressLine1', '').strip(),
-            writer_address_line2=data.get('WriterAddressLine2', '').strip(),
-            pro=data.get('PRO', '').strip(),
-        )
+    writer_name=data.get('writer_name_custom_123', '').strip(),
+    writer_address_line1=data.get('WriterAddressLine1', '').strip(),
+    writer_address_line2=data.get('WriterAddressLine2', '').strip(),
+    pro=data.get('PRO', '').strip(),
+    ipi_number=data.get('IPI', '').strip(),   # 👈 NEW
+)
 
         try:
             filled = fill_contract(data, works)
@@ -411,12 +420,13 @@ def search_writers():
             'writer_address_line1': writer.writer_address_line1,
             'writer_address_line2': writer.writer_address_line2,
             'pro': writer.pro,
+            'ipi_number': writer.ipi_number,
         }
         for writer in writers
     ])
 
 
-def save_writer(writer_name, writer_address_line1='', writer_address_line2='', pro=''):
+def save_writer(writer_name, writer_address_line1='', writer_address_line2='', pro='', ipi_number=''):
     if not writer_name:
         return
 
@@ -426,12 +436,14 @@ def save_writer(writer_name, writer_address_line1='', writer_address_line2='', p
         existing.writer_address_line1 = writer_address_line1
         existing.writer_address_line2 = writer_address_line2
         existing.pro = pro
+        existing.ipi_number = ipi_number
     else:
         db.session.add(Writer(
             writer_name=writer_name,
             writer_address_line1=writer_address_line1,
             writer_address_line2=writer_address_line2,
             pro=pro,
+            ipi_number=ipi_number,
         ))
     db.session.commit()
 
