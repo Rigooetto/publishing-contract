@@ -107,7 +107,7 @@ FORM_HTML = """<!DOCTYPE html>
           <div class='col'>
           <input type="text" name="fakeusernameremembered" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; opacity:0;">
             <label class='form-label'>Writer Name</label>
-            <input id='writerInput' class='form-control' name='writer_name_custom_123' placeholder='Writer Name' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
+            <input id='writerInput' class='form-control' name='x7f9_k2_writer_field' placeholder='Writer Name' autocomplete='new-password' autocorrect='off' autocapitalize='off' spellcheck='false'>
             <div id='writerSuggestions' class='autocomplete-box'></div>
           </div>
         </div>
@@ -350,10 +350,10 @@ def formulario():
         suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
         data['Date'] = f"{date_obj.strftime('%B')} {day}{suffix}, {date_obj.year}"
         data['Fecha'] = format_date(date_obj, format="d 'de' MMMM 'del' y", locale='es')
-        data['WriterName'] = data.get('writer_name_custom_123', '').strip()
+        data['WriterName'] = data.get('x7f9_k2_writer_field', '').strip()
         
         save_writer(
-            writer_name=data.get('writer_name_custom_123', '').strip(),
+            writer_name = data.get('x7f9_k2_writer_field', '').strip(),
             writer_address_line1=data.get('WriterAddressLine1', '').strip(),
             writer_address_line2=data.get('WriterAddressLine2', '').strip(),
             pro=data.get('PRO', '').strip(),
@@ -365,7 +365,7 @@ def formulario():
             flash(f'Template not found: {TEMPLATE_PATH}')
             return render_template_string(FORM_HTML)
 
-        writer_name = data.get('writer_name_custom_123', 'Writer').strip() or 'Writer'
+        writer_name = data.get('x7f9_k2_writer_field', 'Writer').strip() or 'Writer'
         filename = f"PA {writer_name}.docx"
         return send_file(filled, as_attachment=True, download_name=filename)
 
