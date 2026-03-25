@@ -104,76 +104,62 @@ FORM_HTML = """<!DOCTYPE html>
 
       <form method='post' autocomplete='off'>
         <h4 class='mb-3'>Writer</h4>
-        <div class='row mb-3 position-relative'>
-          <div class='col'>
-          <input type="text" name="fakeusernameremembered" autocomplete="username" tabindex="-1" style="position:absolute; left:-9999px; opacity:0;">
-            <label class='form-label'>Writer</label>
-            <input 
-  id='writerInput' 
-  class='form-control' 
-  name='writer_name_custom_123' 
-  placeholder='Writer Name'
-  autocomplete='off'
-  autocorrect='off'
-  autocapitalize='off'
-  spellcheck='false'
-  readonly
-  onfocus="this.removeAttribute('readonly');">
-  <div class='row mb-3 position-relative'>
-  <div class='col-md-6'>
+
+<div class='row mb-3 position-relative'>
+  <div class='col-md-8'>
     <label class='form-label'>Writer Name</label>
     <input id='writerInput' class='form-control' name='writer_name_custom_123' placeholder='Writer Name'
       autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
+    <input type="hidden" name="x7f9_k2_writer_field" id="realWriterField">
     <div id='writerSuggestions' class='autocomplete-box'></div>
   </div>
 
-  <div class='col-md-6'>
-    <label class='form-label'>IPI #</label>
+  <div class='col-md-4'>
+    <label class='form-label'>Writer IPI #</label>
     <input class='form-control' name='WriterIPI' id='WriterIPI' placeholder='IPI Number' autocomplete='off'>
   </div>
 </div>
-            <input type="hidden" name="x7f9_k2_writer_field" id="realWriterField">
-            <div id='writerSuggestions' class='autocomplete-box'></div>
-          </div>
-        </div>
-       
-        <div class='row mb-3'>
-          <div class='col'>
-            <label class='form-label'>Writer Address Line 1</label>
-            <input class='form-control' name='WriterAddressLine1' id='WriterAddressLine1' placeholder='Writer Address Line 1' autocomplete='new-password'>
-          </div>
-          <div class='col'>
-            <label class='form-label'>Writer Address Line 2</label>
-            <input class='form-control' name='WriterAddressLine2' id='WriterAddressLine2' placeholder='Writer Address Line 2' autocomplete='new-password'>
-          </div>
-        </div>
 
-        <h4 class='mb-3'>Publisher</h4>
-        <div class='row mb-3'>
-          <div class='col'>
-            <label class='form-label'>PRO</label>
-            <select class='form-control' name='PRO' id='PRO' onchange='updatePublisher()'>
-              <option value=''>Select PRO</option>
-              <option value='BMI'>BMI</option>
-              <option value='ASCAP'>ASCAP</option>
-              <option value='SESAC'>SESAC</option>
-            </select>
-          </div>
-          <div class='col'>
-            <label class='form-label'>Publisher Name</label>
-            <input class='form-control' name='PublisherName' id='PublisherName' placeholder='Publisher Name' autocomplete='new-password'>
-          </div>
-        </div>
-        <div class='row mb-3'>
-          <div class='col'>
-            <label class='form-label'>Publisher Address Line 1</label>
-            <input class='form-control' name='PublisherAddressLine1' placeholder='Publisher Address Line 1' value='3840 E. Miraloma Ave'>
-          </div>
-          <div class='col'>
-            <label class='form-label'>Publisher Address Line 2</label>
-            <input class='form-control' name='PublisherAddressLine2' placeholder='Publisher Address Line 2' value='Anaheim CA 92806'>
-          </div>
-        </div>
+<div class='row mb-4'>
+  <div class='col-md-6'>
+    <label class='form-label'>Writer Address Line 1</label>
+    <input class='form-control' name='WriterAddressLine1' id='WriterAddressLine1' placeholder='Writer Address Line 1' autocomplete='new-password'>
+  </div>
+  <div class='col-md-6'>
+    <label class='form-label'>Writer Address Line 2</label>
+    <input class='form-control' name='WriterAddressLine2' id='WriterAddressLine2' placeholder='Writer Address Line 2' autocomplete='new-password'>
+  </div>
+</div>
+
+<h4 class='mb-3'>Publisher</h4>
+
+<div class='row mb-3'>
+  <div class='col-md-4'>
+    <label class='form-label'>PRO</label>
+    <select class='form-control' name='PRO' id='PRO' onchange='updatePublisher()'>
+      <option value=''>Select PRO</option>
+      <option value='BMI'>BMI</option>
+      <option value='ASCAP'>ASCAP</option>
+      <option value='SESAC'>SESAC</option>
+    </select>
+  </div>
+
+  <div class='col-md-8'>
+    <label class='form-label'>Publisher Name</label>
+    <input class='form-control' name='PublisherName' id='PublisherName' placeholder='Publisher Name' autocomplete='new-password'>
+  </div>
+</div>
+
+<div class='row mb-4'>
+  <div class='col-md-6'>
+    <label class='form-label'>Publisher Address Line 1</label>
+    <input class='form-control' name='PublisherAddressLine1' id='PublisherAddressLine1' placeholder='Publisher Address Line 1' value='3840 E. Miraloma Ave'>
+  </div>
+  <div class='col-md-6'>
+    <label class='form-label'>Publisher Address Line 2</label>
+    <input class='form-control' name='PublisherAddressLine2' id='PublisherAddressLine2' placeholder='Publisher Address Line 2' value='Anaheim CA 92806'>
+  </div>
+</div>
 
         <h4 class='mb-3'>Contract</h4>
         <div class='row mb-3'>
