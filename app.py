@@ -142,7 +142,8 @@ def upload_bytes_to_drive(file_name: str, file_bytes: bytes, parent_folder_id: s
     created = service.files().create(
         body=metadata,
         media_body=media,
-        fields="id, webViewLink"
+        fields="id, webViewLink",
+        supportsAllDrives=True,
     ).execute()
 
     return {
