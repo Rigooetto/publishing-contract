@@ -1824,12 +1824,12 @@ def generate_batch_documents(batch_id):
                 "ENV CHECK: folder=%s json=%s",
                 bool(GOOGLE_DRIVE_FOLDER_ID),
                 bool(GOOGLE_SERVICE_ACCOUNT_JSON),
-           )
+            )
 
-           drive_info = {"file_id": None, "web_view_link": None}
+            drive_info = {"file_id": None, "web_view_link": None}
 
-           if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
-               try:
+            if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
+                try:
                    drive_info = upload_bytes_to_drive(
                        file_name=file_name,
                        file_bytes=file_bytes,
@@ -1837,12 +1837,12 @@ def generate_batch_documents(batch_id):
                        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                    )
                    app.logger.warning("DRIVE SUCCESS: %s", drive_info)
-               except Exception as e:
-                   import traceback
-                   app.logger.error("DRIVE FAILURE: %s", e)
-                   traceback.print_exc()
-                   flash(f"Drive upload failed for {file_name}: {e}")
-           else:
+                except Exception as e:
+                    import traceback
+                    app.logger.error("DRIVE FAILURE: %s", e)
+                    traceback.print_exc()
+                    flash(f"Drive upload failed for {file_name}: {e}")
+            else:
                flash("Drive upload skipped: missing GOOGLE_DRIVE_FOLDER_ID or GOOGLE_SERVICE_ACCOUNT_JSON")
 
             doc_record = ContractDocument(
