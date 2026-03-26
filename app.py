@@ -74,6 +74,14 @@ def default_publisher_for_pro(pro: str) -> str:
     }.get((pro or "").strip(), "")
 
 
+def default_publisher_ipi_for_pro(pro: str) -> str:
+    return {
+        "BMI": "817874992",
+        "ASCAP": "807953316",
+        "SESAC": "817094629",
+    }.get((pro or "").strip(), "")
+
+
 class Camp(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False, unique=True, index=True)
@@ -350,9 +358,18 @@ FORM_HTML = """
 
 <script>
 const proPublisherMap = {
-  BMI: 'Songs of Afinarte',
-  ASCAP: 'Melodies of Afinarte',
-  SESAC: 'Music of Afinarte'
+  BMI: {
+    name: 'Songs of Afinarte',
+    ipi: '817874992'
+  },
+  ASCAP: {
+    name: 'Melodies of Afinarte',
+    ipi: '807953316'
+  },
+  SESAC: {
+    name: 'Music of Afinarte',
+    ipi: '817094629'
+  }
 };
 
 const defaultPublisherAddress = "{{ default_publisher_address }}";
@@ -484,8 +501,17 @@ function removeWriterRow(button) {
 function syncPublisherFromPro(selectEl) {
   const row = selectEl.closest('.writer-row');
   const publisherInput = row.querySelector('.writer-publisher');
-  if (selectEl.value && !publisherInput.value.trim()) {
-    publisherInput.value = proPublisherMap[selectEl.value] || '';
+  const publisherIpiInput = row.querySelector('.writer-publisher-ipi');
+  const selected = proPublisherMap[selectEl.value];
+
+  if (!selected) return;
+
+  if (!publisherInput.value.trim()) {
+    publisherInput.value = selected.name;
+  }
+
+  if (!publisherIpiInput.value.trim()) {
+    publisherIpiInput.value = selected.ipi;
   }
 }
 
@@ -511,7 +537,9 @@ function fillWriterRow(row, writer) {
   row.querySelector('.writer-city').value = writer.city || '';
   row.querySelector('.writer-state').value = writer.state || '';
   row.querySelector('.writer-zip').value = writer.zip_code || '';
-  row.querySelector('.writer-publisher').value = writer.default_publisher || (proPublisherMap[writer.pro] || '');
+  const publisherData = proPublisherMap[writer.pro] || {};
+row.querySelector('.writer-publisher').value = writer.default_publisher || publisherData.name || '';
+row.querySelector('.writer-publisher-ipi').value = writer.default_publisher_ipi || publisherData.ipi || '';
   setRowStatus(
     row,
     'Existing Writer',
@@ -1205,6 +1233,7 @@ def search_writers():
             "zip_code": writer.zip_code,
             "has_master_contract": writer.has_master_contract,
             "default_publisher": default_publisher_for_pro(writer.pro),
+"default_publisher_ipi": default_publisher_ipi_for_pro(writer.pro),
         }
         for writer in writers
     ])
