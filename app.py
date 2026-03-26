@@ -431,7 +431,7 @@ FORM_HTML = """
     <select class="form-control" name="existing_batch_id">
       <option value="">Create new batch</option>
       {% for batch in batches %}
-        <option value="{{ batch.id }}">
+        <option value="{{ batch.id }}" {% if selected_batch_id == (batch.id|string) %}selected{% endif %}>
           Batch {{ batch.id }}
           {% if batch.camp %} — {{ batch.camp.name }}{% endif %}
           — {{ batch.contract_date.strftime('%Y-%m-%d') }}
@@ -1006,6 +1006,9 @@ BATCH_DETAIL_HTML = """
     <h2 class="mb-0">Batch {{ batch.id }}</h2>
     <div class="d-flex gap-2">
       <a href="{{ url_for('batches_list') }}" class="btn btn-outline-secondary">Back</a>
+      <a href="{{ url_for('formulario', batch_id=batch.id) }}" class="btn btn-outline-primary">
+       Add Another Work to This Batch
+      </a>
       <form method="post" action="{{ url_for('generate_batch_documents', batch_id=batch.id) }}">
         <button class="btn btn-success">Generate Batch Documents</button>
       </form>
@@ -1346,6 +1349,7 @@ def collect_form_context():
         "default_publisher_state": DEFAULT_PUBLISHER_STATE,
         "default_publisher_zip": DEFAULT_PUBLISHER_ZIP,
         "force_create": request.form.get("force_create", ""),
+        "selected_batch_id": str(selected_batch_id),
     }
 
 
