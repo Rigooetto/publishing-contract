@@ -66,6 +66,32 @@ def build_full_name(first_name: str, middle_name: str, last_names: str) -> str:
     ).strip()
 
 
+def normalize_text(value: str) -> str:
+    return " ".join((value or "").lower().strip().split())
+
+
+def normalize_title(title: str) -> str:
+    return normalize_text(title)
+
+
+def build_writer_identity_from_row(row: dict) -> str:
+    ipi = (row.get("ipi") or "").strip()
+    if ipi:
+        return f"ipi:{ipi.lower()}"
+    selected_writer_id = (row.get("selected_writer_id") or "").strip()
+    if selected_writer_id:
+        return f"id:{selected_writer_id}"
+    return f"name:{normalize_text(row.get('full_name', ''))}"
+
+
+def build_writer_identity_from_workwriter(work_writer) -> str:
+    if work_writer.writer and work_writer.writer.ipi:
+        return f"ipi:{work_writer.writer.ipi.lower()}"
+    if work_writer.writer_id:
+        return f"id:{work_writer.writer_id}"
+    return f"name:{normalize_text(work_writer.writer.full_name if work_writer.writer else '')}"
+
+
 def default_publisher_for_pro(pro: str) -> str:
     return {
         "BMI": "Songs of Afinarte",
@@ -97,8 +123,9 @@ class Writer(db.Model):
     middle_name = db.Column(db.String(100), default="")
     last_names = db.Column(db.String(150), default="")
     full_name = db.Column(db.String(250), nullable=False, unique=True, index=True)
+    writer_aka = db.Column(db.String(250), default="")
 
-    ipi = db.Column(db.String(50), default="", index=True)
+    ipi = db.Column(db.String(50), nullable=True, unique=True, index=True)
     pro = db.Column(db.String(20), default="")
 
     address = db.Column(db.String(255), default="")
@@ -119,7 +146,9 @@ class Writer(db.Model):
 class Work(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False, index=True)
+    normalized_title = db.Column(db.String(255), index=True, default="")
     camp_id = db.Column(db.Integer, db.ForeignKey("camp.id"), nullable=True)
+    contract_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     work_writers = db.relationship("WorkWriter", backref="work", lazy=True, cascade="all, delete-orphan")
@@ -323,9 +352,11 @@ FORM_HTML = """
       </div>
 
       <form method="post" id="workForm">
+        <input type="hidden" name="force_create" value="{{ force_create or '' }}">
+
         <h4>Work</h4>
         <div class="row mb-4">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Camp</label>
             <select class="form-control" name="camp_id">
               <option value="">Select existing camp</option>
@@ -334,13 +365,17 @@ FORM_HTML = """
               {% endfor %}
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Or Create New Camp</label>
             <input class="form-control" name="new_camp_name" placeholder="New Camp Name">
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Work Title</label>
             <input class="form-control" name="work_title" required placeholder="Work Title">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Contract Date</label>
+            <input class="form-control" name="contract_date" type="date" required>
           </div>
         </div>
 
@@ -358,9 +393,18 @@ FORM_HTML = """
 
 <script>
 const proPublisherMap = {
-  BMI: { name: 'Songs of Afinarte', ipi: '817874992' },
-  ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
-  SESAC: { name: 'Music of Afinarte', ipi: '817094629' }
+  BMI: {
+    name: 'Songs of Afinarte',
+    ipi: '817874992'
+  },
+  ASCAP: {
+    name: 'Melodies of Afinarte',
+    ipi: '807953316'
+  },
+  SESAC: {
+    name: 'Music of Afinarte',
+    ipi: '817094629'
+  }
 };
 
 const defaultPublisherAddress = "{{ default_publisher_address }}";
@@ -391,18 +435,22 @@ function writerRowTemplate(index) {
       <div class="writer-meta">${statusHtml('New Writer', 'Full Contract')}</div>
 
       <div class="row mt-3">
-        <div class="col-md-4 autocomplete-wrap">
+        <div class="col-md-3 autocomplete-wrap">
           <label class="form-label">First Name</label>
           <input class="form-control writer-first-name" name="writer_first_name" placeholder="First Name" autocomplete="off">
           <div class="autocomplete-box writer-suggestions"></div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label">Middle Name</label>
           <input class="form-control writer-middle-name" name="writer_middle_name" placeholder="Middle Name" autocomplete="off">
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label">Last Name(s)</label>
           <input class="form-control writer-last-names" name="writer_last_names" placeholder="Last Name(s)" autocomplete="off">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Writer AKA</label>
+          <input class="form-control writer-aka" name="writer_aka" placeholder="AKA / Stage Name">
         </div>
       </div>
 
@@ -495,8 +543,6 @@ function syncPublisherFromPro(selectEl) {
   const publisherIpiInput = row.querySelector('.writer-publisher-ipi');
   const selected = proPublisherMap[selectEl.value];
 
-  console.log('PRO changed:', selectEl.value, selected);
-
   if (!selected) return;
 
   publisherInput.value = selected.name;
@@ -519,6 +565,7 @@ function fillWriterRow(row, writer) {
   row.querySelector('.writer-first-name').value = writer.first_name || '';
   row.querySelector('.writer-middle-name').value = writer.middle_name || '';
   row.querySelector('.writer-last-names').value = writer.last_names || '';
+  row.querySelector('.writer-aka').value = writer.writer_aka || '';
   row.querySelector('.writer-ipi').value = writer.ipi || '';
   row.querySelector('.writer-pro').value = writer.pro || '';
   row.querySelector('.writer-address').value = writer.address || '';
@@ -668,6 +715,56 @@ addWriterRow();
 </html>
 """
 
+DUPLICATE_WARNING_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Possible Duplicate</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-5">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <h3 class="mb-3">Possible Duplicate Work Found</h3>
+      <p class="text-muted">The system found one or more existing works with the same title and writer set.</p>
+
+      <ul class="mb-4">
+        {% for item in duplicates %}
+          <li>
+            <strong>{{ item.title }}</strong>
+            {% if item.camp_name %} — {{ item.camp_name }}{% endif %}
+            — Created {{ item.created_at }}
+          </li>
+        {% endfor %}
+      </ul>
+
+      <form method="post">
+        {% for key, value in form_data.items() %}
+          {% if value is string %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+          {% else %}
+            {% for item in value %}
+              <input type="hidden" name="{{ key }}" value="{{ item }}">
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+        <input type="hidden" name="force_create" value="1">
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-danger">Continue Anyway</button>
+          <a href="{{ url_for('formulario') }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+"""
+
 WORKS_LIST_HTML = """
 <!DOCTYPE html>
 <html>
@@ -703,6 +800,7 @@ WORKS_LIST_HTML = """
             <tr>
               <th>Work Title</th>
               <th>Camp</th>
+              <th>Contract Date</th>
               <th>Writers</th>
               <th>Created</th>
               <th></th>
@@ -713,13 +811,14 @@ WORKS_LIST_HTML = """
               <tr>
                 <td>{{ work.title }}</td>
                 <td>{{ work.camp.name if work.camp else '' }}</td>
+                <td>{{ work.contract_date.strftime('%Y-%m-%d') if work.contract_date else '' }}</td>
                 <td>{{ work.work_writers|length }}</td>
                 <td>{{ work.created_at.strftime('%Y-%m-%d') }}</td>
                 <td><a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-sm btn-outline-secondary">View</a></td>
               </tr>
             {% endfor %}
             {% if not works %}
-              <tr><td colspan="5" class="text-center text-muted">No works found.</td></tr>
+              <tr><td colspan="6" class="text-center text-muted">No works found.</td></tr>
             {% endif %}
           </tbody>
         </table>
@@ -751,6 +850,7 @@ WORK_DETAIL_HTML = """
     <div class="card-body">
       <h5>Work Info</h5>
       <p class="mb-1"><strong>Camp:</strong> {{ work.camp.name if work.camp else '—' }}</p>
+      <p class="mb-1"><strong>Contract Date:</strong> {{ work.contract_date.strftime('%Y-%m-%d') if work.contract_date else '—' }}</p>
       <p class="mb-0"><strong>Created:</strong> {{ work.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
     </div>
   </div>
@@ -763,6 +863,7 @@ WORK_DETAIL_HTML = """
           <thead>
             <tr>
               <th>Writer</th>
+              <th>AKA</th>
               <th>IPI</th>
               <th>PRO</th>
               <th>Split %</th>
@@ -775,7 +876,8 @@ WORK_DETAIL_HTML = """
             {% for ww in work.work_writers %}
               <tr>
                 <td>{{ ww.writer.full_name }}</td>
-                <td>{{ ww.writer.ipi }}</td>
+                <td>{{ ww.writer.writer_aka }}</td>
+                <td>{{ ww.writer.ipi or '' }}</td>
                 <td>{{ ww.writer.pro }}</td>
                 <td>{{ "%.2f"|format(ww.writer_percentage) }}</td>
                 <td>{{ ww.publisher }}</td>
@@ -908,18 +1010,19 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
 
 
 def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter):
-    today = datetime.datetime.utcnow().date()
-    day = today.day
+    contract_date = work.contract_date or datetime.datetime.utcnow().date()
+    day = contract_date.day
     suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
 
     return {
-        "Date": f"{today.strftime('%B')} {day}{suffix}, {today.year}",
-        "Fecha": format_date(today, format="d 'de' MMMM 'del' y", locale="es"),
+        "Date": f"{contract_date.strftime('%B')} {day}{suffix}, {contract_date.year}",
+        "Fecha": format_date(contract_date, format="d 'de' MMMM 'del' y", locale="es"),
         "WriterName": writer.full_name,
         "WriterFirstName": writer.first_name,
         "WriterMiddleName": writer.middle_name,
         "WriterLastNames": writer.last_names,
-        "WriterIPI": writer.ipi,
+        "WriterAKA": writer.writer_aka or "",
+        "WriterIPI": writer.ipi or "",
         "WriterAddress": writer.address,
         "WriterCity": writer.city,
         "WriterState": writer.state,
@@ -964,6 +1067,17 @@ def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter
     return document_type, file_name, file_buffer
 
 
+def collect_form_context():
+    return {
+        "camps": Camp.query.order_by(Camp.name.asc()).all(),
+        "default_publisher_address": DEFAULT_PUBLISHER_ADDRESS,
+        "default_publisher_city": DEFAULT_PUBLISHER_CITY,
+        "default_publisher_state": DEFAULT_PUBLISHER_STATE,
+        "default_publisher_zip": DEFAULT_PUBLISHER_ZIP,
+        "force_create": request.form.get("force_create", ""),
+    }
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if not (TEAM_USERNAME and TEAM_PASSWORD):
@@ -993,26 +1107,27 @@ def formulario():
 
     if request.method == "POST":
         work_title = (request.form.get("work_title") or "").strip()
+        contract_date_str = (request.form.get("contract_date") or "").strip()
+
         if not work_title:
             flash("Work title is required.")
-            return render_template_string(
-                FORM_HTML,
-                camps=Camp.query.order_by(Camp.name.asc()).all(),
-                default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
-                default_publisher_city=DEFAULT_PUBLISHER_CITY,
-                default_publisher_state=DEFAULT_PUBLISHER_STATE,
-                default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
-            )
+            return render_template_string(FORM_HTML, **collect_form_context())
 
-        camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
-        work = Work(title=work_title, camp_id=camp.id if camp else None)
-        db.session.add(work)
-        db.session.flush()
+        if not contract_date_str:
+            flash("Contract date is required.")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        try:
+            contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Please enter a valid contract date.")
+            return render_template_string(FORM_HTML, **collect_form_context())
 
         writer_ids = request.form.getlist("writer_id")
         first_names = request.form.getlist("writer_first_name")
         middle_names = request.form.getlist("writer_middle_name")
         last_names_list = request.form.getlist("writer_last_names")
+        writer_akas = request.form.getlist("writer_aka")
         ipis = request.form.getlist("writer_ipi")
         pros = request.form.getlist("writer_pro")
         percentages = request.form.getlist("writer_percentage")
@@ -1042,14 +1157,7 @@ def formulario():
             split_value = parse_float(percentages[idx] if idx < len(percentages) else "0")
             if split_value <= 0:
                 flash(f"Writer '{full_name}' must have a split greater than 0.")
-                return render_template_string(
-                    FORM_HTML,
-                    camps=Camp.query.order_by(Camp.name.asc()).all(),
-                    default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
-                    default_publisher_city=DEFAULT_PUBLISHER_CITY,
-                    default_publisher_state=DEFAULT_PUBLISHER_STATE,
-                    default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
-                )
+                return render_template_string(FORM_HTML, **collect_form_context())
 
             total_split += split_value
 
@@ -1059,6 +1167,7 @@ def formulario():
                 "middle_name": middle_name,
                 "last_names": last_names,
                 "full_name": full_name,
+                "writer_aka": (writer_akas[idx] or "").strip(),
                 "ipi": (ipis[idx] or "").strip(),
                 "pro": (pros[idx] or "").strip(),
                 "writer_percentage": split_value,
@@ -1076,25 +1185,101 @@ def formulario():
 
         if not writer_rows:
             flash("Add at least one writer.")
-            return render_template_string(
-                FORM_HTML,
-                camps=Camp.query.order_by(Camp.name.asc()).all(),
-                default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
-                default_publisher_city=DEFAULT_PUBLISHER_CITY,
-                default_publisher_state=DEFAULT_PUBLISHER_STATE,
-                default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
-            )
+            return render_template_string(FORM_HTML, **collect_form_context())
 
         if abs(total_split - 100.0) >= 0.001:
             flash(f"Total writer split must equal 100%. Current total: {total_split:.2f}%")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        # Duplicate protection inside current submission
+        seen_writer_ids = set()
+        seen_ipis = set()
+        seen_names = set()
+
+        for row in writer_rows:
+            selected_writer_id = (row["selected_writer_id"] or "").strip()
+            ipi = (row["ipi"] or "").strip()
+            normalized_name = normalize_text(row["full_name"])
+
+            if selected_writer_id:
+                if selected_writer_id in seen_writer_ids:
+                    flash(f"Duplicate writer selected in this work: {row['full_name']}")
+                    return render_template_string(FORM_HTML, **collect_form_context())
+                seen_writer_ids.add(selected_writer_id)
+
+            if ipi:
+                ipi_key = ipi.lower()
+                if ipi_key in seen_ipis:
+                    flash(f"Duplicate IPI in this work: {ipi}")
+                    return render_template_string(FORM_HTML, **collect_form_context())
+                seen_ipis.add(ipi_key)
+            else:
+                if normalized_name in seen_names:
+                    flash(f"Duplicate writer name in this work: {row['full_name']}")
+                    return render_template_string(FORM_HTML, **collect_form_context())
+                seen_names.add(normalized_name)
+
+        warnings = []
+
+        # Hard block duplicate IPI against existing DB when not explicitly selecting that writer
+        for row in writer_rows:
+            if row["ipi"]:
+                existing_ipi_writer = Writer.query.filter(func.lower(Writer.ipi) == row["ipi"].lower()).first()
+                if existing_ipi_writer:
+                    selected_id = (row["selected_writer_id"] or "").strip()
+                    if not selected_id or str(existing_ipi_writer.id) != selected_id:
+                        flash(f"IPI {row['ipi']} already belongs to {existing_ipi_writer.full_name}. Please select the existing writer.")
+                        return render_template_string(FORM_HTML, **collect_form_context())
+
+        # Warning only: same name exists with no IPI
+        for row in writer_rows:
+            if not row["ipi"]:
+                existing_name_writer = Writer.query.filter(
+                    func.lower(Writer.full_name) == normalize_text(row["full_name"])
+                ).first()
+                if existing_name_writer:
+                    warnings.append(f"Writer '{row['full_name']}' already exists in the system without using an IPI match.")
+
+        # Duplicate work detection
+        normalized_title = normalize_title(work_title)
+        writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
+
+        possible_duplicates = []
+        existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
+        for existing_work in existing_works:
+            existing_identities = sorted([
+                build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
+            ])
+            if existing_identities == writer_identity_set:
+                possible_duplicates.append({
+                    "title": existing_work.title,
+                    "camp_name": existing_work.camp.name if existing_work.camp else "",
+                    "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                })
+
+        if possible_duplicates and not request.form.get("force_create"):
+            form_data = {}
+            for key in request.form.keys():
+                values = request.form.getlist(key)
+                form_data[key] = values if len(values) > 1 else values[0]
             return render_template_string(
-                FORM_HTML,
-                camps=Camp.query.order_by(Camp.name.asc()).all(),
-                default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
-                default_publisher_city=DEFAULT_PUBLISHER_CITY,
-                default_publisher_state=DEFAULT_PUBLISHER_STATE,
-                default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
+                DUPLICATE_WARNING_HTML,
+                duplicates=possible_duplicates,
+                form_data=form_data,
             )
+
+        for warning in warnings:
+            flash(warning)
+
+        camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+        work = Work(
+            title=work_title,
+            normalized_title=normalized_title,
+            camp_id=camp.id if camp else None,
+            contract_date=contract_date,
+        )
+        db.session.add(work)
+        db.session.flush()
 
         zip_buffer = io.BytesIO()
 
@@ -1104,7 +1289,7 @@ def formulario():
 
                 if writer:
                     if not writer.ipi and row["ipi"]:
-                        writer.ipi = row["ipi"]
+                        writer.ipi = row["ipi"] or None
                     if not writer.pro and row["pro"]:
                         writer.pro = row["pro"]
                     if not writer.address and row["address"]:
@@ -1115,13 +1300,16 @@ def formulario():
                         writer.state = row["state"]
                     if not writer.zip_code and row["zip_code"]:
                         writer.zip_code = row["zip_code"]
+                    if not writer.writer_aka and row["writer_aka"]:
+                        writer.writer_aka = row["writer_aka"]
                 else:
                     writer = Writer(
                         first_name=row["first_name"],
                         middle_name=row["middle_name"],
                         last_names=row["last_names"],
                         full_name=row["full_name"],
-                        ipi=row["ipi"],
+                        writer_aka=row["writer_aka"],
+                        ipi=row["ipi"] or None,
                         pro=row["pro"],
                         address=row["address"],
                         city=row["city"],
@@ -1170,15 +1358,7 @@ def formulario():
             mimetype="application/zip",
         )
 
-    camps = Camp.query.order_by(Camp.name.asc()).all()
-    return render_template_string(
-        FORM_HTML,
-        camps=camps,
-        default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
-        default_publisher_city=DEFAULT_PUBLISHER_CITY,
-        default_publisher_state=DEFAULT_PUBLISHER_STATE,
-        default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
-    )
+    return render_template_string(FORM_HTML, **collect_form_context())
 
 
 @app.route("/writers/search")
@@ -1200,6 +1380,7 @@ def search_writers():
                 func.lower(Writer.first_name).like(like_q),
                 func.lower(Writer.middle_name).like(like_q),
                 func.lower(Writer.last_names).like(like_q),
+                func.lower(Writer.writer_aka).like(like_q),
                 func.lower(Writer.ipi).like(like_q),
             )
         )
@@ -1215,7 +1396,8 @@ def search_writers():
             "middle_name": writer.middle_name,
             "last_names": writer.last_names,
             "full_name": writer.full_name,
-            "ipi": writer.ipi,
+            "writer_aka": writer.writer_aka,
+            "ipi": writer.ipi or "",
             "pro": writer.pro,
             "address": writer.address,
             "city": writer.city,
