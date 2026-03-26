@@ -506,13 +506,8 @@ function syncPublisherFromPro(selectEl) {
 
   if (!selected) return;
 
-  if (!publisherInput.value.trim()) {
-    publisherInput.value = selected.name;
-  }
-
-  if (!publisherIpiInput.value.trim()) {
-    publisherIpiInput.value = selected.ipi;
-  }
+  publisherInput.value = selected.name;
+  publisherIpiInput.value = selected.ipi;
 }
 
 function getFullNameFromRow(row) {
