@@ -1828,7 +1828,8 @@ def generate_batch_documents(batch_id):
                         mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     )
                 except Exception as e:
-                    flash(f"Drive upload failed for {file_name}: {e}")
+    print("DRIVE UPLOAD ERROR:", e)
+    flash(f"Drive upload failed for {file_name}: {e}")
 
             doc_record = ContractDocument(
                 batch_id=batch.id,
