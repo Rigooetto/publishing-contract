@@ -497,6 +497,7 @@ function syncPublisherFromPro(selectEl) {
 
   if (!selected) return;
 
+  // ALWAYS update (this fixes your issue)
   publisherInput.value = selected.name;
   publisherIpiInput.value = selected.ipi;
 }
