@@ -537,9 +537,11 @@ function fillWriterRow(row, writer) {
   row.querySelector('.writer-city').value = writer.city || '';
   row.querySelector('.writer-state').value = writer.state || '';
   row.querySelector('.writer-zip').value = writer.zip_code || '';
+
   const publisherData = proPublisherMap[writer.pro] || {};
-row.querySelector('.writer-publisher').value = writer.default_publisher || publisherData.name || '';
-row.querySelector('.writer-publisher-ipi').value = writer.default_publisher_ipi || publisherData.ipi || '';
+  row.querySelector('.writer-publisher').value = writer.default_publisher || publisherData.name || '';
+  row.querySelector('.writer-publisher-ipi').value = writer.default_publisher_ipi || publisherData.ipi || '';
+
   setRowStatus(
     row,
     'Existing Writer',
@@ -1233,7 +1235,7 @@ def search_writers():
             "zip_code": writer.zip_code,
             "has_master_contract": writer.has_master_contract,
             "default_publisher": default_publisher_for_pro(writer.pro),
-"default_publisher_ipi": default_publisher_ipi_for_pro(writer.pro),
+            "default_publisher_ipi": default_publisher_ipi_for_pro(writer.pro),
         }
         for writer in writers
     ])
