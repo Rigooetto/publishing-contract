@@ -495,9 +495,10 @@ function syncPublisherFromPro(selectEl) {
   const publisherIpiInput = row.querySelector('.writer-publisher-ipi');
   const selected = proPublisherMap[selectEl.value];
 
+  console.log('PRO changed:', selectEl.value, selected);
+
   if (!selected) return;
 
-  // ALWAYS update (this fixes your issue)
   publisherInput.value = selected.name;
   publisherIpiInput.value = selected.ipi;
 }
