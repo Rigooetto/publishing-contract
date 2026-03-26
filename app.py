@@ -1819,17 +1819,18 @@ def generate_batch_documents(batch_id):
             zip_file.writestr(file_name, file_bytes)
 
             drive_info = {"file_id": None, "web_view_link": None}
-           if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
-               try:
-                  drive_info = upload_bytes_to_drive(
-                  file_name=file_name,
-                  file_bytes=file_bytes,
-                  parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
-                  mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                   )
-               except Exception as e:
-                 print("DRIVE UPLOAD ERROR:", e)
-                 flash(f"Drive upload failed for {file_name}: {e}")
+            
+            if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
+                try:
+                    drive_info = upload_bytes_to_drive(
+                    file_name=file_name,
+                    file_bytes=file_bytes,
+                    parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                    mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                except Exception as e:
+                    print("DRIVE UPLOAD ERROR:", e)
+                    flash(f"Drive upload failed for {file_name}: {e}")
 
             doc_record = ContractDocument(
                 batch_id=batch.id,
