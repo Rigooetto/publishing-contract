@@ -3,9 +3,13 @@ from docx import Document
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, or_
 from babel.dates import format_date
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 import io
 import os
 import re
+import json
 import zipfile
 import datetime
 
@@ -21,6 +25,7 @@ if raw_db_url.startswith("postgresql://") and "sslmode=" not in raw_db_url:
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB upload limit
 
 db = SQLAlchemy(app)
 
@@ -42,6 +47,9 @@ DEFAULT_PUBLISHER_ADDRESS = "3840 E. Miraloma Ave"
 DEFAULT_PUBLISHER_CITY = "Anaheim"
 DEFAULT_PUBLISHER_STATE = "CA"
 DEFAULT_PUBLISHER_ZIP = "92806"
+
+GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -106,6 +114,38 @@ def default_publisher_ipi_for_pro(pro: str) -> str:
         "ASCAP": "807953316",
         "SESAC": "817094629",
     }.get((pro or "").strip(), "")
+
+
+def get_drive_service():
+    if not GOOGLE_SERVICE_ACCOUNT_JSON:
+        raise ValueError("Missing GOOGLE_SERVICE_ACCOUNT_JSON")
+
+    info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
+    credentials = service_account.Credentials.from_service_account_info(
+        info,
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+
+def upload_bytes_to_drive(file_name: str, file_bytes: bytes, parent_folder_id: str, mime_type: str):
+    service = get_drive_service()
+
+    media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=False)
+    metadata = {"name": file_name}
+    if parent_folder_id:
+        metadata["parents"] = [parent_folder_id]
+
+    created = service.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id, webViewLink"
+    ).execute()
+
+    return {
+        "file_id": created.get("id"),
+        "web_view_link": created.get("webViewLink"),
+    }
 
 
 class Camp(db.Model):
@@ -202,6 +242,15 @@ class ContractDocument(db.Model):
     writer_name_snapshot = db.Column(db.String(250), nullable=False)
     work_title_snapshot = db.Column(db.String(255), nullable=False)
 
+    drive_file_id = db.Column(db.String(255), nullable=True)
+    drive_web_view_link = db.Column(db.String(500), nullable=True)
+
+    signed_file_name = db.Column(db.String(255), nullable=True)
+    signed_drive_file_id = db.Column(db.String(255), nullable=True)
+    signed_web_view_link = db.Column(db.String(500), nullable=True)
+    signed_uploaded_at = db.Column(db.DateTime, nullable=True)
+
+    status = db.Column(db.String(50), default="generated")
     generated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     writer = db.relationship("Writer", backref="contract_documents")
@@ -922,13 +971,21 @@ BATCH_DETAIL_HTML = """
 </head>
 <body class="bg-light">
 <div class="container py-4">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-warning">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Batch {{ batch.id }}</h2>
     <div class="d-flex gap-2">
       <a href="{{ url_for('batches_list') }}" class="btn btn-outline-secondary">Back</a>
       <form method="post" action="{{ url_for('generate_batch_documents', batch_id=batch.id) }}">
-  <button class="btn btn-success">Generate Batch Documents</button>
-</form>
+        <button class="btn btn-success">Generate Batch Documents</button>
+      </form>
     </div>
   </div>
 
@@ -1011,15 +1068,17 @@ BATCH_DETAIL_HTML = """
   <div class="card shadow-sm">
     <div class="card-body">
       <h5>Generated Documents</h5>
-      <p class="text-muted">Document generation by writer batch will be added in Build 2B.</p>
       <div class="table-responsive">
-        <table class="table table-striped">
+        <table class="table table-striped align-middle">
           <thead>
             <tr>
               <th>Writer</th>
               <th>Document Type</th>
               <th>File Name</th>
-              <th>Generated At</th>
+              <th>Generated</th>
+              <th>Upload Signed</th>
+              <th>Signed</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -1028,11 +1087,31 @@ BATCH_DETAIL_HTML = """
                 <td>{{ doc.writer_name_snapshot }}</td>
                 <td>{{ doc.document_type }}</td>
                 <td>{{ doc.file_name }}</td>
-                <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                  {% if doc.drive_web_view_link %}
+                    <a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-primary">Open</a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td style="min-width: 220px;">
+                  <form method="post" action="{{ url_for('upload_signed_document', document_id=doc.id) }}" enctype="multipart/form-data">
+                    <input type="file" name="signed_file" class="form-control form-control-sm mb-1" required>
+                    <button class="btn btn-sm btn-outline-success">Upload</button>
+                  </form>
+                </td>
+                <td>
+                  {% if doc.signed_web_view_link %}
+                    <a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Signed</a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>{{ doc.status }}</td>
               </tr>
             {% endfor %}
             {% if not documents %}
-              <tr><td colspan="4" class="text-center text-muted">No documents generated for this batch yet.</td></tr>
+              <tr><td colspan="7" class="text-center text-muted">No documents generated for this batch yet.</td></tr>
             {% endif %}
           </tbody>
         </table>
@@ -1387,7 +1466,6 @@ def formulario():
             flash(f"Total writer split must equal 100%. Current total: {total_split:.2f}%")
             return render_template_string(FORM_HTML, **collect_form_context())
 
-        # Duplicate protection inside current submission
         seen_writer_ids = set()
         seen_ipis = set()
         seen_names = set()
@@ -1417,7 +1495,6 @@ def formulario():
 
         warnings = []
 
-        # Hard block duplicate IPI against existing DB when not explicitly selecting that writer
         for row in writer_rows:
             if row["ipi"]:
                 existing_ipi_writer = Writer.query.filter(func.lower(Writer.ipi) == row["ipi"].lower()).first()
@@ -1427,7 +1504,6 @@ def formulario():
                         flash(f"IPI {row['ipi']} already belongs to {existing_ipi_writer.full_name}. Please select the existing writer.")
                         return render_template_string(FORM_HTML, **collect_form_context())
 
-        # Warning only: same name exists with no IPI
         for row in writer_rows:
             if not row["ipi"]:
                 existing_name_writer = Writer.query.filter(
@@ -1436,7 +1512,6 @@ def formulario():
                 if existing_name_writer:
                     warnings.append(f"Writer '{row['full_name']}' already exists in the system without using an IPI match.")
 
-        # Duplicate work detection
         normalized_title = normalize_title(work_title)
         writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
 
@@ -1646,6 +1721,7 @@ def batch_detail(batch_id):
         writer_summary=writer_summary,
     )
 
+
 @app.route("/batches/<int:batch_id>/generate", methods=["POST"])
 def generate_batch_documents(batch_id):
     if auth_required():
@@ -1665,7 +1741,6 @@ def generate_batch_documents(batch_id):
         flash("No works found in this batch.")
         return redirect(url_for("batch_detail", batch_id=batch.id))
 
-    # Group by writer
     grouped = {}
     for ww in work_writers:
         if ww.writer_id not in grouped:
@@ -1675,7 +1750,6 @@ def generate_batch_documents(batch_id):
             }
         grouped[ww.writer_id]["rows"].append(ww)
 
-    # Delete old generated docs for this batch before regenerating
     existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
     for doc in existing_docs:
         db.session.delete(doc)
@@ -1737,11 +1811,24 @@ def generate_batch_documents(batch_id):
             }
 
             file_buffer = render_docx_template(template_path, data, works_for_table=works_for_table)
+            file_bytes = file_buffer.getvalue()
 
             batch_label = batch.camp.name if batch.camp else f"batch_{batch.id}"
             file_name = f"{prefix}_{slugify(writer.full_name)}_{slugify(batch_label)}_{batch.contract_date.isoformat()}.docx"
 
-            zip_file.writestr(file_name, file_buffer.getvalue())
+            zip_file.writestr(file_name, file_bytes)
+
+            drive_info = {"file_id": None, "web_view_link": None}
+            if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
+                try:
+                    drive_info = upload_bytes_to_drive(
+                        file_name=file_name,
+                        file_bytes=file_bytes,
+                        parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                except Exception as e:
+                    flash(f"Drive upload failed for {file_name}: {e}")
 
             doc_record = ContractDocument(
                 batch_id=batch.id,
@@ -1751,6 +1838,9 @@ def generate_batch_documents(batch_id):
                 file_name=file_name,
                 writer_name_snapshot=writer.full_name,
                 work_title_snapshot=", ".join(sorted({ww.work.title for ww in rows})),
+                drive_file_id=drive_info["file_id"],
+                drive_web_view_link=drive_info["web_view_link"],
+                status="generated",
             )
             db.session.add(doc_record)
 
@@ -1768,6 +1858,55 @@ def generate_batch_documents(batch_id):
         download_name=zip_name,
         mimetype="application/zip",
     )
+
+
+@app.route("/documents/<int:document_id>/upload-signed", methods=["POST"])
+def upload_signed_document(document_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    document = ContractDocument.query.get_or_404(document_id)
+    uploaded_file = request.files.get("signed_file")
+
+    if not uploaded_file or not uploaded_file.filename:
+        flash("Please choose a signed file to upload.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    if not GOOGLE_DRIVE_FOLDER_ID or not GOOGLE_SERVICE_ACCOUNT_JSON:
+        flash("Google Drive is not configured yet.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    file_bytes = uploaded_file.read()
+    file_name = uploaded_file.filename
+    mime_type = uploaded_file.mimetype or "application/octet-stream"
+
+    try:
+        drive_info = upload_bytes_to_drive(
+            file_name=file_name,
+            file_bytes=file_bytes,
+            parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+            mime_type=mime_type,
+        )
+    except Exception as e:
+        flash(f"Signed upload failed: {e}")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    document.signed_file_name = file_name
+    document.signed_drive_file_id = drive_info["file_id"]
+    document.signed_web_view_link = drive_info["web_view_link"]
+    document.signed_uploaded_at = datetime.datetime.utcnow()
+    document.status = "signed_uploaded"
+
+    batch_docs = ContractDocument.query.filter_by(batch_id=document.batch_id).all()
+    if batch_docs and all(doc.status == "signed_uploaded" for doc in batch_docs):
+        document.batch.status = "signed_complete"
+    else:
+        document.batch.status = "signed_partial"
+
+    db.session.commit()
+    flash("Signed file uploaded successfully.")
+    return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id: int):
