@@ -358,18 +358,9 @@ FORM_HTML = """
 
 <script>
 const proPublisherMap = {
-  BMI: {
-    name: 'Songs of Afinarte',
-    ipi: '817874992'
-  },
-  ASCAP: {
-    name: 'Melodies of Afinarte',
-    ipi: '807953316'
-  },
-  SESAC: {
-    name: 'Music of Afinarte',
-    ipi: '817094629'
-  }
+  BMI: { name: 'Songs of Afinarte', ipi: '817874992' },
+  ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
+  SESAC: { name: 'Music of Afinarte', ipi: '817094629' }
 };
 
 const defaultPublisherAddress = "{{ default_publisher_address }}";
