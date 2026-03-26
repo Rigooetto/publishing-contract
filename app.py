@@ -424,29 +424,48 @@ FORM_HTML = """
         <input type="hidden" name="force_create" value="{{ force_create or '' }}">
 
         <h4>Work</h4>
-        <div class="row mb-4">
-          <div class="col-md-3">
-            <label class="form-label">Camp</label>
-            <select class="form-control" name="camp_id">
-              <option value="">Select existing camp</option>
-              {% for camp in camps %}
-                <option value="{{ camp.id }}">{{ camp.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Or Create New Camp</label>
-            <input class="form-control" name="new_camp_name" placeholder="New Camp Name">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Work Title</label>
-            <input class="form-control" name="work_title" required placeholder="Work Title">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Contract Date</label>
-            <input class="form-control" name="contract_date" type="date" required>
-          </div>
-        </div>
+
+<div class="row mb-4">
+  <div class="col-md-4">
+    <label class="form-label">Add to Existing Batch</label>
+    <select class="form-control" name="existing_batch_id">
+      <option value="">Create new batch</option>
+      {% for batch in batches %}
+        <option value="{{ batch.id }}">
+          Batch {{ batch.id }}
+          {% if batch.camp %} — {{ batch.camp.name }}{% endif %}
+          — {{ batch.contract_date.strftime('%Y-%m-%d') }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Camp</label>
+    <select class="form-control" name="camp_id">
+      <option value="">Select existing camp</option>
+      {% for camp in camps %}
+        <option value="{{ camp.id }}">{{ camp.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Or Create New Camp</label>
+    <input class="form-control" name="new_camp_name" placeholder="New Camp Name">
+  </div>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-6">
+    <label class="form-label">Work Title</label>
+    <input class="form-control" name="work_title" required placeholder="Work Title">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Contract Date</label>
+    <input class="form-control" name="contract_date" type="date" required>
+  </div>
+</div>
 
         <h4>Writers</h4>
         <div id="writerRows"></div>
@@ -1321,6 +1340,7 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
 def collect_form_context():
     return {
         "camps": Camp.query.order_by(Camp.name.asc()).all(),
+        "batches": GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all(),
         "default_publisher_address": DEFAULT_PUBLISHER_ADDRESS,
         "default_publisher_city": DEFAULT_PUBLISHER_CITY,
         "default_publisher_state": DEFAULT_PUBLISHER_STATE,
@@ -1546,16 +1566,27 @@ def formulario():
         for warning in warnings:
             flash(warning)
 
-        camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+        existing_batch_id = (request.form.get("existing_batch_id") or "").strip()
+        
+        if existing_batch_id:
+            batch = GenerationBatch.query.get(int(existing_batch_id))
+            if not batch:
+                flash("Selected batch was not found.")
+                return render_template_string(FORM_HTML, **collect_form_context())
 
-        batch = GenerationBatch(
-            camp_id=camp.id if camp else None,
-            contract_date=contract_date,
-            created_by="",
-            status="draft",
-        )
-        db.session.add(batch)
-        db.session.flush()
+            camp = batch.camp
+            contract_date = batch.contract_date
+        else:
+            camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+
+            batch = GenerationBatch(
+                camp_id=camp.id if camp else None,
+                contract_date=contract_date,
+                created_by="",
+                status="draft",
+            )
+            db.session.add(batch)
+            db.session.flush()
 
         work = Work(
             title=work_title,
