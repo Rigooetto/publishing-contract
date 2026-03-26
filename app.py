@@ -1828,6 +1828,7 @@ def generate_batch_documents(batch_id):
                     parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
                     mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     )
+                    print("✅ Uploaded to Drive:", drive_info)
                 except Exception as e:
                     import traceback
                     print("🚨 DRIVE UPLOAD ERROR 🚨")
