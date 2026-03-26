@@ -38,6 +38,11 @@ OUTPUT_DIR = os.getenv("OUTPUT_DIR", "generated_contracts")
 TEAM_USERNAME = os.getenv("TEAM_USERNAME")
 TEAM_PASSWORD = os.getenv("TEAM_PASSWORD")
 
+DEFAULT_PUBLISHER_ADDRESS = "3840 E. Miraloma Ave"
+DEFAULT_PUBLISHER_CITY = "Anaheim"
+DEFAULT_PUBLISHER_STATE = "CA"
+DEFAULT_PUBLISHER_ZIP = "92806"
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
@@ -133,8 +138,12 @@ class ContractDocument(db.Model):
     work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
     writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
 
-    document_type = db.Column(db.String(50), nullable=False)  # full_contract / schedule_1
+    document_type = db.Column(db.String(50), nullable=False)
     file_name = db.Column(db.String(255), nullable=False)
+
+    writer_name_snapshot = db.Column(db.String(250), nullable=False)
+    work_title_snapshot = db.Column(db.String(255), nullable=False)
+
     generated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     writer = db.relationship("Writer", backref="contract_documents")
@@ -295,7 +304,7 @@ FORM_HTML = """
       </div>
 
       <div class="sticky-summary">
-        <strong>Split Total:</strong> <span id="splitTotal">0.00</span>% 
+        <strong>Split Total:</strong> <span id="splitTotal">0.00</span>%
         <span id="splitStatus" class="ms-2 badge text-bg-secondary">Incomplete</span>
       </div>
 
@@ -318,6 +327,26 @@ FORM_HTML = """
           <div class="col-md-4">
             <label class="form-label">Work Title</label>
             <input class="form-control" name="work_title" required placeholder="Work Title">
+          </div>
+        </div>
+
+        <h4>Publisher Address</h4>
+        <div class="row mb-4">
+          <div class="col-md-5">
+            <label class="form-label">Publisher Address</label>
+            <input class="form-control" name="publisher_address" value="{{ default_publisher_address }}" placeholder="Publisher Address">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Publisher City</label>
+            <input class="form-control" name="publisher_city" value="{{ default_publisher_city }}" placeholder="Publisher City">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Publisher State</label>
+            <input class="form-control" name="publisher_state" value="{{ default_publisher_state }}" placeholder="Publisher State">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Publisher Zip Code</label>
+            <input class="form-control" name="publisher_zip_code" value="{{ default_publisher_zip }}" placeholder="Publisher Zip Code">
           </div>
         </div>
 
@@ -743,7 +772,7 @@ WORK_DETAIL_HTML = """
           <tbody>
             {% for doc in documents %}
               <tr>
-                <td>{{ doc.writer.full_name }}</td>
+                <td>{{ doc.writer_name_snapshot }}</td>
                 <td>{{ doc.document_type }}</td>
                 <td>{{ doc.file_name }}</td>
                 <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
@@ -786,22 +815,11 @@ def get_or_create_camp(existing_camp_id: str, new_camp_name: str):
     return None
 
 
-def find_existing_writer(selected_writer_id: str, full_name: str, ipi: str):
+def find_existing_writer(selected_writer_id: str):
     if selected_writer_id:
         writer = Writer.query.get(int(selected_writer_id))
         if writer:
             return writer
-
-    if ipi:
-        writer = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
-        if writer:
-            return writer
-
-    if full_name:
-        writer = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
-        if writer:
-            return writer
-
     return None
 
 
@@ -812,13 +830,13 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
     doc = Document(template_path)
 
     def replace_all(paragraph):
-      text = "".join(run.text for run in paragraph.runs)
-      for k, v in data.items():
-          text = text.replace(f"[[{k}]]", str(v))
-      for run in paragraph.runs:
-          run.text = ""
-      if paragraph.runs:
-          paragraph.runs[0].text = text
+        text = "".join(run.text for run in paragraph.runs)
+        for k, v in data.items():
+            text = text.replace(f"[[{k}]]", str(v))
+        for run in paragraph.runs:
+            run.text = ""
+        if paragraph.runs:
+            paragraph.runs[0].text = text
 
     for p in doc.paragraphs:
         replace_all(p)
@@ -856,7 +874,7 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
     return buffer
 
 
-def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter):
+def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter, publisher_address_data: dict):
     today = datetime.datetime.utcnow().date()
     day = today.day
     suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
@@ -875,11 +893,15 @@ def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter):
         "WriterZipCode": writer.zip_code,
         "PRO": writer.pro,
         "PublisherName": work_writer.publisher or "",
+        "PublisherAddress": publisher_address_data["publisher_address"],
+        "PublisherCity": publisher_address_data["publisher_city"],
+        "PublisherState": publisher_address_data["publisher_state"],
+        "PublisherZipCode": publisher_address_data["publisher_zip_code"],
         "WorkTitle": work.title,
     }
 
 
-def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter):
+def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter, publisher_address_data: dict):
     if writer.has_master_contract:
         document_type = "schedule_1"
         template_path = SCHEDULE_1_TEMPLATE
@@ -887,7 +909,7 @@ def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter
         document_type = "full_contract"
         template_path = FULL_CONTRACT_TEMPLATE
 
-    data = build_document_data(writer, work, work_writer)
+    data = build_document_data(writer, work, work_writer, publisher_address_data)
     works_for_table = [{
         "work_title": work.title,
         "writer_name": writer.full_name,
@@ -939,7 +961,21 @@ def formulario():
         work_title = (request.form.get("work_title") or "").strip()
         if not work_title:
             flash("Work title is required.")
-            return render_template_string(FORM_HTML, camps=Camp.query.order_by(Camp.name.asc()).all())
+            return render_template_string(
+                FORM_HTML,
+                camps=Camp.query.order_by(Camp.name.asc()).all(),
+                default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                default_publisher_city=DEFAULT_PUBLISHER_CITY,
+                default_publisher_state=DEFAULT_PUBLISHER_STATE,
+                default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
+            )
+
+        publisher_address_data = {
+            "publisher_address": (request.form.get("publisher_address") or DEFAULT_PUBLISHER_ADDRESS).strip(),
+            "publisher_city": (request.form.get("publisher_city") or DEFAULT_PUBLISHER_CITY).strip(),
+            "publisher_state": (request.form.get("publisher_state") or DEFAULT_PUBLISHER_STATE).strip(),
+            "publisher_zip_code": (request.form.get("publisher_zip_code") or DEFAULT_PUBLISHER_ZIP).strip(),
+        }
 
         camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
         work = Work(title=work_title, camp_id=camp.id if camp else None)
@@ -974,7 +1010,14 @@ def formulario():
             split_value = parse_float(percentages[idx] if idx < len(percentages) else "0")
             if split_value <= 0:
                 flash(f"Writer '{full_name}' must have a split greater than 0.")
-                return render_template_string(FORM_HTML, camps=Camp.query.order_by(Camp.name.asc()).all())
+                return render_template_string(
+                    FORM_HTML,
+                    camps=Camp.query.order_by(Camp.name.asc()).all(),
+                    default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                    default_publisher_city=DEFAULT_PUBLISHER_CITY,
+                    default_publisher_state=DEFAULT_PUBLISHER_STATE,
+                    default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
+                )
 
             total_split += split_value
 
@@ -996,29 +1039,45 @@ def formulario():
 
         if not writer_rows:
             flash("Add at least one writer.")
-            return render_template_string(FORM_HTML, camps=Camp.query.order_by(Camp.name.asc()).all())
+            return render_template_string(
+                FORM_HTML,
+                camps=Camp.query.order_by(Camp.name.asc()).all(),
+                default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                default_publisher_city=DEFAULT_PUBLISHER_CITY,
+                default_publisher_state=DEFAULT_PUBLISHER_STATE,
+                default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
+            )
 
         if abs(total_split - 100.0) >= 0.001:
             flash(f"Total writer split must equal 100%. Current total: {total_split:.2f}%")
-            return render_template_string(FORM_HTML, camps=Camp.query.order_by(Camp.name.asc()).all())
+            return render_template_string(
+                FORM_HTML,
+                camps=Camp.query.order_by(Camp.name.asc()).all(),
+                default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                default_publisher_city=DEFAULT_PUBLISHER_CITY,
+                default_publisher_state=DEFAULT_PUBLISHER_STATE,
+                default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
+            )
 
         zip_buffer = io.BytesIO()
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for row in writer_rows:
-                writer = find_existing_writer(row["selected_writer_id"], row["full_name"], row["ipi"])
+                writer = find_existing_writer(row["selected_writer_id"])
 
                 if writer:
-                    writer.first_name = row["first_name"]
-                    writer.middle_name = row["middle_name"]
-                    writer.last_names = row["last_names"]
-                    writer.full_name = row["full_name"]
-                    writer.ipi = row["ipi"]
-                    writer.pro = row["pro"]
-                    writer.address = row["address"]
-                    writer.city = row["city"]
-                    writer.state = row["state"]
-                    writer.zip_code = row["zip_code"]
+                    if not writer.ipi and row["ipi"]:
+                        writer.ipi = row["ipi"]
+                    if not writer.pro and row["pro"]:
+                        writer.pro = row["pro"]
+                    if not writer.address and row["address"]:
+                        writer.address = row["address"]
+                    if not writer.city and row["city"]:
+                        writer.city = row["city"]
+                    if not writer.state and row["state"]:
+                        writer.state = row["state"]
+                    if not writer.zip_code and row["zip_code"]:
+                        writer.zip_code = row["zip_code"]
                 else:
                     writer = Writer(
                         first_name=row["first_name"],
@@ -1045,7 +1104,12 @@ def formulario():
                 db.session.add(work_writer)
                 db.session.flush()
 
-                document_type, file_name, file_buffer = generate_writer_document(writer, work, work_writer)
+                document_type, file_name, file_buffer = generate_writer_document(
+                    writer,
+                    work,
+                    work_writer,
+                    publisher_address_data,
+                )
                 zip_file.writestr(file_name, file_buffer.getvalue())
 
                 doc_record = ContractDocument(
@@ -1053,6 +1117,8 @@ def formulario():
                     writer_id=writer.id,
                     document_type=document_type,
                     file_name=file_name,
+                    writer_name_snapshot=writer.full_name,
+                    work_title_snapshot=work.title,
                 )
                 db.session.add(doc_record)
 
@@ -1068,7 +1134,14 @@ def formulario():
         )
 
     camps = Camp.query.order_by(Camp.name.asc()).all()
-    return render_template_string(FORM_HTML, camps=camps)
+    return render_template_string(
+        FORM_HTML,
+        camps=camps,
+        default_publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+        default_publisher_city=DEFAULT_PUBLISHER_CITY,
+        default_publisher_state=DEFAULT_PUBLISHER_STATE,
+        default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
+    )
 
 
 @app.route("/writers/search")
@@ -1154,4 +1227,3 @@ except Exception as e:
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
-    
