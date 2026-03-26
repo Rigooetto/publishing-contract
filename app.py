@@ -125,7 +125,13 @@ class WorkWriter(db.Model):
     writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
 
     writer_percentage = db.Column(db.Float, default=0.0)
+
     publisher = db.Column(db.String(255), default="")
+    publisher_ipi = db.Column(db.String(50), default="")
+    publisher_address = db.Column(db.String(255), default="")
+    publisher_city = db.Column(db.String(100), default="")
+    publisher_state = db.Column(db.String(100), default="")
+    publisher_zip_code = db.Column(db.String(20), default="")
 
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
@@ -217,7 +223,7 @@ FORM_HTML = """
     .card { border-radius: 18px; }
     h4 { margin-top: 8px; margin-bottom: 14px; font-weight: 700; }
     .form-label { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
-    .card-body { max-width: 1200px; margin: 0 auto; }
+    .card-body { max-width: 1250px; margin: 0 auto; }
     .writer-row {
       border: 1px solid #e9ecef;
       border-radius: 14px;
@@ -330,26 +336,6 @@ FORM_HTML = """
           </div>
         </div>
 
-        <h4>Publisher Address</h4>
-        <div class="row mb-4">
-          <div class="col-md-5">
-            <label class="form-label">Publisher Address</label>
-            <input class="form-control" name="publisher_address" value="{{ default_publisher_address }}" placeholder="Publisher Address">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Publisher City</label>
-            <input class="form-control" name="publisher_city" value="{{ default_publisher_city }}" placeholder="Publisher City">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Publisher State</label>
-            <input class="form-control" name="publisher_state" value="{{ default_publisher_state }}" placeholder="Publisher State">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Publisher Zip Code</label>
-            <input class="form-control" name="publisher_zip_code" value="{{ default_publisher_zip }}" placeholder="Publisher Zip Code">
-          </div>
-        </div>
-
         <h4>Writers</h4>
         <div id="writerRows"></div>
 
@@ -368,6 +354,11 @@ const proPublisherMap = {
   ASCAP: 'Melodies of Afinarte',
   SESAC: 'Music of Afinarte'
 };
+
+const defaultPublisherAddress = "{{ default_publisher_address }}";
+const defaultPublisherCity = "{{ default_publisher_city }}";
+const defaultPublisherState = "{{ default_publisher_state }}";
+const defaultPublisherZip = "{{ default_publisher_zip }}";
 
 let writerRowIndex = 0;
 
@@ -432,8 +423,31 @@ function writerRowTemplate(index) {
       </div>
 
       <div class="row mt-3">
+        <div class="col-md-3">
+          <label class="form-label">Publisher IPI</label>
+          <input class="form-control writer-publisher-ipi" name="publisher_ipi" placeholder="Publisher IPI">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Publisher Address</label>
+          <input class="form-control writer-publisher-address" name="publisher_address" value="${defaultPublisherAddress}" placeholder="Publisher Address">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Publisher City</label>
+          <input class="form-control writer-publisher-city" name="publisher_city" value="${defaultPublisherCity}" placeholder="Publisher City">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label">State</label>
+          <input class="form-control writer-publisher-state" name="publisher_state" value="${defaultPublisherState}" placeholder="State">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label">Zip</label>
+          <input class="form-control writer-publisher-zip" name="publisher_zip_code" value="${defaultPublisherZip}" placeholder="Zip">
+        </div>
+      </div>
+
+      <div class="row mt-3">
         <div class="col-md-6">
-          <label class="form-label">Address</label>
+          <label class="form-label">Writer Address</label>
           <input class="form-control writer-address" name="writer_address" placeholder="Address">
         </div>
         <div class="col-md-2">
@@ -470,9 +484,8 @@ function removeWriterRow(button) {
 function syncPublisherFromPro(selectEl) {
   const row = selectEl.closest('.writer-row');
   const publisherInput = row.querySelector('.writer-publisher');
-  const selectedPro = selectEl.value;
-  if (selectedPro && !publisherInput.value.trim()) {
-    publisherInput.value = proPublisherMap[selectedPro] || '';
+  if (selectEl.value && !publisherInput.value.trim()) {
+    publisherInput.value = proPublisherMap[selectEl.value] || '';
   }
 }
 
@@ -736,6 +749,7 @@ WORK_DETAIL_HTML = """
               <th>PRO</th>
               <th>Split %</th>
               <th>Publisher</th>
+              <th>Publisher IPI</th>
               <th>Master Contract</th>
             </tr>
           </thead>
@@ -747,6 +761,7 @@ WORK_DETAIL_HTML = """
                 <td>{{ ww.writer.pro }}</td>
                 <td>{{ "%.2f"|format(ww.writer_percentage) }}</td>
                 <td>{{ ww.publisher }}</td>
+                <td>{{ ww.publisher_ipi }}</td>
                 <td>{{ 'Yes' if ww.writer.has_master_contract else 'No' }}</td>
               </tr>
             {% endfor %}
@@ -874,7 +889,7 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
     return buffer
 
 
-def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter, publisher_address_data: dict):
+def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter):
     today = datetime.datetime.utcnow().date()
     day = today.day
     suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
@@ -893,15 +908,16 @@ def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter, pub
         "WriterZipCode": writer.zip_code,
         "PRO": writer.pro,
         "PublisherName": work_writer.publisher or "",
-        "PublisherAddress": publisher_address_data["publisher_address"],
-        "PublisherCity": publisher_address_data["publisher_city"],
-        "PublisherState": publisher_address_data["publisher_state"],
-        "PublisherZipCode": publisher_address_data["publisher_zip_code"],
+        "PublisherIPI": work_writer.publisher_ipi or "",
+        "PublisherAddress": work_writer.publisher_address or "",
+        "PublisherCity": work_writer.publisher_city or "",
+        "PublisherState": work_writer.publisher_state or "",
+        "PublisherZipCode": work_writer.publisher_zip_code or "",
         "WorkTitle": work.title,
     }
 
 
-def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter, publisher_address_data: dict):
+def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter):
     if writer.has_master_contract:
         document_type = "schedule_1"
         template_path = SCHEDULE_1_TEMPLATE
@@ -909,7 +925,7 @@ def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter
         document_type = "full_contract"
         template_path = FULL_CONTRACT_TEMPLATE
 
-    data = build_document_data(writer, work, work_writer, publisher_address_data)
+    data = build_document_data(writer, work, work_writer)
     works_for_table = [{
         "work_title": work.title,
         "writer_name": writer.full_name,
@@ -970,13 +986,6 @@ def formulario():
                 default_publisher_zip=DEFAULT_PUBLISHER_ZIP,
             )
 
-        publisher_address_data = {
-            "publisher_address": (request.form.get("publisher_address") or DEFAULT_PUBLISHER_ADDRESS).strip(),
-            "publisher_city": (request.form.get("publisher_city") or DEFAULT_PUBLISHER_CITY).strip(),
-            "publisher_state": (request.form.get("publisher_state") or DEFAULT_PUBLISHER_STATE).strip(),
-            "publisher_zip_code": (request.form.get("publisher_zip_code") or DEFAULT_PUBLISHER_ZIP).strip(),
-        }
-
         camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
         work = Work(title=work_title, camp_id=camp.id if camp else None)
         db.session.add(work)
@@ -990,6 +999,11 @@ def formulario():
         pros = request.form.getlist("writer_pro")
         percentages = request.form.getlist("writer_percentage")
         publishers = request.form.getlist("writer_publisher")
+        publisher_ipis = request.form.getlist("publisher_ipi")
+        publisher_addresses = request.form.getlist("publisher_address")
+        publisher_cities = request.form.getlist("publisher_city")
+        publisher_states = request.form.getlist("publisher_state")
+        publisher_zips = request.form.getlist("publisher_zip_code")
         addresses = request.form.getlist("writer_address")
         cities = request.form.getlist("writer_city")
         states = request.form.getlist("writer_state")
@@ -1031,6 +1045,11 @@ def formulario():
                 "pro": (pros[idx] or "").strip(),
                 "writer_percentage": split_value,
                 "publisher": (publishers[idx] or "").strip(),
+                "publisher_ipi": (publisher_ipis[idx] or "").strip(),
+                "publisher_address": (publisher_addresses[idx] or DEFAULT_PUBLISHER_ADDRESS).strip(),
+                "publisher_city": (publisher_cities[idx] or DEFAULT_PUBLISHER_CITY).strip(),
+                "publisher_state": (publisher_states[idx] or DEFAULT_PUBLISHER_STATE).strip(),
+                "publisher_zip_code": (publisher_zips[idx] or DEFAULT_PUBLISHER_ZIP).strip(),
                 "address": (addresses[idx] or "").strip(),
                 "city": (cities[idx] or "").strip(),
                 "state": (states[idx] or "").strip(),
@@ -1100,16 +1119,16 @@ def formulario():
                     writer_id=writer.id,
                     writer_percentage=row["writer_percentage"],
                     publisher=row["publisher"],
+                    publisher_ipi=row["publisher_ipi"],
+                    publisher_address=row["publisher_address"],
+                    publisher_city=row["publisher_city"],
+                    publisher_state=row["publisher_state"],
+                    publisher_zip_code=row["publisher_zip_code"],
                 )
                 db.session.add(work_writer)
                 db.session.flush()
 
-                document_type, file_name, file_buffer = generate_writer_document(
-                    writer,
-                    work,
-                    work_writer,
-                    publisher_address_data,
-                )
+                document_type, file_name, file_buffer = generate_writer_document(writer, work, work_writer)
                 zip_file.writestr(file_name, file_buffer.getvalue())
 
                 doc_record = ContractDocument(
