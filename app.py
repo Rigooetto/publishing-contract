@@ -114,6 +114,19 @@ class Camp(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     works = db.relationship("Work", backref="camp", lazy=True)
+    batches = db.relationship("GenerationBatch", backref="camp", lazy=True)
+
+
+class GenerationBatch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    camp_id = db.Column(db.Integer, db.ForeignKey("camp.id"), nullable=True)
+    contract_date = db.Column(db.Date, nullable=False)
+    created_by = db.Column(db.String(100), default="")
+    status = db.Column(db.String(50), default="draft")  # draft / docs_generated / signed_partial / signed_complete
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    works = db.relationship("Work", backref="batch", lazy=True)
+    documents = db.relationship("ContractDocument", backref="batch", lazy=True)
 
 
 class Writer(db.Model):
@@ -148,6 +161,7 @@ class Work(db.Model):
     title = db.Column(db.String(255), nullable=False, index=True)
     normalized_title = db.Column(db.String(255), index=True, default="")
     camp_id = db.Column(db.Integer, db.ForeignKey("camp.id"), nullable=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
     contract_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
@@ -178,7 +192,8 @@ class WorkWriter(db.Model):
 class ContractDocument(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
+    batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
+    work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=True)
     writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
 
     document_type = db.Column(db.String(50), nullable=False)
@@ -336,10 +351,11 @@ FORM_HTML = """
       <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 class="mb-1">Create Work</h2>
-          <p class="text-muted mb-0">Create one work, add multiple writers, and generate the correct document per writer.</p>
+          <p class="text-muted mb-0">Create one work, add multiple writers, and save it into a batch for review.</p>
         </div>
         <div class="d-flex gap-2">
           <a href="{{ url_for('works_list') }}" class="btn btn-outline-primary btn-sm">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="btn btn-outline-primary btn-sm">Batches</a>
           {% if team_auth_enabled and session.get('logged_in') %}
             <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-sm">Log out</a>
           {% endif %}
@@ -384,7 +400,7 @@ FORM_HTML = """
 
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-outline-primary" onclick="addWriterRow()">Add Writer</button>
-          <button type="submit" class="btn btn-success">Create Work & Generate Documents</button>
+          <button type="submit" class="btn btn-success">Save Work to Batch</button>
         </div>
       </form>
     </div>
@@ -778,7 +794,10 @@ WORKS_LIST_HTML = """
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Works</h2>
-    <a href="{{ url_for('formulario') }}" class="btn btn-primary">Create Work</a>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('formulario') }}" class="btn btn-primary">Create Work</a>
+      <a href="{{ url_for('batches_list') }}" class="btn btn-outline-primary">Batches</a>
+    </div>
   </div>
 
   <div class="card shadow-sm">
@@ -800,6 +819,7 @@ WORKS_LIST_HTML = """
             <tr>
               <th>Work Title</th>
               <th>Camp</th>
+              <th>Batch</th>
               <th>Contract Date</th>
               <th>Writers</th>
               <th>Created</th>
@@ -811,6 +831,11 @@ WORKS_LIST_HTML = """
               <tr>
                 <td>{{ work.title }}</td>
                 <td>{{ work.camp.name if work.camp else '' }}</td>
+                <td>
+                  {% if work.batch_id %}
+                    <a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}">Batch {{ work.batch_id }}</a>
+                  {% endif %}
+                </td>
                 <td>{{ work.contract_date.strftime('%Y-%m-%d') if work.contract_date else '' }}</td>
                 <td>{{ work.work_writers|length }}</td>
                 <td>{{ work.created_at.strftime('%Y-%m-%d') }}</td>
@@ -818,7 +843,194 @@ WORKS_LIST_HTML = """
               </tr>
             {% endfor %}
             {% if not works %}
-              <tr><td colspan="6" class="text-center text-muted">No works found.</td></tr>
+              <tr><td colspan="7" class="text-center text-muted">No works found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+"""
+
+BATCHES_LIST_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Batches</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Batches</h2>
+    <a href="{{ url_for('formulario') }}" class="btn btn-primary">Create Work</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Batch</th>
+              <th>Camp</th>
+              <th>Contract Date</th>
+              <th>Status</th>
+              <th>Works</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for batch in batches %}
+              <tr>
+                <td>Batch {{ batch.id }}</td>
+                <td>{{ batch.camp.name if batch.camp else '' }}</td>
+                <td>{{ batch.contract_date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ batch.status }}</td>
+                <td>{{ batch.works|length }}</td>
+                <td>{{ batch.created_at.strftime('%Y-%m-%d') }}</td>
+                <td><a href="{{ url_for('batch_detail', batch_id=batch.id) }}" class="btn btn-sm btn-outline-secondary">View</a></td>
+              </tr>
+            {% endfor %}
+            {% if not batches %}
+              <tr><td colspan="7" class="text-center text-muted">No batches found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+"""
+
+BATCH_DETAIL_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Batch Detail</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Batch {{ batch.id }}</h2>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('batches_list') }}" class="btn btn-outline-secondary">Back</a>
+      <button class="btn btn-success" disabled>Generate Batch Documents (Build 2B)</button>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5>Batch Info</h5>
+      <p class="mb-1"><strong>Camp:</strong> {{ batch.camp.name if batch.camp else '—' }}</p>
+      <p class="mb-1"><strong>Contract Date:</strong> {{ batch.contract_date.strftime('%Y-%m-%d') }}</p>
+      <p class="mb-1"><strong>Status:</strong> {{ batch.status }}</p>
+      <p class="mb-0"><strong>Created:</strong> {{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5>Works in Batch</h5>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Work Title</th>
+              <th>Writers</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for work in works %}
+              <tr>
+                <td>{{ work.title }}</td>
+                <td>{{ work.work_writers|length }}</td>
+                <td>{{ work.created_at.strftime('%Y-%m-%d') }}</td>
+                <td><a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-sm btn-outline-secondary">View Work</a></td>
+              </tr>
+            {% endfor %}
+            {% if not works %}
+              <tr><td colspan="4" class="text-center text-muted">No works in this batch.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5>Writer Summary</h5>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Writer</th>
+              <th>AKA</th>
+              <th>IPI</th>
+              <th>PRO</th>
+              <th>Works in Batch</th>
+              <th>Master Contract</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in writer_summary %}
+              <tr>
+                <td>{{ item.writer.full_name }}</td>
+                <td>{{ item.writer.writer_aka }}</td>
+                <td>{{ item.writer.ipi or '' }}</td>
+                <td>{{ item.writer.pro }}</td>
+                <td>{{ item.work_count }}</td>
+                <td>{{ 'Yes' if item.writer.has_master_contract else 'No' }}</td>
+              </tr>
+            {% endfor %}
+            {% if not writer_summary %}
+              <tr><td colspan="6" class="text-center text-muted">No writers in this batch.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5>Generated Documents</h5>
+      <p class="text-muted">Document generation by writer batch will be added in Build 2B.</p>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Writer</th>
+              <th>Document Type</th>
+              <th>File Name</th>
+              <th>Generated At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in documents %}
+              <tr>
+                <td>{{ doc.writer_name_snapshot }}</td>
+                <td>{{ doc.document_type }}</td>
+                <td>{{ doc.file_name }}</td>
+                <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              </tr>
+            {% endfor %}
+            {% if not documents %}
+              <tr><td colspan="4" class="text-center text-muted">No documents generated for this batch yet.</td></tr>
             {% endif %}
           </tbody>
         </table>
@@ -843,13 +1055,25 @@ WORK_DETAIL_HTML = """
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">{{ work.title }}</h2>
-    <a href="{{ url_for('works_list') }}" class="btn btn-outline-secondary">Back</a>
+    <div class="d-flex gap-2">
+      {% if work.batch_id %}
+        <a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}" class="btn btn-outline-primary">View Batch</a>
+      {% endif %}
+      <a href="{{ url_for('works_list') }}" class="btn btn-outline-secondary">Back</a>
+    </div>
   </div>
 
   <div class="card shadow-sm mb-4">
     <div class="card-body">
       <h5>Work Info</h5>
       <p class="mb-1"><strong>Camp:</strong> {{ work.camp.name if work.camp else '—' }}</p>
+      <p class="mb-1"><strong>Batch:</strong>
+        {% if work.batch_id %}
+          <a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}">Batch {{ work.batch_id }}</a>
+        {% else %}
+          —
+        {% endif %}
+      </p>
       <p class="mb-1"><strong>Contract Date:</strong> {{ work.contract_date.strftime('%Y-%m-%d') if work.contract_date else '—' }}</p>
       <p class="mb-0"><strong>Created:</strong> {{ work.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
     </div>
@@ -1009,64 +1233,6 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
     return buffer
 
 
-def build_document_data(writer: Writer, work: Work, work_writer: WorkWriter):
-    contract_date = work.contract_date or datetime.datetime.utcnow().date()
-    day = contract_date.day
-    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-
-    return {
-        "Date": f"{contract_date.strftime('%B')} {day}{suffix}, {contract_date.year}",
-        "Fecha": format_date(contract_date, format="d 'de' MMMM 'del' y", locale="es"),
-        "WriterName": writer.full_name,
-        "WriterFirstName": writer.first_name,
-        "WriterMiddleName": writer.middle_name,
-        "WriterLastNames": writer.last_names,
-        "WriterAKA": writer.writer_aka or "",
-        "WriterIPI": writer.ipi or "",
-        "WriterAddress": writer.address,
-        "WriterCity": writer.city,
-        "WriterState": writer.state,
-        "WriterZipCode": writer.zip_code,
-        "PRO": writer.pro,
-        "PublisherName": work_writer.publisher or "",
-        "PublisherIPI": work_writer.publisher_ipi or "",
-        "PublisherAddress": work_writer.publisher_address or "",
-        "PublisherCity": work_writer.publisher_city or "",
-        "PublisherState": work_writer.publisher_state or "",
-        "PublisherZipCode": work_writer.publisher_zip_code or "",
-        "WorkTitle": work.title,
-    }
-
-
-def generate_writer_document(writer: Writer, work: Work, work_writer: WorkWriter):
-    if writer.has_master_contract:
-        document_type = "schedule_1"
-        template_path = SCHEDULE_1_TEMPLATE
-    else:
-        document_type = "full_contract"
-        template_path = FULL_CONTRACT_TEMPLATE
-
-    data = build_document_data(writer, work, work_writer)
-    works_for_table = [{
-        "work_title": work.title,
-        "writer_name": writer.full_name,
-        "writer_percentage": f"{work_writer.writer_percentage:.2f}%",
-        "publisher": work_writer.publisher or "",
-    }]
-
-    file_buffer = render_docx_template(template_path, data, works_for_table=works_for_table)
-
-    safe_writer = slugify(writer.full_name)
-    safe_work = slugify(work.title)
-    prefix = "S1" if document_type == "schedule_1" else "FULL"
-    file_name = f"{prefix}_{safe_writer}_{safe_work}.docx"
-
-    if document_type == "full_contract":
-        writer.has_master_contract = True
-
-    return document_type, file_name, file_buffer
-
-
 def collect_form_context():
     return {
         "camps": Camp.query.order_by(Camp.name.asc()).all(),
@@ -1076,6 +1242,34 @@ def collect_form_context():
         "default_publisher_zip": DEFAULT_PUBLISHER_ZIP,
         "force_create": request.form.get("force_create", ""),
     }
+
+
+def get_batch_writer_summary(batch_id: int):
+    work_writers = (
+        WorkWriter.query
+        .join(Work)
+        .filter(Work.batch_id == batch_id)
+        .all()
+    )
+
+    grouped = {}
+    for ww in work_writers:
+        if ww.writer_id not in grouped:
+            grouped[ww.writer_id] = {
+                "writer": ww.writer,
+                "work_titles": set(),
+            }
+        grouped[ww.writer_id]["work_titles"].add(ww.work.title)
+
+    summary = []
+    for item in grouped.values():
+        summary.append({
+            "writer": item["writer"],
+            "work_count": len(item["work_titles"]),
+        })
+
+    summary.sort(key=lambda x: x["writer"].full_name.lower())
+    return summary
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1272,91 +1466,77 @@ def formulario():
             flash(warning)
 
         camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+
+        batch = GenerationBatch(
+            camp_id=camp.id if camp else None,
+            contract_date=contract_date,
+            created_by="",
+            status="draft",
+        )
+        db.session.add(batch)
+        db.session.flush()
+
         work = Work(
             title=work_title,
             normalized_title=normalized_title,
             camp_id=camp.id if camp else None,
+            batch_id=batch.id,
             contract_date=contract_date,
         )
         db.session.add(work)
         db.session.flush()
 
-        zip_buffer = io.BytesIO()
+        for row in writer_rows:
+            writer = find_existing_writer(row["selected_writer_id"])
 
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for row in writer_rows:
-                writer = find_existing_writer(row["selected_writer_id"])
-
-                if writer:
-                    if not writer.ipi and row["ipi"]:
-                        writer.ipi = row["ipi"] or None
-                    if not writer.pro and row["pro"]:
-                        writer.pro = row["pro"]
-                    if not writer.address and row["address"]:
-                        writer.address = row["address"]
-                    if not writer.city and row["city"]:
-                        writer.city = row["city"]
-                    if not writer.state and row["state"]:
-                        writer.state = row["state"]
-                    if not writer.zip_code and row["zip_code"]:
-                        writer.zip_code = row["zip_code"]
-                    if not writer.writer_aka and row["writer_aka"]:
-                        writer.writer_aka = row["writer_aka"]
-                else:
-                    writer = Writer(
-                        first_name=row["first_name"],
-                        middle_name=row["middle_name"],
-                        last_names=row["last_names"],
-                        full_name=row["full_name"],
-                        writer_aka=row["writer_aka"],
-                        ipi=row["ipi"] or None,
-                        pro=row["pro"],
-                        address=row["address"],
-                        city=row["city"],
-                        state=row["state"],
-                        zip_code=row["zip_code"],
-                        has_master_contract=False,
-                    )
-                    db.session.add(writer)
-                    db.session.flush()
-
-                work_writer = WorkWriter(
-                    work_id=work.id,
-                    writer_id=writer.id,
-                    writer_percentage=row["writer_percentage"],
-                    publisher=row["publisher"],
-                    publisher_ipi=row["publisher_ipi"],
-                    publisher_address=row["publisher_address"],
-                    publisher_city=row["publisher_city"],
-                    publisher_state=row["publisher_state"],
-                    publisher_zip_code=row["publisher_zip_code"],
+            if writer:
+                if not writer.ipi and row["ipi"]:
+                    writer.ipi = row["ipi"] or None
+                if not writer.pro and row["pro"]:
+                    writer.pro = row["pro"]
+                if not writer.address and row["address"]:
+                    writer.address = row["address"]
+                if not writer.city and row["city"]:
+                    writer.city = row["city"]
+                if not writer.state and row["state"]:
+                    writer.state = row["state"]
+                if not writer.zip_code and row["zip_code"]:
+                    writer.zip_code = row["zip_code"]
+                if not writer.writer_aka and row["writer_aka"]:
+                    writer.writer_aka = row["writer_aka"]
+            else:
+                writer = Writer(
+                    first_name=row["first_name"],
+                    middle_name=row["middle_name"],
+                    last_names=row["last_names"],
+                    full_name=row["full_name"],
+                    writer_aka=row["writer_aka"],
+                    ipi=row["ipi"] or None,
+                    pro=row["pro"],
+                    address=row["address"],
+                    city=row["city"],
+                    state=row["state"],
+                    zip_code=row["zip_code"],
+                    has_master_contract=False,
                 )
-                db.session.add(work_writer)
+                db.session.add(writer)
                 db.session.flush()
 
-                document_type, file_name, file_buffer = generate_writer_document(writer, work, work_writer)
-                zip_file.writestr(file_name, file_buffer.getvalue())
-
-                doc_record = ContractDocument(
-                    work_id=work.id,
-                    writer_id=writer.id,
-                    document_type=document_type,
-                    file_name=file_name,
-                    writer_name_snapshot=writer.full_name,
-                    work_title_snapshot=work.title,
-                )
-                db.session.add(doc_record)
+            work_writer = WorkWriter(
+                work_id=work.id,
+                writer_id=writer.id,
+                writer_percentage=row["writer_percentage"],
+                publisher=row["publisher"],
+                publisher_ipi=row["publisher_ipi"],
+                publisher_address=row["publisher_address"],
+                publisher_city=row["publisher_city"],
+                publisher_state=row["publisher_state"],
+                publisher_zip_code=row["publisher_zip_code"],
+            )
+            db.session.add(work_writer)
 
         db.session.commit()
-
-        zip_buffer.seek(0)
-        zip_name = f"{slugify(work.title)}_documents.zip"
-        return send_file(
-            zip_buffer,
-            as_attachment=True,
-            download_name=zip_name,
-            mimetype="application/zip",
-        )
+        return redirect(url_for("batch_detail", batch_id=batch.id))
 
     return render_template_string(FORM_HTML, **collect_form_context())
 
@@ -1422,6 +1602,47 @@ def works_list():
         query = query.filter(func.lower(Work.title).like(f"%{q.lower()}%"))
     works = query.order_by(Work.created_at.desc()).all()
     return render_template_string(WORKS_LIST_HTML, works=works, q=q)
+
+
+@app.route("/batches")
+def batches_list():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+    return render_template_string(BATCHES_LIST_HTML, batches=batches)
+
+
+@app.route("/batches/<int:batch_id>")
+def batch_detail(batch_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    batch = GenerationBatch.query.get_or_404(batch_id)
+
+    works = (
+        Work.query
+        .filter_by(batch_id=batch.id)
+        .order_by(Work.created_at.asc())
+        .all()
+    )
+
+    documents = (
+        ContractDocument.query
+        .filter_by(batch_id=batch.id)
+        .order_by(ContractDocument.generated_at.desc())
+        .all()
+    )
+
+    writer_summary = get_batch_writer_summary(batch.id)
+
+    return render_template_string(
+        BATCH_DETAIL_HTML,
+        batch=batch,
+        works=works,
+        documents=documents,
+        writer_summary=writer_summary,
+    )
 
 
 @app.route("/works/<int:work_id>")
