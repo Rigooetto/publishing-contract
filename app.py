@@ -51,6 +51,9 @@ DEFAULT_PUBLISHER_ZIP = "92806"
 GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 
+app.logger.warning("ENV CHECK: folder=%s json=%s", bool(GOOGLE_DRIVE_FOLDER_ID), bool(GOOGLE_SERVICE_ACCOUNT_JSON))
+app.logger.warning("JSON LEN: %s", len(GOOGLE_SERVICE_ACCOUNT_JSON or ""))
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
@@ -1820,11 +1823,7 @@ def generate_batch_documents(batch_id):
 
             
 
-            app.logger.warning(
-                "ENV CHECK: folder=%s json=%s",
-                bool(GOOGLE_DRIVE_FOLDER_ID),
-                bool(GOOGLE_SERVICE_ACCOUNT_JSON),
-            )
+
 
             drive_info = {"file_id": None, "web_view_link": None}
 
