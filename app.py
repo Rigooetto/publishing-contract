@@ -926,7 +926,9 @@ BATCH_DETAIL_HTML = """
     <h2 class="mb-0">Batch {{ batch.id }}</h2>
     <div class="d-flex gap-2">
       <a href="{{ url_for('batches_list') }}" class="btn btn-outline-secondary">Back</a>
-      <button class="btn btn-success" disabled>Generate Batch Documents (Build 2B)</button>
+      <form method="post" action="{{ url_for('generate_batch_documents', batch_id=batch.id) }}">
+  <button class="btn btn-success">Generate Batch Documents</button>
+</form>
     </div>
   </div>
 
@@ -1644,6 +1646,128 @@ def batch_detail(batch_id):
         writer_summary=writer_summary,
     )
 
+@app.route("/batches/<int:batch_id>/generate", methods=["POST"])
+def generate_batch_documents(batch_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    batch = GenerationBatch.query.get_or_404(batch_id)
+
+    work_writers = (
+        WorkWriter.query
+        .join(Work)
+        .filter(Work.batch_id == batch.id)
+        .order_by(Work.id.asc(), WorkWriter.id.asc())
+        .all()
+    )
+
+    if not work_writers:
+        flash("No works found in this batch.")
+        return redirect(url_for("batch_detail", batch_id=batch.id))
+
+    # Group by writer
+    grouped = {}
+    for ww in work_writers:
+        if ww.writer_id not in grouped:
+            grouped[ww.writer_id] = {
+                "writer": ww.writer,
+                "rows": []
+            }
+        grouped[ww.writer_id]["rows"].append(ww)
+
+    # Delete old generated docs for this batch before regenerating
+    existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
+    for doc in existing_docs:
+        db.session.delete(doc)
+    db.session.flush()
+
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for writer_id, item in grouped.items():
+            writer = item["writer"]
+            rows = item["rows"]
+
+            works_for_table = []
+            for ww in rows:
+                works_for_table.append({
+                    "work_title": ww.work.title,
+                    "writer_name": writer.full_name,
+                    "writer_percentage": f"{ww.writer_percentage:.2f}%",
+                    "publisher": ww.publisher or "",
+                })
+
+            first_work = rows[0].work
+            first_work_writer = rows[0]
+
+            if writer.has_master_contract:
+                document_type = "schedule_1"
+                template_path = SCHEDULE_1_TEMPLATE
+                prefix = "S1"
+            else:
+                document_type = "full_contract"
+                template_path = FULL_CONTRACT_TEMPLATE
+                prefix = "FULL"
+
+            contract_date = batch.contract_date
+            day = contract_date.day
+            suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+
+            data = {
+                "Date": f"{contract_date.strftime('%B')} {day}{suffix}, {contract_date.year}",
+                "Fecha": format_date(contract_date, format="d 'de' MMMM 'del' y", locale="es"),
+                "WriterName": writer.full_name,
+                "WriterFirstName": writer.first_name,
+                "WriterMiddleName": writer.middle_name,
+                "WriterLastNames": writer.last_names,
+                "WriterAKA": writer.writer_aka or "",
+                "WriterIPI": writer.ipi or "",
+                "WriterAddress": writer.address or "",
+                "WriterCity": writer.city or "",
+                "WriterState": writer.state or "",
+                "WriterZipCode": writer.zip_code or "",
+                "PRO": writer.pro or "",
+                "PublisherName": first_work_writer.publisher or "",
+                "PublisherIPI": first_work_writer.publisher_ipi or "",
+                "PublisherAddress": first_work_writer.publisher_address or "",
+                "PublisherCity": first_work_writer.publisher_city or "",
+                "PublisherState": first_work_writer.publisher_state or "",
+                "PublisherZipCode": first_work_writer.publisher_zip_code or "",
+                "WorkTitle": first_work.title,
+            }
+
+            file_buffer = render_docx_template(template_path, data, works_for_table=works_for_table)
+
+            batch_label = batch.camp.name if batch.camp else f"batch_{batch.id}"
+            file_name = f"{prefix}_{slugify(writer.full_name)}_{slugify(batch_label)}_{batch.contract_date.isoformat()}.docx"
+
+            zip_file.writestr(file_name, file_buffer.getvalue())
+
+            doc_record = ContractDocument(
+                batch_id=batch.id,
+                work_id=first_work.id,
+                writer_id=writer.id,
+                document_type=document_type,
+                file_name=file_name,
+                writer_name_snapshot=writer.full_name,
+                work_title_snapshot=", ".join(sorted({ww.work.title for ww in rows})),
+            )
+            db.session.add(doc_record)
+
+            if document_type == "full_contract":
+                writer.has_master_contract = True
+
+    batch.status = "docs_generated"
+    db.session.commit()
+
+    zip_buffer.seek(0)
+    zip_name = f"batch_{batch.id}_documents.zip"
+    return send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name=zip_name,
+        mimetype="application/zip",
+    )
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id: int):
