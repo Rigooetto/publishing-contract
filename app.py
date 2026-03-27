@@ -259,6 +259,18 @@ class ContractDocument(db.Model):
 
     writer = db.relationship("Writer", backref="contract_documents")
 
+    docusign_envelope_id = db.Column(db.String(100), nullable=True)
+    docusign_status = db.Column(db.String(50), nullable=True)
+
+    sent_for_signature_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    signed_pdf_drive_file_id = db.Column(db.String(255), nullable=True)
+    signed_pdf_drive_web_view_link = db.Column(db.String(500), nullable=True)
+
+    certificate_drive_file_id = db.Column(db.String(255), nullable=True)
+    certificate_drive_web_view_link = db.Column(db.String(500), nullable=True)
+
 
 def init_db():
     with app.app_context():
