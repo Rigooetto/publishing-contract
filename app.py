@@ -1353,7 +1353,7 @@ def collect_form_context():
         "force_create": request.form.get("force_create", ""),
         "selected_batch_id": selected_batch_id,
     }
-    }
+    
 
 
 def get_batch_writer_summary(batch_id: int):
