@@ -12,6 +12,9 @@ import re
 import json
 import zipfile
 import datetime
+import base64
+
+from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, Document as DocusignDocument, Signer, SignHere, Tabs, Recipients
 
 DOCUSIGN_ACCOUNT_ID = os.getenv("DOCUSIGN_ACCOUNT_ID", "")
 DOCUSIGN_BASE_PATH = os.getenv("DOCUSIGN_BASE_PATH", "https://demo.docusign.net/restapi")
@@ -136,6 +139,25 @@ def get_drive_service():
         scopes=["https://www.googleapis.com/auth/drive"]
     )
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+def get_docusign_api_client():
+    private_key_bytes = DOCUSIGN_PRIVATE_KEY.encode("utf-8")
+
+    api_client = ApiClient()
+    api_client.host = DOCUSIGN_BASE_PATH
+
+    token = api_client.request_jwt_user_token(
+        client_id=DOCUSIGN_INTEGRATION_KEY,
+        user_id=DOCUSIGN_USER_ID,
+        oauth_host_name=DOCUSIGN_AUTH_SERVER,
+        private_key_bytes=private_key_bytes,
+        expires_in=3600,
+        scopes=["signature", "impersonation"],
+    )
+
+    access_token = token.access_token
+    api_client.set_default_header("Authorization", f"Bearer {access_token}")
+    return api_client
 
 
 def upload_bytes_to_drive(file_name: str, file_bytes: bytes, parent_folder_id: str, mime_type: str):
