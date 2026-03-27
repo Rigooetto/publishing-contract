@@ -213,7 +213,8 @@ class Writer(db.Model):
 
     ipi = db.Column(db.String(50), nullable=True, unique=True, index=True)
     pro = db.Column(db.String(20), default="")
-
+    email = db.Column(db.String(255), nullable=True, index=True)
+    
     address = db.Column(db.String(255), default="")
     city = db.Column(db.String(100), default="")
     state = db.Column(db.String(100), default="")
@@ -583,12 +584,17 @@ function writerRowTemplate(index) {
         </div>
       </div>
 
-      <div class="row mt-3">
-        <div class="col-md-3">
-          <label class="form-label">Writer IPI #</label>
-          <input class="form-control writer-ipi" name="writer_ipi" placeholder="IPI Number">
+      
+        <div class="row mt-3">
+          <div class="col-md-2">
+            <label class="form-label">Writer IPI #</label>
+            <input class="form-control writer-ipi" name="writer_ipi" placeholder="IPI Number">
         </div>
         <div class="col-md-3">
+          <label class="form-label">Writer Email</label>
+          <input class="form-control writer-email" name="writer_email" placeholder="writer@email.com">
+        </div>
+        <div class="col-md-2">
           <label class="form-label">PRO</label>
           <select class="form-control writer-pro" name="writer_pro" onchange="syncPublisherFromPro(this)">
             <option value="">Select PRO</option>
@@ -597,7 +603,7 @@ function writerRowTemplate(index) {
             <option value="SESAC">SESAC</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label">Writer %</label>
           <input class="form-control writer-split" name="writer_percentage" placeholder="Writer %" type="number" step="0.01" min="0" max="100">
         </div>
@@ -606,6 +612,7 @@ function writerRowTemplate(index) {
           <input class="form-control writer-publisher" name="writer_publisher" placeholder="Publisher">
         </div>
       </div>
+
 
       <div class="row mt-3">
         <div class="col-md-3">
@@ -696,6 +703,7 @@ function fillWriterRow(row, writer) {
   row.querySelector('.writer-last-names').value = writer.last_names || '';
   row.querySelector('.writer-aka').value = writer.writer_aka || '';
   row.querySelector('.writer-ipi').value = writer.ipi || '';
+  row.querySelector('.writer-email').value = writer.email || '';
   row.querySelector('.writer-pro').value = writer.pro || '';
   row.querySelector('.writer-address').value = writer.address || '';
   row.querySelector('.writer-city').value = writer.city || '';
@@ -1487,6 +1495,7 @@ def formulario():
         last_names_list = request.form.getlist("writer_last_names")
         writer_akas = request.form.getlist("writer_aka")
         ipis = request.form.getlist("writer_ipi")
+        emails = request.form.getlist("writer_email")
         pros = request.form.getlist("writer_pro")
         percentages = request.form.getlist("writer_percentage")
         publishers = request.form.getlist("writer_publisher")
@@ -1527,6 +1536,7 @@ def formulario():
                 "full_name": full_name,
                 "writer_aka": (writer_akas[idx] or "").strip(),
                 "ipi": (ipis[idx] or "").strip(),
+                "email": (emails[idx] or "").strip(),
                 "pro": (pros[idx] or "").strip(),
                 "writer_percentage": split_value,
                 "publisher": (publishers[idx] or "").strip(),
@@ -1663,6 +1673,8 @@ def formulario():
             if writer:
                 if not writer.ipi and row["ipi"]:
                     writer.ipi = row["ipi"] or None
+                if not writer.email and row["email"]:
+                    writer.email = row["email"]
                 if not writer.pro and row["pro"]:
                     writer.pro = row["pro"]
                 if not writer.address and row["address"]:
@@ -1683,6 +1695,7 @@ def formulario():
                     full_name=row["full_name"],
                     writer_aka=row["writer_aka"],
                     ipi=row["ipi"] or None,
+                    email=row["email"],
                     pro=row["pro"],
                     address=row["address"],
                     city=row["city"],
@@ -1749,6 +1762,7 @@ def search_writers():
             "full_name": writer.full_name,
             "writer_aka": writer.writer_aka,
             "ipi": writer.ipi or "",
+            "email": writer.email or "",
             "pro": writer.pro,
             "address": writer.address,
             "city": writer.city,
