@@ -1143,6 +1143,8 @@ BATCH_DETAIL_HTML = """
               <th>Document Type</th>
               <th>File Name</th>
               <th>Generated</th>
+              <th>DocuSign</th>
+              <th>DocuSign Status</th>
               <th>Upload Signed</th>
               <th>Signed</th>
               <th>Status</th>
@@ -1160,6 +1162,15 @@ BATCH_DETAIL_HTML = """
                   {% else %}
                     —
                   {% endif %}
+                </td>
+                <td>
+                  <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}">
+                    <button class="btn btn-sm btn-outline-dark">Send for Signature</button>
+                  </form>
+                </td>
+
+                <td>
+                  {{ doc.docusign_status or '—' }}
                 </td>
                 <td style="min-width: 220px;">
                   <form method="post" action="{{ url_for('upload_signed_document', document_id=doc.id) }}" enctype="multipart/form-data">
