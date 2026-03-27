@@ -6,12 +6,14 @@ from babel.dates import format_date
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, Document as DocusignDocument, Signer, SignHere, Tabs, Recipients
 import io
 import os
 import re
 import json
 import zipfile
 import datetime
+import base64
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
@@ -50,6 +52,14 @@ DEFAULT_PUBLISHER_ZIP = "92806"
 
 GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+# DocuSign config
+DOCUSIGN_ACCOUNT_ID = os.getenv("DOCUSIGN_ACCOUNT_ID", "")
+DOCUSIGN_BASE_PATH = os.getenv("DOCUSIGN_BASE_PATH", "https://demo.docusign.net/restapi")
+DOCUSIGN_AUTH_SERVER = os.getenv("DOCUSIGN_AUTH_SERVER", "account-d.docusign.com")
+DOCUSIGN_INTEGRATION_KEY = os.getenv("DOCUSIGN_INTEGRATION_KEY", "")
+DOCUSIGN_USER_ID = os.getenv("DOCUSIGN_USER_ID", "")
+DOCUSIGN_PRIVATE_KEY = os.getenv("DOCUSIGN_PRIVATE_KEY", "")
 
 app.logger.warning("ENV CHECK: folder=%s json=%s", bool(GOOGLE_DRIVE_FOLDER_ID), bool(GOOGLE_SERVICE_ACCOUNT_JSON))
 app.logger.warning("JSON LEN: %s", len(GOOGLE_SERVICE_ACCOUNT_JSON or ""))
@@ -130,6 +140,24 @@ def get_drive_service():
     )
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
+def get_docusign_api_client():
+    private_key_bytes = DOCUSIGN_PRIVATE_KEY.encode("utf-8")
+    api_client = ApiClient()
+    api_client.host = DOCUSIGN_BASE_PATH
+
+    token = api_client.request_jwt_user_token(
+        client_id=DOCUSIGN_INTEGRATION_KEY,
+        user_id=DOCUSIGN_USER_ID,
+        oauth_host_name=DOCUSIGN_AUTH_SERVER,
+        private_key_bytes=private_key_bytes,
+        expires_in=3600,
+        scopes=["signature", "impersonation"],
+    )
+
+    access_token = token.access_token
+    api_client.set_default_header("Authorization", f"Bearer {access_token}")
+    return api_client
+
 
 def upload_bytes_to_drive(file_name: str, file_bytes: bytes, parent_folder_id: str, mime_type: str):
     service = get_drive_service()
@@ -181,6 +209,7 @@ class Writer(db.Model):
     last_names = db.Column(db.String(150), default="")
     full_name = db.Column(db.String(250), nullable=False, unique=True, index=True)
     writer_aka = db.Column(db.String(250), default="")
+    email = db.Column(db.String(255), nullable=True, index=True)
 
     ipi = db.Column(db.String(50), nullable=True, unique=True, index=True)
     pro = db.Column(db.String(20), default="")
@@ -248,6 +277,19 @@ class ContractDocument(db.Model):
 
     drive_file_id = db.Column(db.String(255), nullable=True)
     drive_web_view_link = db.Column(db.String(500), nullable=True)
+    # DocuSign tracking
+    docusign_envelope_id = db.Column(db.String(100), nullable=True)
+    docusign_status = db.Column(db.String(50), nullable=True)
+
+    sent_for_signature_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Signed + certificate storage (Drive)
+    signed_pdf_drive_file_id = db.Column(db.String(255), nullable=True)
+    signed_pdf_drive_web_view_link = db.Column(db.String(500), nullable=True)
+
+    certificate_drive_file_id = db.Column(db.String(255), nullable=True)
+    certificate_drive_web_view_link = db.Column(db.String(500), nullable=True)
 
     signed_file_name = db.Column(db.String(255), nullable=True)
     signed_drive_file_id = db.Column(db.String(255), nullable=True)
@@ -473,6 +515,10 @@ FORM_HTML = """
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-outline-primary" onclick="addWriterRow()">Add Writer</button>
           <button type="submit" class="btn btn-success">Save Work to Batch</button>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Writer Email</label>
+          <input class="form-control writer-email" name="writer_email" placeholder="writer@email.com">
         </div>
       </form>
     </div>
@@ -1102,6 +1148,8 @@ BATCH_DETAIL_HTML = """
               <th>Document Type</th>
               <th>File Name</th>
               <th>Generated</th>
+              <th>DocuSign</th>
+              <th>DocuSign Status</th>
               <th>Upload Signed</th>
               <th>Signed</th>
               <th>Status</th>
@@ -1113,6 +1161,7 @@ BATCH_DETAIL_HTML = """
                 <td>{{ doc.writer_name_snapshot }}</td>
                 <td>{{ doc.document_type }}</td>
                 <td>{{ doc.file_name }}</td>
+                
                 <td>
                   {% if doc.drive_web_view_link %}
                     <a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-primary">Open</a>
@@ -1120,6 +1169,16 @@ BATCH_DETAIL_HTML = """
                     —
                   {% endif %}
                 </td>
+                <td>
+                  <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}">
+                    <button class="btn btn-sm btn-outline-dark">Send for Signature</button>
+                  </form>
+                </td>
+
+                <td>
+                  {{ doc.docusign_status or '—' }}
+                </td>
+            
                 <td style="min-width: 220px;">
                   <form method="post" action="{{ url_for('upload_signed_document', document_id=doc.id) }}" enctype="multipart/form-data">
                     <input type="file" name="signed_file" class="form-control form-control-sm mb-1" required>
@@ -1444,6 +1503,7 @@ def formulario():
         cities = request.form.getlist("writer_city")
         states = request.form.getlist("writer_state")
         zip_codes = request.form.getlist("writer_zip_code")
+        emails = request.form.getlist("writer_email")
 
         writer_rows = []
         total_split = 0.0
@@ -1484,6 +1544,7 @@ def formulario():
                 "city": (cities[idx] or "").strip(),
                 "state": (states[idx] or "").strip(),
                 "zip_code": (zip_codes[idx] or "").strip(),
+                "email": (emails[idx] or "").strip(),
             })
 
         if not writer_rows:
@@ -1620,6 +1681,8 @@ def formulario():
                     writer.zip_code = row["zip_code"]
                 if not writer.writer_aka and row["writer_aka"]:
                     writer.writer_aka = row["writer_aka"]
+                if not writer.email and row["email"]:
+                    writer.email = row["email"]
             else:
                 writer = Writer(
                     first_name=row["first_name"],
@@ -1629,6 +1692,7 @@ def formulario():
                     writer_aka=row["writer_aka"],
                     ipi=row["ipi"] or None,
                     pro=row["pro"],
+                    email=row["email"],
                     address=row["address"],
                     city=row["city"],
                     state=row["state"],
