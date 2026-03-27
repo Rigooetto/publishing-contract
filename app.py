@@ -1341,6 +1341,8 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
 
 
 def collect_form_context():
+    selected_batch_id = request.form.get("existing_batch_id") or ""
+
     return {
         "camps": Camp.query.order_by(Camp.name.asc()).all(),
         "batches": GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all(),
@@ -1349,7 +1351,8 @@ def collect_form_context():
         "default_publisher_state": DEFAULT_PUBLISHER_STATE,
         "default_publisher_zip": DEFAULT_PUBLISHER_ZIP,
         "force_create": request.form.get("force_create", ""),
-        selected_batch_id = request.form.get("existing_batch_id") or ""
+        "selected_batch_id": selected_batch_id,
+    }
     }
 
 
