@@ -141,7 +141,8 @@ def get_drive_service():
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 def get_docusign_api_client():
-    private_key_bytes = DOCUSIGN_PRIVATE_KEY.encode("utf-8")
+    private_key = (DOCUSIGN_PRIVATE_KEY or "").replace("\\n", "\n")
+    private_key_bytes = private_key.encode("utf-8")
 
     api_client = ApiClient()
     api_client.host = DOCUSIGN_BASE_PATH
