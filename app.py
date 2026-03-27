@@ -1408,7 +1408,7 @@ def collect_form_context():
         "default_publisher_state": DEFAULT_PUBLISHER_STATE,
         "default_publisher_zip": DEFAULT_PUBLISHER_ZIP,
         "force_create": request.form.get("force_create", ""),
-        "selected_batch_id": str(selected_batch_id),
+        "selected_batch_id": str(batch.id) if batch else "",
     }
 
 
