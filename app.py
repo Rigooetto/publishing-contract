@@ -2281,7 +2281,7 @@ def generate_batch_documents(batch_id):
         mimetype="application/zip",
     )
 
-@app.route("/documents/<int:document_id>/send-docusign", methods=["POST"])
+@app.route("/documents/${doc.document_id>/send-docusign", methods=["POST"])
 def send_document_docusign(document_id):
     if auth_required():
         return redirect(url_for("login"))
