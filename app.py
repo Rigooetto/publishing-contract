@@ -2100,22 +2100,35 @@ def send_document_docusign(document_id):
 @app.route("/docusign/webhook", methods=["POST"])
 def docusign_webhook():
     payload = request.get_json(silent=True)
-    
-    app.logger.info(f"DOCUSIGN WEBHOOK PAYLOAD: {payload}")
+    app.logger.info(f"DOCUSIGN WEBHOOK RAW PAYLOAD: {payload}")
 
     if not payload:
         return "ok", 200
 
     try:
         envelope_id = payload.get("data", {}).get("envelopeId") or payload.get("envelopeId")
-        envelope_summary = payload.get("data", {}).get("envelopeSummary", {})
-        status = (
-            envelope_summary.get("status")
-            or payload.get("event")
+
+        raw_status = (
+            payload.get("event")
+            or payload.get("data", {}).get("status")
             or payload.get("status")
             or ""
         ).lower()
 
+        if "completed" in raw_status:
+            normalized_status = "completed"
+        elif "delivered" in raw_status:
+            normalized_status = "delivered"
+        elif "sent" in raw_status:
+            normalized_status = "sent"
+        elif "declined" in raw_status:
+            normalized_status = "declined"
+        elif "voided" in raw_status:
+            normalized_status = "voided"
+        else:
+            normalized_status = raw_status or "sent"
+
+        document.docusign_status = normalized_status
         if not envelope_id:
             return "ok", 200
 
