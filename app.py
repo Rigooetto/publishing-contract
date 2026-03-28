@@ -1245,16 +1245,25 @@ BATCH_DETAIL_HTML = """
   }
 
   function renderDocActionCell(doc) {
-    if (doc.docusign_status === "sent" || doc.docusign_status === "delivered") {
-      return `
-        <form method="post" action="/documents/${doc.id}/refresh-docusign" class="docusign-action-form">
-          <button class="btn btn-sm btn-outline-secondary">
-            <span class="btn-label">Refresh Status</span>
-            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-          </button>
-        </form>
-      `;
+    let label = "Send";
+
+    if (doc.docusign_status === "completed") {
+      label = "Resend";
+    } else if (doc.docusign_status === "delivered") {
+      label = "Delivered";
+    } else if (doc.docusign_status === "sent") {
+      label = "Sent";
     }
+
+    return `
+      <form method="post" action="/documents/${doc.id}/send-docusign" class="docusign-action-form">
+        <button class="btn btn-sm btn-outline-dark">
+          <span class="btn-label">${label}</span>
+          <span class="spinner-border spinner-border-sm d-none"></span>
+        </button>
+      </form>
+    `;
+  }
 
     if (doc.docusign_status === "completed") {
       return `<span class="text-success">Completed</span>`;
@@ -1279,14 +1288,14 @@ BATCH_DETAIL_HTML = """
 
   function renderCertificateButton(doc) {
     if (doc.certificate_drive_web_view_link) {
-      return `<a href="${doc.certificate_drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Certificate</a>`;
+      return `<a href="${doc.certificate_drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-secondary">Certificate</a>`;
     }
     return "—";
   }
 
   function renderSignedButton(doc) {
     if (doc.signed_pdf_drive_web_view_link) {
-      return `<a href="${doc.signed_pdf_drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Signed</a>`;
+      return `<a href="${doc.signed_pdf_drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-success">Signed</a>`;
     }
     return "—";
   }
@@ -1301,12 +1310,24 @@ BATCH_DETAIL_HTML = """
         <td>${escapeHtml(doc.document_type)}</td>
         <td>${escapeHtml(doc.file_name)}</td>
         <td>${escapeHtml(doc.generated_at || "—")}</td>
+
         <td>${renderGeneratedButton(doc)}</td>
+
         <td>${renderDocActionCell(doc)}</td>
+
         <td>${escapeHtml(doc.docusign_status || "—")}</td>
+
         <td>${renderCertificateButton(doc)}</td>
-        
+
+        <td style="min-width: 220px;">
+          <form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data">
+            <input type="file" name="signed_file" class="form-control form-control-sm mb-1">
+            <button class="btn btn-sm btn-outline-success">Upload</button>
+          </form>
+        </td>
+
         <td>${renderSignedButton(doc)}</td>
+
         <td>${escapeHtml(doc.status || "—")}</td>
       </tr>
     `).join("");
@@ -2100,6 +2121,7 @@ def batch_status_json(batch_id):
                 "writer_name_snapshot": doc.writer_name_snapshot,
                 "document_type": doc.document_type,
                 "file_name": doc.file_name,
+                "generated_at": doc.generated_at.strftime('%Y-%m-%d %H:%M') if doc.generated_at else "",
                 "drive_web_view_link": doc.drive_web_view_link,
                 "docusign_status": doc.docusign_status,
                 "status": doc.status,
