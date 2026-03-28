@@ -2105,8 +2105,18 @@ def docusign_webhook():
     try:
         root = ET.fromstring(raw_data)
 
-        envelope_id = root.findtext(".//EnvelopeID")
-        raw_status = (root.findtext(".//Status") or "").lower()
+        envelope_id = None
+        raw_status = ""
+
+        for elem in root.iter():
+            tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+            text = (elem.text or "").strip()
+
+            if tag == "EnvelopeID" and text:
+                envelope_id = text
+
+            if tag == "Status" and text:
+                raw_status = text.lower()
 
         app.logger.warning(f"WEBHOOK ENVELOPE ID: {envelope_id}")
         app.logger.warning(f"WEBHOOK STATUS: {raw_status}")
