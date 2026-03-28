@@ -1514,70 +1514,83 @@ WORK_DETAIL_HTML = """
 
           <tbody id="generatedDocumentsBody">
             {% for doc in documents %}
-            <tr data-doc-id="{{ doc.id }}">
+              <tr data-doc-id="{{ doc.id }}">
+                <td>{{ doc.writer_name_snapshot }}</td>
+                <td>{{ doc.document_type }}</td>
+                <td>{{ doc.file_name }}</td>
 
-            <td>{{ doc.writer_name_snapshot }}</td>
-            <td>{{ doc.document_type }}</td>
-            <td>{{ doc.file_name }}</td>
-            <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                  {% if doc.drive_web_view_link %}
+                    <a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-primary">Open</a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
 
-            <td>
-              {% if doc.drive_web_view_link %}
-                <a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-primary">Open</a>
-              {% else %}
-                —
-              {% endif %}
-            </td>
+                <td>
+                  <form method="post"
+                        action="{{ url_for('send_document_docusign', document_id=doc.id) }}"
+                        class="docusign-action-form">
+                    <button type="submit" class="btn btn-sm btn-outline-dark">
+                      <span class="btn-label">
+                        {% if doc.docusign_status == 'completed' %}
+                          Resend
+                        {% elif doc.docusign_status == 'delivered' %}
+                          Delivered
+                        {% elif doc.docusign_status == 'sent' %}
+                          Sent
+                        {% else %}
+                          Send
+                        {% endif %}
+                      </span>
+                      <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    </button>
+                  </form>
+                </td>
 
-            <td>
-              {% if doc.docusign_status == 'sent' or doc.docusign_status == 'delivered' %}
-                <form method="post" action="{{ url_for('refresh_document_docusign', document_id=doc.id) }}" class="docusign-action-form">
-                  <button class="btn btn-sm btn-outline-secondary">
-                    <span class="btn-label">Refresh</span>
-                    <span class="spinner-border spinner-border-sm d-none"></span>
-                  </button>
-                </form>
+                <td>{{ doc.docusign_status or '—' }}</td>
 
-              {% elif doc.docusign_status == 'completed' %}
-                <span class="text-success">Completed</span>
+                <td>
+                  {% if doc.certificate_drive_web_view_link %}
+                    <a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                      Certificate
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
 
-              {% else %}
-                <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}" class="docusign-action-form">
-                  <button class="btn btn-sm btn-outline-dark">
-                    <span class="btn-label">Send</span>
-                    <span class="spinner-border spinner-border-sm d-none"></span>
-                  </button>
-                </form>
-              {% endif %}
-            </td>
+                <td style="min-width: 220px;">
+                  <form method="post" action="{{ url_for('upload_signed_document', document_id=doc.id) }}" enctype="multipart/form-data">
+                    <input type="file" name="signed_file" class="form-control form-control-sm mb-1" required>
+                    <button type="submit" class="btn btn-sm btn-outline-success">Upload</button>
+                  </form>
+                </td>
 
-            <td>{{ doc.docusign_status or '—' }}</td>
+                <td>
+                  {% if doc.signed_pdf_drive_web_view_link %}
+                    <a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-success">
+                      Open Signed
+                    </a>
+                  {% elif doc.signed_web_view_link %}
+                    <a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-success">
+                      Open Signed
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
 
-            <td>
-              {% if doc.certificate_drive_web_view_link %}
-                <a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                  Certificate
-                </a>
-              {% else %}
-                —
-              {% endif %}
-            </td>
+                <td>{{ doc.status or '—' }}</td>
+              </tr>
+            {% endfor %}
 
-            <td>
-              {% if doc.signed_pdf_drive_web_view_link %}
-                <a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-success">
-                  Signed
-                </a>
-              {% else %}
-                —
-              {% endif %}
-            </td>
-
-            <td>{{ doc.status or '—' }}</td>
-
-          </tr>
-          {% endfor %}
-        </tbody>
+            {% if not documents %}
+              <tr>
+                <td colspan="10" class="text-center text-muted">No documents generated for this batch yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
         </table>
       </div>
       
