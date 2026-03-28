@@ -1154,6 +1154,7 @@ BATCH_DETAIL_HTML = """
               <th>Generated</th>
               <th>DocuSign</th>
               <th>DocuSign Status</th>
+              <th>Certificate</th>
               <th>Upload Signed</th>
               <th>Signed</th>
               <th>Status</th>
@@ -1186,6 +1187,13 @@ BATCH_DETAIL_HTML = """
 
                 <td>
                   {{ doc.docusign_status or '—' }}
+                </td>
+                <td>
+                  {% if doc.certificate_drive_web_view_link %}
+                    <a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Certificate</a>
+                  {% else %}
+                    —
+                  {% endif %}
                 </td>
                 <td style="min-width: 220px;">
                   <form method="post" action="{{ url_for('upload_signed_document', document_id=doc.id) }}" enctype="multipart/form-data">
@@ -2094,23 +2102,43 @@ def refresh_document_docusign(document_id):
 
         if envelope.status == "completed":
             doc_bytes = envelopes_api.get_document(
-                account_id=DOCUSIGN_ACCOUNT_ID,
-                envelope_id=document.docusign_envelope_id,
-                document_id="combined",
-            )
+            account_id=DOCUSIGN_ACCOUNT_ID,
+            envelope_id=document.docusign_envelope_id,
+            document_id="combined",
+        )
 
-            signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
+        signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
 
-            drive_info = upload_bytes_to_drive(
-                file_name=signed_file_name,
-                file_bytes=doc_bytes,
-                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
-                mime_type="application/pdf",
-            )
+        signed_drive_info = upload_bytes_to_drive(
+            file_name=signed_file_name,
+            file_bytes=doc_bytes,
+            parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+            mime_type="application/pdf",
+        )
 
-            document.signed_pdf_drive_file_id = drive_info.get("file_id")
-            document.signed_pdf_drive_web_view_link = drive_info.get("web_view_link")
-            document.status = "signed"
+        document.signed_pdf_drive_file_id = signed_drive_info.get("file_id")
+        document.signed_pdf_drive_web_view_link = signed_drive_info.get("web_view_link")
+
+        certificate_bytes = envelopes_api.get_document(
+            account_id=DOCUSIGN_ACCOUNT_ID,
+            envelope_id=document.docusign_envelope_id,
+            document_id="certificate",
+        )
+
+        certificate_file_name = document.file_name.rsplit(".", 1)[0] + "_CERTIFICATE.pdf"
+
+        certificate_drive_info = upload_bytes_to_drive(
+            file_name=certificate_file_name,
+            file_bytes=certificate_bytes,
+            parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+            mime_type="application/pdf",
+        )
+
+        document.certificate_drive_file_id = certificate_drive_info.get("file_id")
+        document.certificate_drive_web_view_link = certificate_drive_info.get("web_view_link")
+
+        document.completed_at = datetime.datetime.utcnow()
+        document.status = "signed"
 
         db.session.commit()
         flash(f"DocuSign status updated: {document.docusign_status}")
