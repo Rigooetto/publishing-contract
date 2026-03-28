@@ -1173,9 +1173,15 @@ BATCH_DETAIL_HTML = """
                   {% endif %}
                 </td>
                 <td>
-                  <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}">
-                    <button class="btn btn-sm btn-outline-dark">Send for Signature</button>
-                  </form>
+                  {% if doc.docusign_status == 'sent' or doc.docusign_status == 'delivered' %}
+                    <form method="post" action="{{ url_for('refresh_document_docusign', document_id=doc.id) }}">
+                      <button class="btn btn-sm btn-outline-secondary">Refresh Status</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}">
+                      <button class="btn btn-sm btn-outline-dark">Send for Signature</button>
+                    </form>
+                  {% endif %}
                 </td>
 
                 <td>
@@ -1188,7 +1194,9 @@ BATCH_DETAIL_HTML = """
                   </form>
                 </td>
                 <td>
-                  {% if doc.signed_web_view_link %}
+                  {% if doc.signed_pdf_drive_web_view_link %}
+                    <a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Signed</a>
+                  {% elif doc.signed_web_view_link %}
                     <a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Signed</a>
                   {% else %}
                     —
@@ -2059,6 +2067,56 @@ def send_document_docusign(document_id):
     except Exception as e:
         db.session.rollback()
         flash(f"DocuSign send failed: {e}")
+
+    return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+@app.route("/documents/<int:document_id>/refresh-docusign", methods=["POST"])
+def refresh_document_docusign(document_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    document = ContractDocument.query.get_or_404(document_id)
+
+    if not document.docusign_envelope_id:
+        flash("This document has not been sent to DocuSign yet.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    try:
+        api_client = get_docusign_api_client()
+        envelopes_api = EnvelopesApi(api_client)
+
+        envelope = envelopes_api.get_envelope(
+            account_id=DOCUSIGN_ACCOUNT_ID,
+            envelope_id=document.docusign_envelope_id,
+        )
+
+        document.docusign_status = envelope.status
+
+        if envelope.status == "completed":
+            doc_bytes = envelopes_api.get_document(
+                account_id=DOCUSIGN_ACCOUNT_ID,
+                envelope_id=document.docusign_envelope_id,
+                document_id="combined",
+            )
+
+            signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
+
+            drive_info = upload_bytes_to_drive(
+                file_name=signed_file_name,
+                file_bytes=doc_bytes,
+                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                mime_type="application/pdf",
+            )
+
+            document.signed_pdf_drive_file_id = drive_info.get("file_id")
+            document.signed_pdf_drive_web_view_link = drive_info.get("web_view_link")
+            document.status = "signed"
+
+        db.session.commit()
+        flash(f"DocuSign status updated: {document.docusign_status}")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"DocuSign refresh failed: {e}")
 
     return redirect(url_for("batch_detail", batch_id=document.batch_id))
 
