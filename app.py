@@ -1290,17 +1290,21 @@ BATCH_DETAIL_HTML = """
         <td>${escapeHtml(doc.writer_name_snapshot)}</td>
         <td>${escapeHtml(doc.document_type)}</td>
         <td>${escapeHtml(doc.file_name)}</td>
+        <td>${escapeHtml(doc.generated_at || "—")}</td>
         <td>${renderGeneratedButton(doc)}</td>
         <td>${renderDocActionCell(doc)}</td>
         <td>${escapeHtml(doc.docusign_status || "—")}</td>
         <td>${renderCertificateButton(doc)}</td>
-        <td style="min-width: 220px;">—</td>
+        
         <td>${renderSignedButton(doc)}</td>
         <td>${escapeHtml(doc.status || "—")}</td>
       </tr>
     `).join("");
 
     bindActionSpinners();
+    if (data.documents && data.documents.length > 0) {
+      stopGenerateSpinner();
+    }
   }
 
   async function pollBatchStatus() {
@@ -1339,22 +1343,41 @@ BATCH_DETAIL_HTML = """
     });
   }
 
+  function stopGenerateSpinner() {
+  const button = document.getElementById("generateBatchButton");
+  if (!button) return;
+
+  const spinner = button.querySelector(".spinner-border");
+  const label = button.querySelector(".btn-label");
+
+  button.disabled = false;
+  if (spinner) spinner.classList.add("d-none");
+  if (label) label.textContent = "Generate Batch Documents";
+}
+  
   document.addEventListener("DOMContentLoaded", function() {
     bindActionSpinners();
     startBatchPolling();
 
     const generateForm = document.getElementById("generateBatchForm");
     if (generateForm) {
-      generateForm.addEventListener("submit", function() {
-        const button = document.getElementById("generateBatchButton");
-        const spinner = button.querySelector(".spinner-border");
-        const label = button.querySelector(".btn-label");
+    generateForm.addEventListener("submit", function() {
+      const button = document.getElementById("generateBatchButton");
+      if (!button) return;
 
-        button.disabled = true;
-        spinner.classList.remove("d-none");
-        label.textContent = "Generating...";
-      });
-    }
+      const spinner = button.querySelector(".spinner-border");
+      const label = button.querySelector(".btn-label");
+
+      button.disabled = true;
+      if (spinner) spinner.classList.remove("d-none");
+      if (label) label.textContent = "Generating...";
+
+      // start polling immediately after click
+      setTimeout(() => {
+        pollBatchStatus();
+      }, 1500);
+    });
+   }
   });
 </script>
 </body>
