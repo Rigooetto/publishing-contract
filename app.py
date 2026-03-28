@@ -1313,36 +1313,42 @@ BATCH_DETAIL_HTML = """
   }
 
   function updateDocumentsTable(data) {
-    const tbody = document.getElementById("generatedDocumentsBody");
-    if (!tbody || !data.documents) return;
+  const tbody = document.getElementById("generatedDocumentsBody");
+  if (!tbody || !data.documents) return;
 
-    tbody.innerHTML = data.documents.map(doc => `
-      <tr data-doc-id="${doc.id}">
-        <td>${escapeHtml(doc.writer_name_snapshot)}</td>
-        <td>${escapeHtml(doc.document_type)}</td>
-        <td>${escapeHtml(doc.file_name)}</td>
-        <td>${escapeHtml(doc.generated_at || "—")}</td>
-        <td>${renderGeneratedButton(doc)}</td>
-        <td>${renderDocActionCell(doc)}</td>
-        <td>${escapeHtml(doc.docusign_status || "—")}</td>
-        <td>${renderCertificateButton(doc)}</td>
-        <td style="min-width: 220px;">
-          <form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data">
-            <input type="file" name="signed_file" class="form-control form-control-sm mb-1">
-            <button type="submit" class="btn btn-sm btn-outline-success">Upload</button>
-          </form>
-        </td>
-        <td>${renderSignedButton(doc)}</td>
-        <td>${escapeHtml(doc.status || "—")}</td>
-      </tr>
-    `).join("");
+  tbody.innerHTML = data.documents.map(doc => `
+    <tr data-doc-id="${doc.id}">
+      <td>${escapeHtml(doc.writer_name_snapshot)}</td>
+      <td>${escapeHtml(doc.document_type)}</td>
+      <td>${escapeHtml(doc.file_name)}</td>
 
-    bindActionSpinners();
+      <td>${renderGeneratedButton(doc)}</td>
 
-    if (data.documents && data.documents.length > 0) {
-      stopGenerateSpinner();
-    }
+      <td>${renderDocActionCell(doc)}</td>
+
+      <td>${escapeHtml(doc.docusign_status || "—")}</td>
+
+      <td>${renderCertificateButton(doc)}</td>
+
+      <td style="min-width: 220px;">
+        <form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data">
+          <input type="file" name="signed_file" class="form-control form-control-sm mb-1" required>
+          <button type="submit" class="btn btn-sm btn-outline-success">Upload</button>
+        </form>
+      </td>
+
+      <td>${renderSignedButton(doc)}</td>
+
+      <td>${escapeHtml(doc.status || "—")}</td>
+    </tr>
+  `).join("");
+
+  bindActionSpinners();
+
+  if (data.documents && data.documents.length > 0) {
+    stopGenerateSpinner();
   }
+}
 
   async function pollBatchStatus() {
     try {
