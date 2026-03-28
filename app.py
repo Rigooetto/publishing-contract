@@ -1329,16 +1329,22 @@ BATCH_DETAIL_HTML = """
       form.dataset.bound = "1";
 
       form.addEventListener("submit", function() {
-        const button = form.querySelector("button");
+        const btn = form.querySelector("button");
         const spinner = form.querySelector(".spinner-border");
         const label = form.querySelector(".btn-label");
-        if (button) button.disabled = true;
+
+        if (btn) btn.disabled = true;
         if (spinner) spinner.classList.remove("d-none");
+
         if (label && label.textContent.includes("Send")) {
           label.textContent = "Sending...";
         } else if (label) {
           label.textContent = "Refreshing...";
         }
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
       });
     });
   }
@@ -1361,23 +1367,23 @@ BATCH_DETAIL_HTML = """
 
     const generateForm = document.getElementById("generateBatchForm");
     if (generateForm) {
-    generateForm.addEventListener("submit", function() {
-      const button = document.getElementById("generateBatchButton");
-      if (!button) return;
+      generateForm.addEventListener("submit", function() {
+        const button = document.getElementById("generateBatchButton");
+        if (!button) return;
 
-      const spinner = button.querySelector(".spinner-border");
-      const label = button.querySelector(".btn-label");
+        const spinner = button.querySelector(".spinner-border");
+        const label = button.querySelector(".btn-label");
 
-      button.disabled = true;
-      if (spinner) spinner.classList.remove("d-none");
-      if (label) label.textContent = "Generating...";
+        button.disabled = true;
+        if (spinner) spinner.classList.remove("d-none");
+        if (label) label.textContent = "Generating...";
 
-      // start polling immediately after click
-      setTimeout(() => {
-        pollBatchStatus();
-      }, 1500);
-    });
-   }
+        // Safari-safe fallback: reload page after backend has time to finish
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+      });
+    }
   });
 </script>
 </body>
