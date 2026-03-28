@@ -2100,10 +2100,10 @@ def send_document_docusign(document_id):
 @app.route("/docusign/webhook", methods=["POST"])
 def docusign_webhook():
     raw_data = request.data
-    app.logger.info(f"RAW BODY: {raw_data}")
+    app.logger.warning(f"RAW BODY: {raw_data}")
 
     payload = request.get_json(silent=True)
-    app.logger.info(f"PARSED PAYLOAD: {payload}")
+    app.logger.warning(f"PARSED PAYLOAD: {payload}")
 
     if not payload:
         return "ok", 200
