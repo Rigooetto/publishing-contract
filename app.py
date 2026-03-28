@@ -1061,7 +1061,7 @@ BATCH_DETAIL_HTML = """
        Add Another Work to This Batch
       </a>
       <form method="post" action="{{ url_for('generate_batch_documents', batch_id=batch.id) }}" id="generateBatchForm">
-        <button class="btn btn-success" id="generateBatchButton">
+        <button type="submit" class="btn btn-success" id="generateBatchButton">
           <span class="btn-label">Generate Batch Documents</span>
           <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
         </button>
@@ -1237,6 +1237,9 @@ BATCH_DETAIL_HTML = """
   </div>
 </div>
 <script>
+  const SEND_DOCUSIGN_URL_TEMPLATE = "{{ url_for('send_document_docusign', document_id=0) }}";
+</script>
+<script>
   const batchId = {{ batch.id }};
   let batchPollingInterval = null;
 
@@ -1245,8 +1248,10 @@ BATCH_DETAIL_HTML = """
   }
 
   function renderDocActionCell(doc) {
-    let label = "Send";
+    const docId = doc.id || doc.document_id;
+    const actionUrl = SEND_DOCUSIGN_URL_TEMPLATE.replace("/0/send-docusign", `/${docId}/send-docusign`);
 
+    let label = "Send";
     if (doc.docusign_status === "completed") {
       label = "Resend";
     } else if (doc.docusign_status === "delivered") {
@@ -1256,10 +1261,10 @@ BATCH_DETAIL_HTML = """
     }
 
     return `
-      <form method="post" action="/documents/${doc.id}/send-docusign" class="docusign-action-form">
+      <form method="post" action="${actionUrl}" class="docusign-action-form">
         <button type="submit" class="btn btn-sm btn-outline-dark">
           <span class="btn-label">${label}</span>
-          <span class="spinner-border spinner-border-sm d-none"></span>
+          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
         </button>
       </form>
     `;
@@ -1394,11 +1399,10 @@ BATCH_DETAIL_HTML = """
   
   document.addEventListener("DOMContentLoaded", function() {
     bindActionSpinners();
-    startBatchPolling();
 
     const generateForm = document.getElementById("generateBatchForm");
     if (generateForm) {
-      generateForm.addEventListener("submit", function() {
+      generateForm.addEventListener("submit", function(e) {
         const button = document.getElementById("generateBatchButton");
         if (!button) return;
 
@@ -1409,12 +1413,16 @@ BATCH_DETAIL_HTML = """
         if (spinner) spinner.classList.remove("d-none");
         if (label) label.textContent = "Generating...";
 
-        // Safari-safe fallback: reload page after backend has time to finish
+        // let browser paint spinner first
         setTimeout(() => {
-          window.location.reload();
-        }, 3000);
+          generateForm.submit();
+        }, 150);
+
+        e.preventDefault();
       });
     }
+
+    startBatchPolling();
   });
 </script>
 </body>
