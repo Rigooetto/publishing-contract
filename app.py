@@ -1060,8 +1060,11 @@ BATCH_DETAIL_HTML = """
       <a href="{{ url_for('formulario', batch_id=batch.id) }}" class="btn btn-outline-primary">
        Add Another Work to This Batch
       </a>
-      <form method="post" action="{{ url_for('generate_batch_documents', batch_id=batch.id) }}">
-        <button class="btn btn-success">Generate Batch Documents</button>
+      <form method="post" action="{{ url_for('generate_batch_documents', batch_id=batch.id) }}" id="generateBatchForm">
+        <button class="btn btn-success" id="generateBatchButton">
+          <span class="btn-label">Generate Batch Documents</span>
+          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        </button>
       </form>
     </div>
   </div>
@@ -1223,6 +1226,137 @@ BATCH_DETAIL_HTML = """
     </div>
   </div>
 </div>
+<script>
+  const batchId = {{ batch.id }};
+  let batchPollingInterval = null;
+
+  function escapeHtml(value) {
+    return (value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function renderDocActionCell(doc) {
+    if (doc.docusign_status === "sent" || doc.docusign_status === "delivered") {
+      return `
+        <form method="post" action="/documents/${doc.id}/refresh-docusign" class="docusign-action-form">
+          <button class="btn btn-sm btn-outline-secondary">
+            <span class="btn-label">Refresh Status</span>
+            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+          </button>
+        </form>
+      `;
+    }
+
+    if (doc.docusign_status === "completed") {
+      return `<span class="text-success">Completed</span>`;
+    }
+
+    return `
+      <form method="post" action="/documents/${doc.id}/send-docusign" class="docusign-action-form">
+        <button class="btn btn-sm btn-outline-dark">
+          <span class="btn-label">Send for Signature</span>
+          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        </button>
+      </form>
+    `;
+  }
+
+  function renderGeneratedButton(doc) {
+    if (doc.drive_web_view_link) {
+      return `<a href="${doc.drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-primary">Open</a>`;
+    }
+    return "—";
+  }
+
+  function renderCertificateButton(doc) {
+    if (doc.certificate_drive_web_view_link) {
+      return `<a href="${doc.certificate_drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Certificate</a>`;
+    }
+    return "—";
+  }
+
+  function renderSignedButton(doc) {
+    if (doc.signed_pdf_drive_web_view_link) {
+      return `<a href="${doc.signed_pdf_drive_web_view_link}" target="_blank" class="btn btn-sm btn-outline-secondary">Open Signed</a>`;
+    }
+    return "—";
+  }
+
+  function updateDocumentsTable(data) {
+    const tbody = document.getElementById("generatedDocumentsBody");
+    if (!tbody || !data.documents) return;
+
+    tbody.innerHTML = data.documents.map(doc => `
+      <tr data-doc-id="${doc.id}">
+        <td>${escapeHtml(doc.writer_name_snapshot)}</td>
+        <td>${escapeHtml(doc.document_type)}</td>
+        <td>${escapeHtml(doc.file_name)}</td>
+        <td>${renderGeneratedButton(doc)}</td>
+        <td>${renderDocActionCell(doc)}</td>
+        <td>${escapeHtml(doc.docusign_status || "—")}</td>
+        <td>${renderCertificateButton(doc)}</td>
+        <td style="min-width: 220px;">—</td>
+        <td>${renderSignedButton(doc)}</td>
+        <td>${escapeHtml(doc.status || "—")}</td>
+      </tr>
+    `).join("");
+
+    bindActionSpinners();
+  }
+
+  async function pollBatchStatus() {
+    try {
+      const response = await fetch(`/batches/${batchId}/status-json`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      updateDocumentsTable(data);
+    } catch (err) {
+      console.error("Batch polling failed", err);
+    }
+  }
+
+  function startBatchPolling() {
+    if (batchPollingInterval) return;
+    batchPollingInterval = setInterval(pollBatchStatus, 5000);
+  }
+
+  function bindActionSpinners() {
+    document.querySelectorAll(".docusign-action-form").forEach(form => {
+      if (form.dataset.bound === "1") return;
+      form.dataset.bound = "1";
+
+      form.addEventListener("submit", function() {
+        const button = form.querySelector("button");
+        const spinner = form.querySelector(".spinner-border");
+        const label = form.querySelector(".btn-label");
+        if (button) button.disabled = true;
+        if (spinner) spinner.classList.remove("d-none");
+        if (label && label.textContent.includes("Send")) {
+          label.textContent = "Sending...";
+        } else if (label) {
+          label.textContent = "Refreshing...";
+        }
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    bindActionSpinners();
+    startBatchPolling();
+
+    const generateForm = document.getElementById("generateBatchForm");
+    if (generateForm) {
+      generateForm.addEventListener("submit", function() {
+        const button = document.getElementById("generateBatchButton");
+        const spinner = button.querySelector(".spinner-border");
+        const label = button.querySelector(".btn-label");
+
+        button.disabled = true;
+        spinner.classList.remove("d-none");
+        label.textContent = "Generating...";
+      });
+    }
+  });
+</script>
 </body>
 </html>
 """
