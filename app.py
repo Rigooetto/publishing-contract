@@ -1257,7 +1257,7 @@ BATCH_DETAIL_HTML = """
 
     return `
       <form method="post" action="/documents/${doc.id}/send-docusign" class="docusign-action-form">
-        <button class="btn btn-sm btn-outline-dark">
+        <button type="submit" class="btn btn-sm btn-outline-dark">
           <span class="btn-label">${label}</span>
           <span class="spinner-border spinner-border-sm d-none"></span>
         </button>
@@ -1359,23 +1359,23 @@ BATCH_DETAIL_HTML = """
       if (form.dataset.bound === "1") return;
       form.dataset.bound = "1";
 
-      form.addEventListener("submit", function() {
-        const btn = form.querySelector("button");
+      form.addEventListener("submit", function(e) {
+        e.preventDefault(); // stop instant submit
+
+        const button = form.querySelector("button");
         const spinner = form.querySelector(".spinner-border");
         const label = form.querySelector(".btn-label");
 
-        if (btn) btn.disabled = true;
+        if (button) button.disabled = true;
+
         if (spinner) spinner.classList.remove("d-none");
 
-        if (label) {
-          label.textContent = "Sending...";
-        } else if (label) {
-          label.textContent = "Refreshing...";
-        }
+        if (label) label.textContent = "Processing...";
 
+        // give browser time to paint spinner BEFORE submit
         setTimeout(() => {
-          window.location.reload();
-        }, 3000);
+          form.submit();
+        }, 150);
       });
     });
   }
