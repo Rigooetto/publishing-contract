@@ -1303,31 +1303,90 @@ WORK_DETAIL_HTML = """
   <div class="card shadow-sm">
     <div class="card-body">
       <h5>Generated Documents</h5>
+
       <div class="table-responsive">
         <table class="table table-striped">
           <thead>
             <tr>
               <th>Writer</th>
-              <th>Document Type</th>
-              <th>File Name</th>
-              <th>Generated At</th>
+              <th>Type</th>
+              <th>File</th>
+              <th>Generated</th>
+              <th>Generated Doc</th>
+              <th>DocuSign</th>
+              <th>Status</th>
+              <th>Certificate</th>
+              <th>Signed</th>
             </tr>
           </thead>
-          <tbody>
+
+          <tbody id="generatedDocumentsBody">
             {% for doc in documents %}
-              <tr>
-                <td>{{ doc.writer_name_snapshot }}</td>
-                <td>{{ doc.document_type }}</td>
-                <td>{{ doc.file_name }}</td>
-                <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-              </tr>
+            <tr data-doc-id="{{ doc.id }}">
+
+              <td>{{ doc.writer_name_snapshot }}</td>
+              <td>{{ doc.document_type }}</td>
+              <td>{{ doc.file_name }}</td>
+              <td>{{ doc.generated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+
+              <td>
+                {% if doc.drive_web_view_link %}
+                  <a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-primary">Open</a>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+              <td>
+                {% if doc.docusign_status == 'sent' or doc.docusign_status == 'delivered' %}
+                  <form method="post" action="{{ url_for('refresh_document_docusign', document_id=doc.id) }}" class="docusign-action-form">
+                    <button class="btn btn-sm btn-outline-secondary">
+                      <span class="btn-label">Refresh</span>
+                      <span class="spinner-border spinner-border-sm d-none"></span>
+                    </button>
+                  </form>
+
+                {% elif doc.docusign_status == 'completed' %}
+                  <span class="text-success">Completed</span>
+
+                {% else %}
+                  <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}" class="docusign-action-form">
+                    <button class="btn btn-sm btn-outline-dark">
+                      <span class="btn-label">Send</span>
+                      <span class="spinner-border spinner-border-sm d-none"></span>
+                    </button>
+                  </form>
+                {% endif %}
+              </td>
+
+              <td>{{ doc.docusign_status or '—' }}</td>
+
+              <td>
+                {% if doc.certificate_drive_web_view_link %}
+                  <a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    Certificate
+                  </a>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+              <td>
+                {% if doc.signed_pdf_drive_web_view_link %}
+                  <a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-sm btn-outline-success">
+                    Signed
+                  </a>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+            </tr>
             {% endfor %}
-            {% if not documents %}
-              <tr><td colspan="4" class="text-center text-muted">No documents generated yet.</td></tr>
-            {% endif %}
           </tbody>
         </table>
       </div>
+      
     </div>
   </div>
 </div>
@@ -1846,6 +1905,34 @@ def batch_detail(batch_id):
         documents=documents,
         writer_summary=writer_summary,
     )
+
+@app.route("/batches/<int:batch_id>/status-json")
+def batch_status_json(batch_id):
+    if auth_required():
+        return jsonify({"error": "unauthorized"}), 401
+
+    batch = GenerationBatch.query.get_or_404(batch_id)
+
+    documents = ContractDocument.query.filter_by(batch_id=batch.id).order_by(ContractDocument.generated_at.asc()).all()
+
+    return jsonify({
+        "batch_id": batch.id,
+        "status": batch.status,
+        "documents": [
+            {
+                "id": doc.id,
+                "writer_name_snapshot": doc.writer_name_snapshot,
+                "document_type": doc.document_type,
+                "file_name": doc.file_name,
+                "drive_web_view_link": doc.drive_web_view_link,
+                "docusign_status": doc.docusign_status,
+                "status": doc.status,
+                "signed_pdf_drive_web_view_link": getattr(doc, "signed_pdf_drive_web_view_link", None),
+                "certificate_drive_web_view_link": getattr(doc, "certificate_drive_web_view_link", None),
+            }
+            for doc in documents
+        ]
+    })
 
 
 @app.route("/batches/<int:batch_id>/generate", methods=["POST"])
