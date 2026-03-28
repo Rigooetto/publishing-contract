@@ -14,6 +14,7 @@ import zipfile
 import datetime
 import base64
 import xml.etree.ElementTree as ET
+import traceback
 
 from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, Document as DocusignDocument, Signer, SignHere, Tabs, Recipients
 
@@ -1380,25 +1381,30 @@ BATCH_DETAIL_HTML = """
     bindActionSpinners();
 
     const generateForm = document.getElementById("generateBatchForm");
-    if (generateForm) {
-      generateForm.addEventListener("submit", function(e) {
-        e.preventDefault();
+if (generateForm) {
+  generateForm.addEventListener("submit", function(e) {
+    e.preventDefault();
 
-        const button = document.getElementById("generateBatchButton");
-        if (!button) return;
+    const button = document.getElementById("generateBatchButton");
+    if (!button) return;
 
-        const spinner = button.querySelector(".spinner-border");
-        const label = button.querySelector(".btn-label");
+    const spinner = button.querySelector(".spinner-border");
+    const label = button.querySelector(".btn-label");
 
-        button.disabled = true;
-        if (spinner) spinner.classList.remove("d-none");
-        if (label) label.textContent = "Generating...";
+    button.disabled = true;
+    if (spinner) spinner.classList.remove("d-none");
+    if (label) label.textContent = "Generating...";
 
-        setTimeout(() => {
-          generateForm.submit();
-        }, 150);
-      });
-    }
+    setTimeout(() => {
+      generateForm.submit();
+    }, 150);
+
+    // because this route returns a file download, reset UI manually
+    setTimeout(() => {
+      stopGenerateSpinner();
+    }, 4000);
+  });
+}
 
     startBatchPolling();
   });
@@ -2463,75 +2469,115 @@ def docusign_webhook():
     return "ok", 200
     
 
-@app.route("/documents/<int:document_id>/refresh-docusign", methods=["POST"])
-def refresh_document_docusign(document_id):
-    if auth_required():
-        return redirect(url_for("login"))
-
-    document = ContractDocument.query.get_or_404(document_id)
-
-    if not document.docusign_envelope_id:
-        flash("This document has not been sent to DocuSign yet.")
-        return redirect(url_for("batch_detail", batch_id=document.batch_id))
-
+@app.route("/documents/<int:document_id>/send-docusign", methods=["POST"])
+def send_document_docusign(document_id):
     try:
+        if auth_required():
+            return redirect(url_for("login"))
+
+        document = ContractDocument.query.get_or_404(document_id)
+        writer = Writer.query.get(document.writer_id)
+
+        app.logger.warning(f"DOCUSIGN SEND START document_id={document_id}")
+        app.logger.warning(f"DOCUSIGN SEND writer_id={document.writer_id if document else None}")
+        app.logger.warning(f"DOCUSIGN SEND writer_email={getattr(writer, 'email', None)}")
+        app.logger.warning(f"DOCUSIGN SEND drive_file_id={getattr(document, 'drive_file_id', None)}")
+
+        if not writer:
+            flash("Writer not found.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        if not getattr(writer, "email", None):
+            flash("Writer email is required before sending to DocuSign.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        if not document.drive_file_id:
+            flash("Generated document file is missing.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        if not DOCUSIGN_ACCOUNT_ID or not DOCUSIGN_INTEGRATION_KEY or not DOCUSIGN_USER_ID or not DOCUSIGN_PRIVATE_KEY:
+            flash("DocuSign environment variables are not fully configured.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        service = get_drive_service()
+        file_bytes = service.files().get_media(
+            fileId=document.drive_file_id,
+            supportsAllDrives=True
+        ).execute()
+
         api_client = get_docusign_api_client()
         envelopes_api = EnvelopesApi(api_client)
 
-        envelope = envelopes_api.get_envelope(
+        doc_b64 = base64.b64encode(file_bytes).decode("ascii")
+
+        ds_document = DocusignDocument(
+            document_base64=doc_b64,
+            name=document.file_name,
+            file_extension="docx",
+            document_id="1",
+        )
+
+        signer = Signer(
+            email=writer.email,
+            name=writer.full_name,
+            recipient_id="1",
+            routing_order="1",
+        )
+
+        sign_here = SignHere(
+            anchor_string="[[DS_SIGN_HERE]]",
+            anchor_units="pixels",
+            anchor_x_offset="0",
+            anchor_y_offset="0",
+        )
+
+        signer.tabs = Tabs(sign_here_tabs=[sign_here])
+
+        webhook_url = request.url_root.rstrip("/") + url_for("docusign_webhook")
+
+        event_notification = {
+            "url": webhook_url,
+            "loggingEnabled": "true",
+            "requireAcknowledgment": "true",
+            "includeEnvelopeVoidReason": "true",
+            "includeTimeZone": "true",
+            "includeSenderAccountAsCustomField": "true",
+            "envelopeEvents": [
+                {"envelopeEventStatusCode": "sent"},
+                {"envelopeEventStatusCode": "delivered"},
+                {"envelopeEventStatusCode": "completed"},
+                {"envelopeEventStatusCode": "declined"},
+                {"envelopeEventStatusCode": "voided"},
+            ],
+        }
+
+        envelope_definition = EnvelopeDefinition(
+            email_subject=f"Please sign: {document.file_name}",
+            documents=[ds_document],
+            recipients=Recipients(signers=[signer]),
+            status="sent",
+            event_notification=event_notification,
+        )
+
+        result = envelopes_api.create_envelope(
             account_id=DOCUSIGN_ACCOUNT_ID,
-            envelope_id=document.docusign_envelope_id,
+            envelope_definition=envelope_definition,
         )
 
-        document.docusign_status = envelope.status
-
-        if envelope.status == "completed":
-            doc_bytes = envelopes_api.get_document(
-            account_id=DOCUSIGN_ACCOUNT_ID,
-            envelope_id=document.docusign_envelope_id,
-            document_id="combined",
-        )
-
-        signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
-
-        signed_drive_info = upload_bytes_to_drive(
-            file_name=signed_file_name,
-            file_bytes=doc_bytes,
-            parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
-            mime_type="application/pdf",
-        )
-
-        document.signed_pdf_drive_file_id = signed_drive_info.get("file_id")
-        document.signed_pdf_drive_web_view_link = signed_drive_info.get("web_view_link")
-
-        certificate_bytes = envelopes_api.get_document(
-            account_id=DOCUSIGN_ACCOUNT_ID,
-            envelope_id=document.docusign_envelope_id,
-            document_id="certificate",
-        )
-
-        certificate_file_name = document.file_name.rsplit(".", 1)[0] + "_CERTIFICATE.pdf"
-
-        certificate_drive_info = upload_bytes_to_drive(
-            file_name=certificate_file_name,
-            file_bytes=certificate_bytes,
-            parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
-            mime_type="application/pdf",
-        )
-
-        document.certificate_drive_file_id = certificate_drive_info.get("file_id")
-        document.certificate_drive_web_view_link = certificate_drive_info.get("web_view_link")
-
-        document.completed_at = datetime.datetime.utcnow()
-        document.status = "signed"
-
+        document.docusign_envelope_id = result.envelope_id
+        document.docusign_status = "sent"
+        document.sent_for_signature_at = datetime.datetime.utcnow()
         db.session.commit()
-        flash(f"DocuSign status updated: {document.docusign_status}")
+
+        flash("Sent to DocuSign successfully.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
     except Exception as e:
         db.session.rollback()
-        flash(f"DocuSign refresh failed: {e}")
-
-    return redirect(url_for("batch_detail", batch_id=document.batch_id))
+        app.logger.error(f"DOCUSIGN SEND ERROR: {e}")
+        app.logger.error(traceback.format_exc())
+        flash(f"DocuSign send failed: {e}")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
 
 @app.route("/documents/<int:document_id>/upload-signed", methods=["POST"])
 def upload_signed_document(document_id):
