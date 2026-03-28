@@ -1381,30 +1381,29 @@ BATCH_DETAIL_HTML = """
     bindActionSpinners();
 
     const generateForm = document.getElementById("generateBatchForm");
-if (generateForm) {
-  generateForm.addEventListener("submit", function(e) {
-    e.preventDefault();
+    if (generateForm) {
+      generateForm.addEventListener("submit", function(e) {
+        e.preventDefault();
 
-    const button = document.getElementById("generateBatchButton");
-    if (!button) return;
+        const button = document.getElementById("generateBatchButton");
+        if (!button) return;
 
-    const spinner = button.querySelector(".spinner-border");
-    const label = button.querySelector(".btn-label");
+        const spinner = button.querySelector(".spinner-border");
+        const label = button.querySelector(".btn-label");
 
-    button.disabled = true;
-    if (spinner) spinner.classList.remove("d-none");
-    if (label) label.textContent = "Generating...";
+        button.disabled = true;
+        if (spinner) spinner.classList.remove("d-none");
+        if (label) label.textContent = "Generating...";
 
-    setTimeout(() => {
-      generateForm.submit();
-    }, 150);
+        setTimeout(() => {
+          generateForm.submit();
+        }, 150);
 
-    // because this route returns a file download, reset UI manually
-    setTimeout(() => {
-      stopGenerateSpinner();
-    }, 4000);
-  });
-}
+        setTimeout(() => {
+          window.location.reload();
+        }, 4000);
+      });
+    }
 
     startBatchPolling();
   });
@@ -2371,11 +2370,17 @@ def docusign_webhook():
 
 @app.route("/documents/<int:document_id>/send-docusign", methods=["POST"])
 def send_document_docusign(document_id):
+    document = None
+
     try:
         if auth_required():
             return redirect(url_for("login"))
 
-        document = ContractDocument.query.get_or_404(document_id)
+        document = ContractDocument.query.get(document_id)
+        if not document:
+            flash("This document no longer exists. Please refresh the batch page.")
+            return redirect(request.referrer or url_for("batches_list"))
+
         writer = Writer.query.get(document.writer_id)
 
         app.logger.warning(f"DOCUSIGN SEND START document_id={document_id}")
@@ -2477,8 +2482,11 @@ def send_document_docusign(document_id):
         app.logger.error(f"DOCUSIGN SEND ERROR: {e}")
         app.logger.error(traceback.format_exc())
         flash(f"DocuSign send failed: {e}")
-        return redirect(url_for("batch_detail", batch_id=document.batch_id))
 
+        if document:
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+        return redirect(request.referrer or url_for("batches_list"))
+        
 @app.route("/documents/<int:document_id>/upload-signed", methods=["POST"])
 def upload_signed_document(document_id):
     if auth_required():
