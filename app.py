@@ -1178,18 +1178,28 @@ BATCH_DETAIL_HTML = """
                   {% endif %}
                 </td>
                 <td>
-                  {% if doc.docusign_status == 'sent' or doc.docusign_status == 'delivered' %}
-                    <form method="post" action="{{ url_for('refresh_document_docusign', document_id=doc.id) }}">
-                      <button class="btn btn-sm btn-outline-secondary">Refresh Status</button>
-                    </form>
-                  {% else %}
-                    <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}">
-                      <button class="btn btn-sm btn-outline-dark">Send for Signature</button>
-                    </form>
-                  {% endif %}
-                </td>
+                  <form method="post"
+                        action="{{ url_for('send_document_docusign', document_id=doc.id) }}"
+                        class="docusign-action-form">
 
-                <td>
+                    <button class="btn btn-sm btn-outline-dark">
+                      <span class="btn-label">
+                        {% if doc.docusign_status == 'completed' %}
+                          Resend
+                        {% elif doc.docusign_status == 'sent' %}
+                          Sent
+                        {% elif doc.docusign_status == 'delivered' %}
+                          Delivered
+                        {% else %}
+                          Send
+                        {% endif %}
+                      </span>
+
+                      <span class="spinner-border spinner-border-sm d-none"></span>
+                    </button>
+
+                  </form>
+                </td>
                   {{ doc.docusign_status or '—' }}
                 </td>
                 <td>
@@ -1336,7 +1346,7 @@ BATCH_DETAIL_HTML = """
         if (btn) btn.disabled = true;
         if (spinner) spinner.classList.remove("d-none");
 
-        if (label && label.textContent.includes("Send")) {
+        if (label) {
           label.textContent = "Sending...";
         } else if (label) {
           label.textContent = "Refreshing...";
