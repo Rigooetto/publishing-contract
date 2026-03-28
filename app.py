@@ -1238,13 +1238,15 @@ BATCH_DETAIL_HTML = """
 </div>
 <script>
   const SEND_DOCUSIGN_URL_TEMPLATE = "{{ url_for('send_document_docusign', document_id=0) }}";
-</script>
-<script>
   const batchId = {{ batch.id }};
   let batchPollingInterval = null;
 
   function escapeHtml(value) {
-    return (value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return (value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function renderDocActionCell(doc) {
@@ -1264,20 +1266,6 @@ BATCH_DETAIL_HTML = """
       <form method="post" action="${actionUrl}" class="docusign-action-form">
         <button type="submit" class="btn btn-sm btn-outline-dark">
           <span class="btn-label">${label}</span>
-          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-        </button>
-      </form>
-    `;
-  }
-
-    if (doc.docusign_status === "completed") {
-      return `<span class="text-success">Completed</span>`;
-    }
-
-    return `
-      <form method="post" action="/documents/${doc.id}/send-docusign" class="docusign-action-form">
-        <button class="btn btn-sm btn-outline-dark">
-          <span class="btn-label">Send for Signature</span>
           <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
         </button>
       </form>
@@ -1305,6 +1293,18 @@ BATCH_DETAIL_HTML = """
     return "—";
   }
 
+  function stopGenerateSpinner() {
+    const button = document.getElementById("generateBatchButton");
+    if (!button) return;
+
+    const spinner = button.querySelector(".spinner-border");
+    const label = button.querySelector(".btn-label");
+
+    button.disabled = false;
+    if (spinner) spinner.classList.add("d-none");
+    if (label) label.textContent = "Generate Batch Documents";
+  }
+
   function updateDocumentsTable(data) {
     const tbody = document.getElementById("generatedDocumentsBody");
     if (!tbody || !data.documents) return;
@@ -1315,29 +1315,23 @@ BATCH_DETAIL_HTML = """
         <td>${escapeHtml(doc.document_type)}</td>
         <td>${escapeHtml(doc.file_name)}</td>
         <td>${escapeHtml(doc.generated_at || "—")}</td>
-
         <td>${renderGeneratedButton(doc)}</td>
-
         <td>${renderDocActionCell(doc)}</td>
-
         <td>${escapeHtml(doc.docusign_status || "—")}</td>
-
         <td>${renderCertificateButton(doc)}</td>
-
         <td style="min-width: 220px;">
           <form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data">
             <input type="file" name="signed_file" class="form-control form-control-sm mb-1">
-            <button class="btn btn-sm btn-outline-success">Upload</button>
+            <button type="submit" class="btn btn-sm btn-outline-success">Upload</button>
           </form>
         </td>
-
         <td>${renderSignedButton(doc)}</td>
-
         <td>${escapeHtml(doc.status || "—")}</td>
       </tr>
     `).join("");
 
     bindActionSpinners();
+
     if (data.documents && data.documents.length > 0) {
       stopGenerateSpinner();
     }
@@ -1365,19 +1359,16 @@ BATCH_DETAIL_HTML = """
       form.dataset.bound = "1";
 
       form.addEventListener("submit", function(e) {
-        e.preventDefault(); // stop instant submit
+        e.preventDefault();
 
         const button = form.querySelector("button");
         const spinner = form.querySelector(".spinner-border");
         const label = form.querySelector(".btn-label");
 
         if (button) button.disabled = true;
-
         if (spinner) spinner.classList.remove("d-none");
-
         if (label) label.textContent = "Processing...";
 
-        // give browser time to paint spinner BEFORE submit
         setTimeout(() => {
           form.submit();
         }, 150);
@@ -1385,24 +1376,14 @@ BATCH_DETAIL_HTML = """
     });
   }
 
-  function stopGenerateSpinner() {
-  const button = document.getElementById("generateBatchButton");
-  if (!button) return;
-
-  const spinner = button.querySelector(".spinner-border");
-  const label = button.querySelector(".btn-label");
-
-  button.disabled = false;
-  if (spinner) spinner.classList.add("d-none");
-  if (label) label.textContent = "Generate Batch Documents";
-}
-  
   document.addEventListener("DOMContentLoaded", function() {
     bindActionSpinners();
 
     const generateForm = document.getElementById("generateBatchForm");
     if (generateForm) {
       generateForm.addEventListener("submit", function(e) {
+        e.preventDefault();
+
         const button = document.getElementById("generateBatchButton");
         if (!button) return;
 
@@ -1413,12 +1394,9 @@ BATCH_DETAIL_HTML = """
         if (spinner) spinner.classList.remove("d-none");
         if (label) label.textContent = "Generating...";
 
-        // let browser paint spinner first
         setTimeout(() => {
           generateForm.submit();
         }, 150);
-
-        e.preventDefault();
       });
     }
 
