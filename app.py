@@ -581,6 +581,26 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .sb-nav .ni-pencil{
   color:var(--am);
 }
+/* Custom pencil icon (matches your header icon) */
+.ni-pencil-custom{
+  width:18px;
+  height:18px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:6px;
+  background:linear-gradient(135deg, rgba(99,133,255,.25), rgba(165,91,255,.25));
+  border:1px solid rgba(99,133,255,.25);
+  font-size:11px;
+  position:relative;
+}
+
+/* Pencil emoji inside */
+.ni-pencil-custom::before{
+  content:"✏️";
+  font-size:11px;
+  filter:saturate(1.2);
+}
 </style>"""
 
 # ================================================================
@@ -658,7 +678,7 @@ _SB_JS = """
 def _sidebar(active):
     pages = [
         ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
-        ("formulario",   "New Work",  "<span class='ni ni-pencil'>&#9999;</span>"),
+        ("formulario",   "New Work",  "<span class='ni ni-pencil-custom'></span>"),
         ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
     ]
 
