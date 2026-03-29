@@ -37,7 +37,7 @@ if raw_db_url.startswith("postgresql://") and "sslmode=" not in raw_db_url:
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB upload limit
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 
 db = SQLAlchemy(app)
 
@@ -134,11 +134,9 @@ def default_publisher_ipi_for_pro(pro: str) -> str:
 def get_drive_service():
     if not GOOGLE_SERVICE_ACCOUNT_JSON:
         raise ValueError("Missing GOOGLE_SERVICE_ACCOUNT_JSON")
-
     info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
     credentials = service_account.Credentials.from_service_account_info(
-        info,
-        scopes=["https://www.googleapis.com/auth/drive"]
+        info, scopes=["https://www.googleapis.com/auth/drive"]
     )
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
@@ -146,10 +144,8 @@ def get_drive_service():
 def get_docusign_api_client():
     private_key = (DOCUSIGN_PRIVATE_KEY or "").replace("\\n", "\n")
     private_key_bytes = private_key.encode("utf-8")
-
     api_client = ApiClient()
     api_client.host = DOCUSIGN_BASE_PATH
-
     token = api_client.request_jwt_user_token(
         client_id=DOCUSIGN_INTEGRATION_KEY,
         user_id=DOCUSIGN_USER_ID,
@@ -158,7 +154,6 @@ def get_docusign_api_client():
         expires_in=3600,
         scopes=["signature", "impersonation"],
     )
-
     access_token = token.access_token
     api_client.set_default_header("Authorization", f"Bearer {access_token}")
     return api_client
@@ -166,19 +161,16 @@ def get_docusign_api_client():
 
 def upload_bytes_to_drive(file_name: str, file_bytes: bytes, parent_folder_id: str, mime_type: str):
     service = get_drive_service()
-
     media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=False)
     metadata = {"name": file_name}
     if parent_folder_id:
         metadata["parents"] = [parent_folder_id]
-
     created = service.files().create(
         body=metadata,
         media_body=media,
         fields="id, webViewLink",
         supportsAllDrives=True,
     ).execute()
-
     return {
         "file_id": created.get("id"),
         "web_view_link": created.get("webViewLink"),
@@ -189,7 +181,6 @@ class Camp(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False, unique=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
     works = db.relationship("Work", backref="camp", lazy=True)
     batches = db.relationship("GenerationBatch", backref="camp", lazy=True)
 
@@ -201,37 +192,27 @@ class GenerationBatch(db.Model):
     created_by = db.Column(db.String(100), default="")
     status = db.Column(db.String(50), default="draft")
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
     works = db.relationship("Work", backref="batch", lazy=True)
     documents = db.relationship("ContractDocument", backref="batch", lazy=True)
 
 
 class Writer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-
     first_name = db.Column(db.String(100), default="", index=True)
     middle_name = db.Column(db.String(100), default="")
     last_names = db.Column(db.String(150), default="")
     full_name = db.Column(db.String(250), nullable=False, unique=True, index=True)
     writer_aka = db.Column(db.String(250), default="")
-
     ipi = db.Column(db.String(50), nullable=True, unique=True, index=True)
     pro = db.Column(db.String(20), default="")
     email = db.Column(db.String(255), nullable=True, index=True)
-
     address = db.Column(db.String(255), default="")
     city = db.Column(db.String(100), default="")
     state = db.Column(db.String(100), default="")
     zip_code = db.Column(db.String(20), default="")
-
     has_master_contract = db.Column(db.Boolean, default=False)
-
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime,
-        default=datetime.datetime.utcnow,
-        onupdate=datetime.datetime.utcnow,
-    )
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
 class Work(db.Model):
@@ -242,66 +223,49 @@ class Work(db.Model):
     batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
     contract_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
     work_writers = db.relationship("WorkWriter", backref="work", lazy=True, cascade="all, delete-orphan")
     contract_documents = db.relationship("ContractDocument", backref="work", lazy=True, cascade="all, delete-orphan")
 
 
 class WorkWriter(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-
     work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
     writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
-
     writer_percentage = db.Column(db.Float, default=0.0)
-
     publisher = db.Column(db.String(255), default="")
     publisher_ipi = db.Column(db.String(50), default="")
     publisher_address = db.Column(db.String(255), default="")
     publisher_city = db.Column(db.String(100), default="")
     publisher_state = db.Column(db.String(100), default="")
     publisher_zip_code = db.Column(db.String(20), default="")
-
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
     writer = db.relationship("Writer", backref="work_links")
 
 
 class ContractDocument(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-
     batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
     work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=True)
     writer_id = db.Column(db.Integer, db.ForeignKey("writer.id"), nullable=False)
-
     document_type = db.Column(db.String(50), nullable=False)
     file_name = db.Column(db.String(255), nullable=False)
-
     writer_name_snapshot = db.Column(db.String(250), nullable=False)
     work_title_snapshot = db.Column(db.String(255), nullable=False)
-
     drive_file_id = db.Column(db.String(255), nullable=True)
     drive_web_view_link = db.Column(db.String(500), nullable=True)
-
     signed_file_name = db.Column(db.String(255), nullable=True)
     signed_drive_file_id = db.Column(db.String(255), nullable=True)
     signed_web_view_link = db.Column(db.String(500), nullable=True)
     signed_uploaded_at = db.Column(db.DateTime, nullable=True)
-
     status = db.Column(db.String(50), default="generated")
     generated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
     writer = db.relationship("Writer", backref="contract_documents")
-
     docusign_envelope_id = db.Column(db.String(100), nullable=True)
     docusign_status = db.Column(db.String(50), nullable=True)
-
     sent_for_signature_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
-
     signed_pdf_drive_file_id = db.Column(db.String(255), nullable=True)
     signed_pdf_drive_web_view_link = db.Column(db.String(500), nullable=True)
-
     certificate_drive_file_id = db.Column(db.String(255), nullable=True)
     certificate_drive_web_view_link = db.Column(db.String(500), nullable=True)
 
@@ -313,13 +277,11 @@ def init_db():
 
 @app.context_processor
 def inject_globals():
-    return {
-        "team_auth_enabled": bool(TEAM_USERNAME and TEAM_PASSWORD)
-    }
+    return {"team_auth_enabled": bool(TEAM_USERNAME and TEAM_PASSWORD)}
 
 
 # ══════════════════════════════════════════════════════
-#  REDESIGNED HTML TEMPLATES — LabelMind Dark UI
+#  STYLES
 # ══════════════════════════════════════════════════════
 
 _STYLE = """
@@ -334,28 +296,38 @@ _STYLE = """
   --a:#6385ff;--ae:#a55bff;--ag:#34d399;--ar:#ff4f6a;--am:#f59e0b;--ac:#22d3ee;
   --t1:#edf0f8;--t2:#8a96b0;--t3:#4a5470;
   --rs:7px;--rm:11px;--rl:15px;
-  --sb:220px;--tb:54px;
+  --sb:230px;--sb-collapsed:54px;--tb:54px;
   --sh:0 4px 28px rgba(0,0,0,.45);
   --f:'DM Sans',system-ui,sans-serif;
   --fm:'DM Mono','Fira Mono',monospace;
 }
-html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 .app{display:flex;min-height:100vh}
-.main{margin-left:var(--sb);flex:1;min-height:100vh}
-.page{max-width:1140px;margin:0 auto;padding:28px 30px 100px}
-.sb{width:var(--sb);min-height:100vh;background:var(--bg1);border-right:1px solid var(--b0);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50}
-.sb-logo{display:flex;align-items:center;gap:10px;padding:19px 17px 15px;border-bottom:1px solid var(--b0);margin-bottom:5px;text-decoration:none}
+.main{margin-left:var(--sb);flex:1;min-height:100vh;transition:margin-left .22s ease}
+.page{max-width:1200px;margin:0 auto;padding:22px 22px 100px}
+.sb{width:var(--sb);min-height:100vh;background:var(--bg1);border-right:1px solid var(--b0);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50;transition:width .22s ease;overflow:hidden}
+.sb.collapsed{width:var(--sb-collapsed)}
+.app.sb-collapsed .main{margin-left:var(--sb-collapsed)}
+.sb-logo{display:flex;align-items:center;gap:10px;padding:15px 13px 13px;border-bottom:1px solid var(--b0);margin-bottom:5px;text-decoration:none;white-space:nowrap;overflow:hidden}
 .sb-ico{width:28px;height:28px;background:linear-gradient(135deg,var(--a),var(--ae));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
-.sb-name{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.02em}
-.sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 17px 4px}
-.sb-nav a{display:flex;align-items:center;gap:9px;padding:8px 17px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative}
+.sb-name{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.02em;transition:opacity .18s}
+.sb.collapsed .sb-name{opacity:0;pointer-events:none}
+.sb-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--bg4);border:1px solid var(--b0);border-radius:6px;cursor:pointer;color:var(--t3);font-size:11px;margin-left:auto;flex-shrink:0;transition:color .14s,background .14s;user-select:none}
+.sb-toggle:hover{color:var(--t1);background:var(--bg5)}
+.sb.collapsed .sb-toggle{margin-left:0}
+.sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
+.sb.collapsed .sb-sec{opacity:0;height:0;padding:0;pointer-events:none}
+.sb-nav a{display:flex;align-items:center;gap:9px;padding:8px 13px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative;white-space:nowrap;overflow:hidden}
 .sb-nav a:hover{color:var(--t1);background:rgba(255,255,255,.03)}
 .sb-nav a.on{color:var(--a);background:rgba(99,133,255,.08)}
 .sb-nav a.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--a);border-radius:0 2px 2px 0}
-.sb-nav .ni{font-size:13px;flex-shrink:0;opacity:.85}
-.sb-foot{margin-top:auto;padding:13px 17px;border-top:1px solid var(--b0);font-size:11px;color:var(--t3)}
+.sb-nav .ni{font-size:13px;flex-shrink:0;opacity:.85;min-width:18px;text-align:center}
+.sb-nav .nl{transition:opacity .18s}
+.sb.collapsed .sb-nav .nl{opacity:0}
+.sb-foot{margin-top:auto;padding:13px 14px;border-top:1px solid var(--b0);font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb-foot b{color:var(--t2);font-size:11.5px;display:block;margin-bottom:2px}
-.topbar{position:sticky;top:0;z-index:40;background:rgba(7,11,18,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--b0);height:var(--tb);display:flex;align-items:center;padding:0 26px;gap:12px}
+.sb.collapsed .sb-foot{opacity:0;pointer-events:none}
+.topbar{position:sticky;top:0;z-index:40;background:rgba(7,11,18,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--b0);height:var(--tb);display:flex;align-items:center;padding:0 22px;gap:12px}
 .tb-search{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);padding:6px 11px;width:220px;color:var(--t3);font-size:12px}
 .tb-kbd{margin-left:auto;font-size:10px;font-family:var(--fm);opacity:.45}
 .tb-right{display:flex;align-items:center;gap:7px;margin-left:auto}
@@ -369,7 +341,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .ph{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:22px}
 .ph-left{display:flex;align-items:center;gap:12px}
 .ph-icon{width:36px;height:36px;background:linear-gradient(135deg,rgba(99,133,255,.16),rgba(165,91,255,.16));border:1px solid rgba(99,133,255,.2);border-radius:var(--rm);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.ph-title{font-size:19px;font-weight:700;letter-spacing:-.03em;line-height:1.2}
+.ph-title{font-size:20px;font-weight:700;letter-spacing:-.03em;line-height:1.2}
 .ph-sub{font-size:12px;color:var(--t2);margin-top:2px}
 .ph-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}
 .flash-list{margin-bottom:14px}
@@ -389,7 +361,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .g4a{grid-template-columns:2fr 1fr .55fr .55fr}
 .field{display:flex;flex-direction:column;gap:5px}
 .label{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t2)}
-.inp{background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);color:var(--t1);font-family:var(--f);font-size:13px;padding:8px 11px;width:100%;outline:none;transition:border-color .14s,box-shadow .14s;-webkit-appearance:none;appearance:none}
+.inp{background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);color:var(--t1);font-family:var(--f);font-size:14px;padding:9px 12px;width:100%;outline:none;transition:border-color .14s,box-shadow .14s;-webkit-appearance:none;appearance:none}
 .inp::placeholder{color:var(--t3)}
 .inp:focus{border-color:var(--bf);box-shadow:0 0 0 3px rgba(99,133,255,.1)}
 select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%234a5470' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;padding-right:28px;cursor:pointer}
@@ -397,7 +369,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .inp-wrap{position:relative}
 .inp-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--t3);pointer-events:none}
 .inp-wrap .inp{padding-left:28px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:var(--rs);font-family:var(--f);font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;text-decoration:none;transition:all .15s;white-space:nowrap;line-height:1}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--rs);font-family:var(--f);font-size:13.5px;font-weight:600;cursor:pointer;border:1px solid transparent;text-decoration:none;transition:all .15s;white-space:nowrap;line-height:1}
 .btn-primary{background:linear-gradient(135deg,var(--a),var(--ae));color:#fff;border:none;box-shadow:0 2px 14px rgba(99,133,255,.28)}
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 5px 22px rgba(99,133,255,.42)}
 .btn-primary:active{transform:translateY(0)}
@@ -409,8 +381,8 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .btn-success:hover{background:rgba(52,211,153,.18);border-color:rgba(52,211,153,.4)}
 .btn-cyan{background:rgba(34,211,238,.1);color:var(--ac);border-color:rgba(34,211,238,.22)}
 .btn-cyan:hover{background:rgba(34,211,238,.18);border-color:rgba(34,211,238,.4)}
-.btn-sm{padding:5px 10px;font-size:11.5px}
-.btn-xs{padding:3px 7px;font-size:10.5px}
+.btn-sm{padding:5px 11px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px}
 .tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap}
 .tag-new{background:rgba(245,158,11,.12);color:var(--am);border:1px solid rgba(245,158,11,.2)}
 .tag-exist{background:rgba(52,211,153,.12);color:var(--ag);border:1px solid rgba(52,211,153,.2)}
@@ -427,7 +399,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .tbl-wrap{overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);padding:9px 13px;text-align:left;border-bottom:1px solid var(--b0);white-space:nowrap}
-.tbl td{padding:11px 13px;font-size:12.5px;color:var(--t1);border-bottom:1px solid var(--b1);vertical-align:middle}
+.tbl td{padding:11px 13px;font-size:13px;color:var(--t1);border-bottom:1px solid var(--b1);vertical-align:middle}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tbody tr:hover td{background:rgba(255,255,255,.02)}
 .tbl .empty td{color:var(--t3);text-align:center;padding:26px;font-size:13px}
@@ -468,12 +440,13 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .ac-item:hover{background:var(--bg4)}
 .ac-item strong{color:var(--t1);font-size:12.5px}
 .ac-item small{color:var(--t3);font-size:11px}
-.action-bar{position:fixed;bottom:0;left:var(--sb);right:0;background:rgba(7,11,18,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--b0);padding:12px 30px;display:flex;align-items:center;gap:9px;z-index:45}
+.action-bar{position:fixed;bottom:0;left:var(--sb);right:0;background:rgba(7,11,18,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--b0);padding:12px 22px;display:flex;align-items:center;gap:9px;z-index:45;transition:left .22s ease}
+.app.sb-collapsed .action-bar{left:var(--sb-collapsed)}
 .ab-space{flex:1}
 .upl-form{display:flex;gap:6px;align-items:center}
 .upl-inp{background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);color:var(--t2);font-size:11px;font-family:var(--f);padding:4px 7px;cursor:pointer;flex:1;min-width:0;max-width:160px}
 .upl-inp::-webkit-file-upload-button{background:var(--bg4);border:1px solid var(--b0);border-radius:5px;color:var(--t2);font-family:var(--f);font-size:10.5px;padding:3px 7px;cursor:pointer;margin-right:6px}
-.spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none}
+.spin{display:none;width:11px;height:11px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
 .spin.on{display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
 .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px}
@@ -481,6 +454,9 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .info-item span,.info-item a{font-size:13px;color:var(--t1)}
 .info-item a{color:var(--a);text-decoration:none}
 .info-item a:hover{text-decoration:underline}
+.file-link{color:var(--a);text-decoration:none;font-size:11.5px;display:inline-flex;align-items:center;gap:4px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-link:hover{text-decoration:underline}
+.file-link-plain{color:var(--t2);font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border-radius:99px}
@@ -493,8 +469,34 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .login-sub{font-size:12.5px;color:var(--t2);margin-bottom:22px}
 .login-field{margin-bottom:14px}
 @media(max-width:860px){.g3{grid-template-columns:1fr 1fr}.g5,.g52{grid-template-columns:1fr 1fr}.g4,.g4a{grid-template-columns:1fr 1fr}}
-@media(max-width:640px){.sb{display:none}.main{margin-left:0}.page{padding:16px 13px 90px}.g3,.g2,.g4,.g4a,.g5,.g52{grid-template-columns:1fr}.topbar{padding:0 13px}.tb-search{display:none}.action-bar{left:0;padding:11px 14px}}
+@media(max-width:640px){.sb{display:none}.main{margin-left:0!important}.page{padding:16px 13px 90px}.g3,.g2,.g4,.g4a,.g5,.g52{grid-template-columns:1fr}.topbar{padding:0 13px}.tb-search{display:none}.action-bar{left:0!important;padding:11px 14px}}
 </style>"""
+
+# ── Shared sidebar JS (inlined per template) ──
+_SB_JS = """
+<script>
+(function(){
+  var sb=document.getElementById('mainSidebar');
+  var app=document.getElementById('mainApp');
+  if(!sb||!app)return;
+  if(localStorage.getItem('sb_collapsed')==='1'){
+    sb.classList.add('collapsed');
+    app.classList.add('sb-collapsed');
+    var tog=document.getElementById('sbToggle');
+    if(tog)tog.textContent='▶';
+  }
+})();
+function toggleSidebar(e){
+  e.preventDefault();e.stopPropagation();
+  var sb=document.getElementById('mainSidebar');
+  var app=document.getElementById('mainApp');
+  var tog=document.getElementById('sbToggle');
+  var collapsed=sb.classList.toggle('collapsed');
+  app.classList.toggle('sb-collapsed',collapsed);
+  if(tog)tog.textContent=collapsed?'▶':'◀';
+  localStorage.setItem('sb_collapsed',collapsed?'1':'0');
+}
+</script>"""
 
 LOGIN_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -538,34 +540,36 @@ FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Create Work — LabelMind</title>""" + _STYLE + """
+<title>New Work — LabelMind</title>""" + _STYLE + """
 </head>
 <body>
-<div class="app">
-  <aside class="sb">
-    <a class="sb-logo" href="{{ url_for('formulario') }}">
+<div class="app" id="mainApp">
+  <aside class="sb" id="mainSidebar">
+    <a class="sb-logo" href="{{ url_for('works_list') }}">
       <div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span>
+      <span class="sb-toggle" id="sbToggle" onclick="toggleSidebar(event)" title="Toggle sidebar">◀</span>
     </a>
     <div class="sb-sec">Contracts</div>
     <nav class="sb-nav">
-      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">🎵</span>Works</a>
-      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span>Batches</a>
-      <a href="#"><span class="ni">📄</span>Templates</a>
+      <a href="{{ url_for('works_list') }}"><span class="ni">🎵</span><span class="nl">Works</span></a>
+      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">✏️</span><span class="nl">New Work</span></a>
+      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span><span class="nl">Sessions</span></a>
+      <a href="#"><span class="ni">📄</span><span class="nl">Templates</span></a>
     </nav>
     <div class="sb-sec">Resources</div>
     <nav class="sb-nav">
-      <a href="#"><span class="ni">👥</span>Writer Directory</a>
-      <a href="#"><span class="ni">⚙️</span>Settings</a>
+      <a href="#"><span class="ni">👥</span><span class="nl">Writer Directory</span></a>
+      <a href="#"><span class="ni">⚙️</span><span class="nl">Settings</span></a>
     </nav>
     <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
-      <div class="tb-search">🔍 Search works, batches, writers…<span class="tb-kbd">⌘K</span></div>
+      <div class="tb-search">🔍 Search works, sessions, writers…<span class="tb-kbd">⌘K</span></div>
       <div class="tb-right">
         <div class="pill-group">
-          <a href="{{ url_for('works_list') }}" class="pill on">Works</a>
-          <a href="{{ url_for('batches_list') }}" class="pill">Batches</a>
+          <a href="{{ url_for('works_list') }}" class="pill">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="pill">Sessions</a>
         </div>
         {% if team_auth_enabled and session.get('logged_in') %}
           <a href="{{ url_for('logout') }}" class="tb-ibtn" title="Log out">🚪</a>
@@ -581,10 +585,10 @@ FORM_HTML = """<!DOCTYPE html>
       {% endwith %}
       <div class="ph">
         <div class="ph-left">
-          <div class="ph-icon">🎵</div>
+          <div class="ph-icon">✏️</div>
           <div>
-            <div class="ph-title">Create Work</div>
-            <div class="ph-sub">Create one work, add multiple writers, and save into a batch for review.</div>
+            <div class="ph-title">New Work</div>
+            <div class="ph-sub">Create a work, add writers, and save into a session for contract generation.</div>
           </div>
         </div>
       </div>
@@ -607,25 +611,25 @@ FORM_HTML = """<!DOCTYPE html>
           <div class="card-body">
             <div class="g g3" style="margin-bottom:12px">
               <div class="field">
-                <label class="label">Add to Existing Batch</label>
+                <label class="label">Add to Existing Session</label>
                 <div class="inp-wrap">
                   <span class="inp-ico">📦</span>
                   <select class="inp" name="existing_batch_id">
-                    <option value="">— Create new batch</option>
+                    <option value="">— Create new session</option>
                     {% for batch in batches %}
                       <option value="{{ batch.id }}" {% if selected_batch_id == (batch.id|string) %}selected{% endif %}>
-                        Batch #{{ batch.id }}{% if batch.camp %} — {{ batch.camp.name }}{% endif %} — {{ batch.contract_date.strftime('%Y-%m-%d') }}
+                        Session #{{ batch.id }}{% if batch.camp %} — {{ batch.camp.name }}{% endif %} — {{ batch.contract_date.strftime('%Y-%m-%d') }}
                       </option>
                     {% endfor %}
                   </select>
                 </div>
               </div>
               <div class="field">
-                <label class="label">Camp</label>
+                <label class="label">Session Name</label>
                 <div class="inp-wrap">
                   <span class="inp-ico">🎪</span>
                   <select class="inp" name="camp_id">
-                    <option value="">— Select existing camp</option>
+                    <option value="">— Select existing session name</option>
                     {% for camp in camps %}
                       <option value="{{ camp.id }}">{{ camp.name }}</option>
                     {% endfor %}
@@ -633,8 +637,8 @@ FORM_HTML = """<!DOCTYPE html>
                 </div>
               </div>
               <div class="field">
-                <label class="label">Or Create New Camp</label>
-                <input class="inp" name="new_camp_name" placeholder="New Camp Name">
+                <label class="label">Or Create New Session Name</label>
+                <input class="inp" name="new_camp_name" placeholder="New Session Name">
               </div>
             </div>
             <div class="g g2">
@@ -668,82 +672,220 @@ FORM_HTML = """<!DOCTYPE html>
         <div class="action-bar">
           <button type="button" class="btn btn-sec" onclick="addWriter()">+ Add Writer</button>
           <div class="ab-space"></div>
-          <button type="submit" class="btn btn-primary">✓ Save Work to Batch</button>
+          <button type="submit" class="btn btn-primary">✓ Save Work to Session</button>
         </div>
       </form>
     </div>
   </main>
 </div>
+""" + _SB_JS + """
 <script>
 const proMap={BMI:{name:'Songs of Afinarte',ipi:'817874992'},ASCAP:{name:'Melodies of Afinarte',ipi:'807953316'},SESAC:{name:'Music of Afinarte',ipi:'817094629'}};
 const defAddr="{{ default_publisher_address }}",defCity="{{ default_publisher_city }}",defState="{{ default_publisher_state }}",defZip="{{ default_publisher_zip }}";
 let idx=0;
-function statusHtml(ws,ct){const wc=ws==='Existing Writer'?'tag-exist':'tag-new';const cc=ct==='Schedule 1'?'tag-s1':'tag-full';return `<span class="tag ${wc}">${ws}</span><span class="tag ${cc}">${ct}</span>`;}
-function writerTpl(i){return `
-  <div class="wc open" data-i="${i}">
-    <div class="wc-hd" onclick="toggleWC(this)">
-      <div class="wc-av">👤</div>
-      <div class="wc-nw"><div class="wc-name wc-dn">Writer ${i+1}</div><div class="wc-sub wc-ds">New · — · —%</div></div>
-      <div class="wc-tags wc-meta">${statusHtml('New Writer','Full Contract')}</div>
-      <span class="wc-chev">▼</span>
-      <button type="button" class="btn btn-danger btn-sm" onclick="rmWriter(event,this)" style="margin-left:8px">Remove</button>
-    </div>
-    <div class="wc-body">
-      <input type="hidden" name="writer_id" class="wid">
-      <div class="wc-sec">Identity</div>
-      <div class="g g4" style="gap:10px">
-        <div class="field ac-wrap">
-          <label class="label">First Name</label>
-          <input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="off">
-          <div class="ac-box wsug"></div>
-        </div>
-        <div class="field"><label class="label">Middle Name</label><input class="inp wmn" name="writer_middle_name" placeholder="— —" autocomplete="off"></div>
-        <div class="field"><label class="label">Last Name(s)</label><input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="off"></div>
-        <div class="field"><label class="label">AKA / Stage</label><input class="inp waka" name="writer_aka" placeholder="Stage Name"></div>
-      </div>
-      <div class="wc-sec">Publishing</div>
-      <div class="g g5" style="gap:10px">
-        <div class="field"><label class="label">IPI #</label><input class="inp wipi" name="writer_ipi" placeholder="IPI Number"></div>
-        <div class="field"><label class="label">Email</label><input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email"></div>
-        <div class="field"><label class="label">PRO</label><select class="inp wpro" name="writer_pro" onchange="syncPro(this)"><option value="">PRO</option><option value="BMI">BMI</option><option value="ASCAP">ASCAP</option><option value="SESAC">SESAC</option></select></div>
-        <div class="field"><label class="label">Writer %</label><input class="inp wspl" name="writer_percentage" placeholder="0" type="number" step="0.01" min="0" max="100"></div>
-        <div class="field"><label class="label">Publisher</label><input class="inp wpub" name="writer_publisher" placeholder="Publisher Name"></div>
-      </div>
-      <div class="wc-sec">Publisher Details</div>
-      <div class="g g52" style="gap:10px">
-        <div class="field"><label class="label">Publisher IPI</label><input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI"></div>
-        <div class="field"><label class="label">Address</label><input class="inp wpaddr" name="publisher_address" value="${defAddr}" placeholder="Address"></div>
-        <div class="field"><label class="label">City</label><input class="inp wpcity" name="publisher_city" value="${defCity}" placeholder="City"></div>
-        <div class="field"><label class="label">State</label><input class="inp wpst" name="publisher_state" value="${defState}" placeholder="ST"></div>
-        <div class="field"><label class="label">Zip</label><input class="inp wpzip" name="publisher_zip_code" value="${defZip}" placeholder="Zip"></div>
-      </div>
-      <div class="wc-sec">Writer Address</div>
-      <div class="g g4a" style="gap:10px">
-        <div class="field"><label class="label">Street</label><input class="inp waddr" name="writer_address" placeholder="Street Address"></div>
-        <div class="field"><label class="label">City</label><input class="inp wcity" name="writer_city" placeholder="City"></div>
-        <div class="field"><label class="label">State</label><input class="inp wst" name="writer_state" placeholder="ST"></div>
-        <div class="field"><label class="label">Zip</label><input class="inp wzip" name="writer_zip_code" placeholder="Zip"></div>
-      </div>
-    </div>
-  </div>`;}
+
+function statusHtml(ws,ct){
+  var wc=ws==='Existing Writer'?'tag-exist':'tag-new';
+  var cc=ct==='Schedule 1'?'tag-s1':'tag-full';
+  return '<span class="tag '+wc+'">'+ws+'</span><span class="tag '+cc+'">'+ct+'</span>';
+}
+
+function writerTpl(i){
+  return '<div class="wc open" data-idx="'+i+'">'
+    +'<div class="wc-hd" onclick="toggleWC(this)">'
+    +'<div class="wc-av">👤</div>'
+    +'<div class="wc-nw"><div class="wc-name wc-dn">Writer '+(i+1)+'</div><div class="wc-sub wc-ds">New · — · —%</div></div>'
+    +'<div class="wc-tags wc-meta">'+statusHtml('New Writer','Full Contract')+'</div>'
+    +'<span class="wc-chev">▼</span>'
+    +'<button type="button" class="btn btn-danger btn-sm" onclick="rmWriter(event,this)" style="margin-left:8px">Remove</button>'
+    +'</div>'
+    +'<div class="wc-body">'
+    +'<input type="hidden" name="writer_id" class="wid">'
+    +'<div class="wc-sec">Identity</div>'
+    +'<div class="g g4" style="gap:10px">'
+    +'<div class="field ac-wrap"><label class="label">First Name</label><input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="off"><div class="ac-box wsug"></div></div>'
+    +'<div class="field"><label class="label">Middle Name</label><input class="inp wmn" name="writer_middle_name" placeholder="— —" autocomplete="off"></div>'
+    +'<div class="field"><label class="label">Last Name(s)</label><input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="off"></div>'
+    +'<div class="field"><label class="label">AKA / Stage</label><input class="inp waka" name="writer_aka" placeholder="Stage Name"></div>'
+    +'</div>'
+    +'<div class="wc-sec">Publishing</div>'
+    +'<div class="g g5" style="gap:10px">'
+    +'<div class="field"><label class="label">IPI #</label><input class="inp wipi" name="writer_ipi" placeholder="IPI Number"></div>'
+    +'<div class="field"><label class="label">Email</label><input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email"></div>'
+    +'<div class="field"><label class="label">PRO</label><select class="inp wpro" name="writer_pro" onchange="syncPro(this)"><option value="">PRO</option><option value="BMI">BMI</option><option value="ASCAP">ASCAP</option><option value="SESAC">SESAC</option></select></div>'
+    +'<div class="field"><label class="label">Writer %</label><input class="inp wspl" name="writer_percentage" placeholder="0" type="number" step="0.01" min="0" max="100"></div>'
+    +'<div class="field"><label class="label">Publisher</label><input class="inp wpub" name="writer_publisher" placeholder="Publisher Name"></div>'
+    +'</div>'
+    +'<div class="wc-sec">Publisher Details</div>'
+    +'<div class="g g52" style="gap:10px">'
+    +'<div class="field"><label class="label">Publisher IPI</label><input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI"></div>'
+    +'<div class="field"><label class="label">Address</label><input class="inp wpaddr" name="publisher_address" value="'+defAddr+'" placeholder="Address"></div>'
+    +'<div class="field"><label class="label">City</label><input class="inp wpcity" name="publisher_city" value="'+defCity+'" placeholder="City"></div>'
+    +'<div class="field"><label class="label">State</label><input class="inp wpst" name="publisher_state" value="'+defState+'" placeholder="ST"></div>'
+    +'<div class="field"><label class="label">Zip</label><input class="inp wpzip" name="publisher_zip_code" value="'+defZip+'" placeholder="Zip"></div>'
+    +'</div>'
+    +'<div class="wc-sec">Writer Address</div>'
+    +'<div class="g g4a" style="gap:10px">'
+    +'<div class="field"><label class="label">Street</label><input class="inp waddr" name="writer_address" placeholder="Street Address"></div>'
+    +'<div class="field"><label class="label">City</label><input class="inp wcity" name="writer_city" placeholder="City"></div>'
+    +'<div class="field"><label class="label">State</label><input class="inp wst" name="writer_state" placeholder="ST"></div>'
+    +'<div class="field"><label class="label">Zip</label><input class="inp wzip" name="writer_zip_code" placeholder="Zip"></div>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+}
+
 function toggleWC(hd){hd.closest('.wc').classList.toggle('open');}
-function addWriter(){const c=document.getElementById('writerRows');c.insertAdjacentHTML('beforeend',writerTpl(idx));setupWriter(c.lastElementChild);idx++;recalc();}
-function rmWriter(e,btn){e.stopPropagation();btn.closest('.wc').remove();recalc();}
-function syncPro(sel){const r=sel.closest('.wc');const p=proMap[sel.value];if(!p)return;r.querySelector('.wpub').value=p.name;r.querySelector('.wpipi').value=p.ipi;updateHdr(r);}
-function fullName(r){return[r.querySelector('.wfn').value,r.querySelector('.wmn').value,r.querySelector('.wln').value].map(s=>s.trim()).filter(Boolean).join(' ');}
-function updateHdr(r){const n=fullName(r)||`Writer ${parseInt(r.dataset.i)+1}`;const pro=r.querySelector('.wpro').value||'—';const pct=r.querySelector('.wspl').value||'—';r.querySelector('.wc-dn').textContent=n;r.querySelector('.wc-ds').textContent=`${pro} · ${pct}%`;}
+
+function reindexWriters(){
+  document.querySelectorAll('#writerRows .wc').forEach(function(card,i){
+    card.dataset.idx=i;
+    var fn=(card.querySelector('.wfn').value||'').trim();
+    var mn=(card.querySelector('.wmn').value||'').trim();
+    var ln=(card.querySelector('.wln').value||'').trim();
+    if(!fn&&!mn&&!ln){
+      card.querySelector('.wc-dn').textContent='Writer '+(i+1);
+    }
+  });
+}
+
+function addWriter(){
+  var c=document.getElementById('writerRows');
+  var div=document.createElement('div');
+  div.innerHTML=writerTpl(idx);
+  var card=div.firstChild;
+  c.appendChild(card);
+  setupWriter(card);
+  idx++;
+  reindexWriters();
+  recalc();
+}
+
+function rmWriter(e,btn){
+  e.stopPropagation();
+  btn.closest('.wc').remove();
+  reindexWriters();
+  recalc();
+}
+
+function syncPro(sel){
+  var r=sel.closest('.wc');
+  var p=proMap[sel.value];
+  if(!p)return;
+  r.querySelector('.wpub').value=p.name;
+  r.querySelector('.wpipi').value=p.ipi;
+  updateHdr(r);
+}
+
+function fullName(r){
+  return [r.querySelector('.wfn').value,r.querySelector('.wmn').value,r.querySelector('.wln').value]
+    .map(function(s){return s.trim();}).filter(Boolean).join(' ');
+}
+
+function updateHdr(r){
+  var i=parseInt(r.dataset.idx)||0;
+  var n=fullName(r)||'Writer '+(i+1);
+  var pro=r.querySelector('.wpro').value||'—';
+  var pct=r.querySelector('.wspl').value||'—';
+  r.querySelector('.wc-dn').textContent=n;
+  r.querySelector('.wc-ds').textContent=pro+' · '+pct+'%';
+}
+
 function setStatus(r,ws,ct){r.querySelector('.wc-meta').innerHTML=statusHtml(ws,ct);}
-function hideSug(r){const b=r.querySelector('.wsug');b.style.display='none';b.innerHTML='';}
+function hideSug(r){var b=r.querySelector('.wsug');b.style.display='none';b.innerHTML='';}
 function resetNew(r){r.querySelector('.wid').value='';setStatus(r,'New Writer','Full Contract');}
-function fillWriter(r,w){r.querySelector('.wid').value=w.id||'';r.querySelector('.wfn').value=w.first_name||'';r.querySelector('.wmn').value=w.middle_name||'';r.querySelector('.wln').value=w.last_names||'';r.querySelector('.waka').value=w.writer_aka||'';r.querySelector('.wipi').value=w.ipi||'';r.querySelector('.wem').value=w.email||'';r.querySelector('.wpro').value=w.pro||'';r.querySelector('.waddr').value=w.address||'';r.querySelector('.wcity').value=w.city||'';r.querySelector('.wst').value=w.state||'';r.querySelector('.wzip').value=w.zip_code||'';const pd=proMap[w.pro]||{};r.querySelector('.wpub').value=w.default_publisher||pd.name||'';r.querySelector('.wpipi').value=w.default_publisher_ipi||pd.ipi||'';updateHdr(r);setStatus(r,'Existing Writer',w.has_master_contract?'Schedule 1':'Full Contract');hideSug(r);}
-function setupWriter(r){const fn=r.querySelector('.wfn'),mn=r.querySelector('.wmn'),ln=r.querySelector('.wln'),sug=r.querySelector('.wsug'),spl=r.querySelector('.wspl'),pro=r.querySelector('.wpro');
-async function search(){const q=fullName(r);if(q.length<2){hideSug(r);resetNew(r);return;}const res=await fetch('/writers/search?q='+encodeURIComponent(q));const ws=await res.json();if(!ws.length){hideSug(r);resetNew(r);return;}sug.innerHTML=ws.map(w=>`<div class="ac-item" data-w='${JSON.stringify(w).replaceAll("'","&#39;")}'><strong>${w.full_name}</strong><br><small>${w.city||''}${w.city&&w.state?', ':''}${w.state||''}</small></div>`).join('');sug.style.display='block';sug.querySelectorAll('.ac-item').forEach(item=>{item.addEventListener('click',()=>fillWriter(r,JSON.parse(item.dataset.w)));});}
-[fn,mn,ln].forEach(inp=>inp.addEventListener('input',()=>{resetNew(r);updateHdr(r);search();}));
-spl.addEventListener('input',()=>{updateHdr(r);recalc();});
-pro.addEventListener('change',()=>updateHdr(r));
-document.addEventListener('click',e=>{if(![fn,mn,ln,sug].some(el=>el.contains(e.target)))hideSug(r);});}
-function recalc(){let total=0;document.querySelectorAll('.wspl').forEach(i=>{total+=parseFloat(i.value||0)||0;});const rounded=total.toFixed(2);document.getElementById('splitTotal').textContent=rounded;const fill=document.getElementById('splitFill');const badge=document.getElementById('splitBadge');fill.style.width=Math.min(total,100)+'%';if(Math.abs(total-100)<0.001){fill.style.background='linear-gradient(90deg,#34d399,#059669)';badge.className='split-badge sb-ok';badge.innerHTML='<span class="sb-dot"></span>Complete ✓';}else if(total>100){fill.style.background='linear-gradient(90deg,#ff4f6a,#c0152d)';badge.className='split-badge sb-over';badge.innerHTML='<span class="sb-dot"></span>Over 100%';}else{fill.style.background='linear-gradient(90deg,var(--a),var(--ae))';badge.className='split-badge sb-inc';badge.innerHTML='<span class="sb-dot"></span>Incomplete';}}
-document.getElementById('workForm').addEventListener('submit',function(e){const rows=document.querySelectorAll('.wc');if(!rows.length){e.preventDefault();alert('Add at least one writer.');return;}let ok=false;for(const r of rows){const n=fullName(r);const s=parseFloat(r.querySelector('.wspl').value||0)||0;if(n){ok=true;if(s<=0){e.preventDefault();alert('Each writer must have a split > 0.');return;}}}if(!ok){e.preventDefault();alert('Add at least one writer with a name.');return;}const t=parseFloat(document.getElementById('splitTotal').textContent||0)||0;if(Math.abs(t-100)>=0.001){e.preventDefault();alert('Total split must equal 100%.');}});
+
+function fillWriter(r,w){
+  r.querySelector('.wid').value=w.id||'';
+  r.querySelector('.wfn').value=w.first_name||'';
+  r.querySelector('.wmn').value=w.middle_name||'';
+  r.querySelector('.wln').value=w.last_names||'';
+  r.querySelector('.waka').value=w.writer_aka||'';
+  r.querySelector('.wipi').value=w.ipi||'';
+  r.querySelector('.wem').value=w.email||'';
+  r.querySelector('.wpro').value=w.pro||'';
+  r.querySelector('.waddr').value=w.address||'';
+  r.querySelector('.wcity').value=w.city||'';
+  r.querySelector('.wst').value=w.state||'';
+  r.querySelector('.wzip').value=w.zip_code||'';
+  var pd=proMap[w.pro]||{};
+  r.querySelector('.wpub').value=w.default_publisher||pd.name||'';
+  r.querySelector('.wpipi').value=w.default_publisher_ipi||pd.ipi||'';
+  updateHdr(r);
+  setStatus(r,'Existing Writer',w.has_master_contract?'Schedule 1':'Full Contract');
+  hideSug(r);
+}
+
+function setupWriter(r){
+  var fn=r.querySelector('.wfn'),mn=r.querySelector('.wmn'),ln=r.querySelector('.wln');
+  var sug=r.querySelector('.wsug'),spl=r.querySelector('.wspl'),pro=r.querySelector('.wpro');
+
+  function search(){
+    var q=fullName(r);
+    if(q.length<2){hideSug(r);resetNew(r);return;}
+    fetch('/writers/search?q='+encodeURIComponent(q))
+      .then(function(res){return res.json();})
+      .then(function(ws){
+        if(!ws.length){hideSug(r);resetNew(r);return;}
+        sug.innerHTML=ws.map(function(w){
+          return '<div class="ac-item" data-w=\''+JSON.stringify(w).replace(/'/g,"&#39;")+'\'>'
+            +'<strong>'+w.full_name+'</strong><br>'
+            +'<small>'+(w.city||'')+((w.city&&w.state)?', ':'')+(w.state||'')+'</small>'
+            +'</div>';
+        }).join('');
+        sug.style.display='block';
+        sug.querySelectorAll('.ac-item').forEach(function(item){
+          item.addEventListener('click',function(){fillWriter(r,JSON.parse(item.dataset.w));});
+        });
+      });
+  }
+
+  [fn,mn,ln].forEach(function(inp){
+    inp.addEventListener('input',function(){resetNew(r);updateHdr(r);reindexWriters();search();});
+  });
+  spl.addEventListener('input',function(){updateHdr(r);recalc();});
+  pro.addEventListener('change',function(){updateHdr(r);});
+  document.addEventListener('click',function(e){
+    if(![fn,mn,ln,sug].some(function(el){return el.contains(e.target);}))hideSug(r);
+  });
+}
+
+function recalc(){
+  var total=0;
+  document.querySelectorAll('.wspl').forEach(function(i){total+=parseFloat(i.value||0)||0;});
+  var rounded=total.toFixed(2);
+  document.getElementById('splitTotal').textContent=rounded;
+  var fill=document.getElementById('splitFill');
+  var badge=document.getElementById('splitBadge');
+  fill.style.width=Math.min(total,100)+'%';
+  if(Math.abs(total-100)<0.001){
+    fill.style.background='linear-gradient(90deg,#34d399,#059669)';
+    badge.className='split-badge sb-ok';
+    badge.innerHTML='<span class="sb-dot"></span>Complete ✓';
+  }else if(total>100){
+    fill.style.background='linear-gradient(90deg,#ff4f6a,#c0152d)';
+    badge.className='split-badge sb-over';
+    badge.innerHTML='<span class="sb-dot"></span>Over 100%';
+  }else{
+    fill.style.background='linear-gradient(90deg,var(--a),var(--ae))';
+    badge.className='split-badge sb-inc';
+    badge.innerHTML='<span class="sb-dot"></span>Incomplete';
+  }
+}
+
+document.getElementById('workForm').addEventListener('submit',function(e){
+  var rows=document.querySelectorAll('.wc');
+  if(!rows.length){e.preventDefault();alert('Add at least one writer.');return;}
+  var ok=false;
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];var n=fullName(r);var s=parseFloat(r.querySelector('.wspl').value||0)||0;
+    if(n){ok=true;if(s<=0){e.preventDefault();alert('Each writer must have a split > 0.');return;}}
+  }
+  if(!ok){e.preventDefault();alert('Add at least one writer with a name.');return;}
+  var t=parseFloat(document.getElementById('splitTotal').textContent||0)||0;
+  if(Math.abs(t-100)>=0.001){e.preventDefault();alert('Total split must equal 100%.');}
+});
+
 addWriter();
 </script>
 </body>
@@ -756,38 +898,60 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 <title>Possible Duplicate — LabelMind</title>""" + _STYLE + """
 </head>
 <body>
-<div class="app">
-  <aside class="sb">
-    <a class="sb-logo" href="{{ url_for('formulario') }}"><div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span></a>
+<div class="app" id="mainApp">
+  <aside class="sb" id="mainSidebar">
+    <a class="sb-logo" href="{{ url_for('works_list') }}">
+      <div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span>
+      <span class="sb-toggle" id="sbToggle" onclick="toggleSidebar(event)" title="Toggle sidebar">◀</span>
+    </a>
     <div class="sb-sec">Contracts</div>
     <nav class="sb-nav">
-      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">🎵</span>Works</a>
-      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span>Batches</a>
+      <a href="{{ url_for('works_list') }}"><span class="ni">🎵</span><span class="nl">Works</span></a>
+      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">✏️</span><span class="nl">New Work</span></a>
+      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span><span class="nl">Sessions</span></a>
     </nav>
     <div class="sb-foot"><b>LabelMind</b>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
       <div class="tb-search">🔍 Search…<span class="tb-kbd">⌘K</span></div>
-      <div class="tb-right"><div class="pill-group"><a href="{{ url_for('works_list') }}" class="pill on">Works</a><a href="{{ url_for('batches_list') }}" class="pill">Batches</a></div><div class="avatar">IS</div></div>
+      <div class="tb-right">
+        <div class="pill-group">
+          <a href="{{ url_for('works_list') }}" class="pill">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="pill">Sessions</a>
+        </div>
+        <div class="avatar">IS</div>
+      </div>
     </header>
     <div class="page">
-      <div class="ph"><div class="ph-left"><div class="ph-icon">⚠️</div><div><div class="ph-title">Possible Duplicate Found</div><div class="ph-sub">Existing works match this title and writer set.</div></div></div></div>
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ph-icon">⚠️</div>
+          <div><div class="ph-title">Possible Duplicate Found</div><div class="ph-sub">Existing works match this title and writer set.</div></div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-hd"><div class="card-ico">🔍</div><span class="card-title">Matching Works</span></div>
         <div class="card-body">
           <table class="tbl" style="margin-bottom:18px">
-            <thead><tr><th>Title</th><th>Camp</th><th>Created</th></tr></thead>
+            <thead><tr><th>Title</th><th>Session</th><th>Created</th></tr></thead>
             <tbody>
               {% for item in duplicates %}
-              <tr><td style="font-weight:600">{{ item.title }}</td><td>{{ item.camp_name or '—' }}</td><td style="color:var(--t2)">{{ item.created_at }}</td></tr>
+              <tr>
+                <td style="font-weight:600">{{ item.title }}</td>
+                <td>{{ item.camp_name or '—' }}</td>
+                <td style="color:var(--t2)">{{ item.created_at }}</td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
           <form method="post">
             {% for key, value in form_data.items() %}
-              {% if value is string %}<input type="hidden" name="{{ key }}" value="{{ value }}">
-              {% else %}{% for item in value %}<input type="hidden" name="{{ key }}" value="{{ item }}">{% endfor %}{% endif %}
+              {% if value is string %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}">
+              {% else %}
+                {% for item in value %}<input type="hidden" name="{{ key }}" value="{{ item }}">{% endfor %}
+              {% endif %}
             {% endfor %}
             <input type="hidden" name="force_create" value="1">
             <div style="display:flex;gap:10px">
@@ -800,6 +964,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
     </div>
   </main>
 </div>
+""" + _SB_JS + """
 </body>
 </html>"""
 
@@ -810,24 +975,34 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <title>Works — LabelMind</title>""" + _STYLE + """
 </head>
 <body>
-<div class="app">
-  <aside class="sb">
-    <a class="sb-logo" href="{{ url_for('formulario') }}"><div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span></a>
+<div class="app" id="mainApp">
+  <aside class="sb" id="mainSidebar">
+    <a class="sb-logo" href="{{ url_for('works_list') }}">
+      <div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span>
+      <span class="sb-toggle" id="sbToggle" onclick="toggleSidebar(event)" title="Toggle sidebar">◀</span>
+    </a>
     <div class="sb-sec">Contracts</div>
     <nav class="sb-nav">
-      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">🎵</span>Works</a>
-      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span>Batches</a>
-      <a href="#"><span class="ni">📄</span>Templates</a>
+      <a href="{{ url_for('works_list') }}" class="on"><span class="ni">🎵</span><span class="nl">Works</span></a>
+      <a href="{{ url_for('formulario') }}"><span class="ni">✏️</span><span class="nl">New Work</span></a>
+      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span><span class="nl">Sessions</span></a>
+      <a href="#"><span class="ni">📄</span><span class="nl">Templates</span></a>
     </nav>
     <div class="sb-sec">Resources</div>
-    <nav class="sb-nav"><a href="#"><span class="ni">👥</span>Writer Directory</a><a href="#"><span class="ni">⚙️</span>Settings</a></nav>
+    <nav class="sb-nav">
+      <a href="#"><span class="ni">👥</span><span class="nl">Writer Directory</span></a>
+      <a href="#"><span class="ni">⚙️</span><span class="nl">Settings</span></a>
+    </nav>
     <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
-      <div class="tb-search">🔍 Search works, batches, writers…<span class="tb-kbd">⌘K</span></div>
+      <div class="tb-search">🔍 Search works, sessions, writers…<span class="tb-kbd">⌘K</span></div>
       <div class="tb-right">
-        <div class="pill-group"><a href="{{ url_for('works_list') }}" class="pill on">Works</a><a href="{{ url_for('batches_list') }}" class="pill">Batches</a></div>
+        <div class="pill-group">
+          <a href="{{ url_for('works_list') }}" class="pill on">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="pill">Sessions</a>
+        </div>
         {% if team_auth_enabled and session.get('logged_in') %}<a href="{{ url_for('logout') }}" class="tb-ibtn">🚪</a>{% endif %}
         <div class="avatar">IS</div>
       </div>
@@ -835,7 +1010,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
     <div class="page">
       <div class="ph">
         <div class="ph-left"><div class="ph-icon">🎵</div><div><div class="ph-title">Works</div><div class="ph-sub">All registered musical works</div></div></div>
-        <div class="ph-actions"><a href="{{ url_for('formulario') }}" class="btn btn-primary">+ Create Work</a></div>
+        <div class="ph-actions"><a href="{{ url_for('formulario') }}" class="btn btn-primary">+ New Work</a></div>
       </div>
       <div class="card">
         <div class="card-hd"><div class="card-ico">🔍</div><span class="card-title">Search</span></div>
@@ -850,21 +1025,75 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
       <div class="card">
         <div class="card-hd"><div class="card-ico">📋</div><span class="card-title">All Works</span></div>
         <div class="tbl-wrap">
-          <table class="tbl">
-            <thead><tr><th>Work Title</th><th>Camp</th><th>Batch</th><th>Contract Date</th><th>Writers</th><th>Created</th><th></th></tr></thead>
+          <table class="tbl" style="min-width:960px">
+            <thead>
+              <tr>
+                <th>Work Title</th>
+                <th>Session</th>
+                <th>Contract Date</th>
+                <th>Writers</th>
+                <th>Contract 📝</th>
+                <th>Signed PDF 📑</th>
+                <th>DS Status</th>
+                <th>Signed</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
               {% for work in works %}
+              {% set docs = work.contract_documents %}
+              {% set first_doc = docs[0] if docs else none %}
               <tr>
                 <td style="font-weight:600">{{ work.title }}</td>
-                <td style="color:var(--t2)">{{ work.camp.name if work.camp else '—' }}</td>
-                <td>{% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}"><span class="status s-draft">Batch #{{ work.batch_id }}</span></a>{% else %}—{% endif %}</td>
+                <td style="color:var(--t2)">
+                  {% if work.batch_id %}
+                    <a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}" style="color:var(--a)">
+                      {% if work.camp %}{{ work.camp.name }}{% else %}Session #{{ work.batch_id }}{% endif %}
+                    </a>
+                  {% else %}—{% endif %}
+                </td>
                 <td style="color:var(--t2);font-size:12px">{{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '—' }}</td>
-                <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ work.work_writers|length }}</span></td>
+                <td>
+                  <span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ work.work_writers|length }}</span>
+                </td>
+                <td>
+                  {% if docs|length == 1 and first_doc.drive_web_view_link %}
+                    <a href="{{ first_doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ first_doc.file_name }}">📝 {{ first_doc.file_name | truncate(26, true, '…') }}</a>
+                  {% elif docs|length > 1 %}
+                    <a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-cyan btn-xs">📝 {{ docs|length }} docs</a>
+                  {% else %}—{% endif %}
+                </td>
+                <td>
+                  {% set signed_docs = [] %}
+                  {% for d in docs %}{% if d.signed_pdf_drive_web_view_link %}{% set _ = signed_docs.append(d) %}{% endif %}{% endfor %}
+                  {% if signed_docs|length == 1 %}
+                    <a href="{{ signed_docs[0].signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">📑 Signed PDF</a>
+                  {% elif signed_docs|length > 1 %}
+                    <a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-success btn-xs">📑 {{ signed_docs|length }}</a>
+                  {% else %}—{% endif %}
+                </td>
+                <td>
+                  {% set ns = namespace(ds_st=none) %}
+                  {% for d in docs %}{% if d.docusign_status and not ns.ds_st %}{% set ns.ds_st = d.docusign_status %}{% endif %}{% endfor %}
+                  {% if ns.ds_st %}
+                    <span class="status s-{{ ns.ds_st }}"><span class="status-dot"></span>{{ ns.ds_st | title }}</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td>
+                  {% set ns2 = namespace(any_signed=false) %}
+                  {% for d in docs %}{% if d.status in ['signed','signed_uploaded','signed_complete'] %}{% set ns2.any_signed = true %}{% endif %}{% endfor %}
+                  {% if ns2.any_signed %}
+                    <span class="tag tag-s1">✓ Signed</span>
+                  {% elif docs %}
+                    <span style="color:var(--t3);font-size:11px">Pending</span>
+                  {% else %}—{% endif %}
+                </td>
                 <td style="color:var(--t3);font-size:12px">{{ work.created_at.strftime('%b %d, %Y') }}</td>
                 <td><a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-sec btn-sm">View →</a></td>
               </tr>
               {% endfor %}
-              {% if not works %}<tr class="empty"><td colspan="7">No works found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
+              {% if not works %}<tr class="empty"><td colspan="10">No works found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
             </tbody>
           </table>
         </div>
@@ -872,6 +1101,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
     </div>
   </main>
 </div>
+""" + _SB_JS + """
 </body>
 </html>"""
 
@@ -879,45 +1109,55 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Batches — LabelMind</title>""" + _STYLE + """
+<title>Sessions — LabelMind</title>""" + _STYLE + """
 </head>
 <body>
-<div class="app">
-  <aside class="sb">
-    <a class="sb-logo" href="{{ url_for('formulario') }}"><div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span></a>
+<div class="app" id="mainApp">
+  <aside class="sb" id="mainSidebar">
+    <a class="sb-logo" href="{{ url_for('works_list') }}">
+      <div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span>
+      <span class="sb-toggle" id="sbToggle" onclick="toggleSidebar(event)" title="Toggle sidebar">◀</span>
+    </a>
     <div class="sb-sec">Contracts</div>
     <nav class="sb-nav">
-      <a href="{{ url_for('formulario') }}"><span class="ni">🎵</span>Works</a>
-      <a href="{{ url_for('batches_list') }}" class="on"><span class="ni">📦</span>Batches</a>
-      <a href="#"><span class="ni">📄</span>Templates</a>
+      <a href="{{ url_for('works_list') }}"><span class="ni">🎵</span><span class="nl">Works</span></a>
+      <a href="{{ url_for('formulario') }}"><span class="ni">✏️</span><span class="nl">New Work</span></a>
+      <a href="{{ url_for('batches_list') }}" class="on"><span class="ni">📦</span><span class="nl">Sessions</span></a>
+      <a href="#"><span class="ni">📄</span><span class="nl">Templates</span></a>
     </nav>
     <div class="sb-sec">Resources</div>
-    <nav class="sb-nav"><a href="#"><span class="ni">👥</span>Writer Directory</a><a href="#"><span class="ni">⚙️</span>Settings</a></nav>
+    <nav class="sb-nav">
+      <a href="#"><span class="ni">👥</span><span class="nl">Writer Directory</span></a>
+      <a href="#"><span class="ni">⚙️</span><span class="nl">Settings</span></a>
+    </nav>
     <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
-      <div class="tb-search">🔍 Search works, batches, writers…<span class="tb-kbd">⌘K</span></div>
+      <div class="tb-search">🔍 Search works, sessions, writers…<span class="tb-kbd">⌘K</span></div>
       <div class="tb-right">
-        <div class="pill-group"><a href="{{ url_for('works_list') }}" class="pill">Works</a><a href="{{ url_for('batches_list') }}" class="pill on">Batches</a></div>
+        <div class="pill-group">
+          <a href="{{ url_for('works_list') }}" class="pill">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="pill on">Sessions</a>
+        </div>
         {% if team_auth_enabled and session.get('logged_in') %}<a href="{{ url_for('logout') }}" class="tb-ibtn">🚪</a>{% endif %}
         <div class="avatar">IS</div>
       </div>
     </header>
     <div class="page">
       <div class="ph">
-        <div class="ph-left"><div class="ph-icon">📦</div><div><div class="ph-title">Batches</div><div class="ph-sub">Groups of works ready for contract generation</div></div></div>
-        <div class="ph-actions"><a href="{{ url_for('formulario') }}" class="btn btn-primary">+ Create Work</a></div>
+        <div class="ph-left"><div class="ph-icon">📦</div><div><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready for contract generation</div></div></div>
+        <div class="ph-actions"><a href="{{ url_for('formulario') }}" class="btn btn-primary">+ New Work</a></div>
       </div>
       <div class="card">
-        <div class="card-hd"><div class="card-ico">📦</div><span class="card-title">All Batches</span></div>
+        <div class="card-hd"><div class="card-ico">📦</div><span class="card-title">All Sessions</span></div>
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>Batch</th><th>Camp</th><th>Contract Date</th><th>Status</th><th>Works</th><th>Created</th><th></th></tr></thead>
+            <thead><tr><th>Session</th><th>Name</th><th>Contract Date</th><th>Status</th><th>Works</th><th>Created</th><th></th></tr></thead>
             <tbody>
               {% for batch in batches %}
               <tr>
-                <td style="font-weight:600">Batch #{{ batch.id }}</td>
+                <td style="font-weight:600">Session #{{ batch.id }}</td>
                 <td style="color:var(--t2)">{{ batch.camp.name if batch.camp else '—' }}</td>
                 <td style="color:var(--t2);font-size:12px">{{ batch.contract_date.strftime('%b %d, %Y') }}</td>
                 <td><span class="status s-{{ batch.status }}"><span class="status-dot"></span>{{ batch.status | replace('_',' ') | title }}</span></td>
@@ -926,7 +1166,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
                 <td><a href="{{ url_for('batch_detail', batch_id=batch.id) }}" class="btn btn-sec btn-sm">View →</a></td>
               </tr>
               {% endfor %}
-              {% if not batches %}<tr class="empty"><td colspan="7">No batches yet. Create a work to get started.</td></tr>{% endif %}
+              {% if not batches %}<tr class="empty"><td colspan="7">No sessions yet. Create a work to get started.</td></tr>{% endif %}
             </tbody>
           </table>
         </div>
@@ -934,6 +1174,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
     </div>
   </main>
 </div>
+""" + _SB_JS + """
 </body>
 </html>"""
 
@@ -941,24 +1182,37 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Batch {{ batch.id }} — LabelMind</title>""" + _STYLE + """
+<title>Session {{ batch.id }} — LabelMind</title>""" + _STYLE + """
 </head>
 <body>
-<div class="app">
-  <aside class="sb">
-    <a class="sb-logo" href="{{ url_for('formulario') }}"><div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span></a>
+<div class="app" id="mainApp">
+  <aside class="sb" id="mainSidebar">
+    <a class="sb-logo" href="{{ url_for('works_list') }}">
+      <div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span>
+      <span class="sb-toggle" id="sbToggle" onclick="toggleSidebar(event)" title="Toggle sidebar">◀</span>
+    </a>
     <div class="sb-sec">Contracts</div>
     <nav class="sb-nav">
-      <a href="{{ url_for('formulario') }}"><span class="ni">🎵</span>Works</a>
-      <a href="{{ url_for('batches_list') }}" class="on"><span class="ni">📦</span>Batches</a>
+      <a href="{{ url_for('works_list') }}"><span class="ni">🎵</span><span class="nl">Works</span></a>
+      <a href="{{ url_for('formulario') }}"><span class="ni">✏️</span><span class="nl">New Work</span></a>
+      <a href="{{ url_for('batches_list') }}" class="on"><span class="ni">📦</span><span class="nl">Sessions</span></a>
+      <a href="#"><span class="ni">📄</span><span class="nl">Templates</span></a>
     </nav>
-    <div class="sb-foot"><b>LabelMind</b>© 2026 LabelMind.ai</div>
+    <div class="sb-sec">Resources</div>
+    <nav class="sb-nav">
+      <a href="#"><span class="ni">👥</span><span class="nl">Writer Directory</span></a>
+      <a href="#"><span class="ni">⚙️</span><span class="nl">Settings</span></a>
+    </nav>
+    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
       <div class="tb-search">🔍 Search…<span class="tb-kbd">⌘K</span></div>
       <div class="tb-right">
-        <div class="pill-group"><a href="{{ url_for('works_list') }}" class="pill">Works</a><a href="{{ url_for('batches_list') }}" class="pill on">Batches</a></div>
+        <div class="pill-group">
+          <a href="{{ url_for('works_list') }}" class="pill">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="pill on">Sessions</a>
+        </div>
         {% if team_auth_enabled and session.get('logged_in') %}<a href="{{ url_for('logout') }}" class="tb-ibtn">🚪</a>{% endif %}
         <div class="avatar">IS</div>
       </div>
@@ -966,7 +1220,13 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
     <div class="page">
       {% with messages = get_flashed_messages() %}{% if messages %}<div class="flash-list">{% for m in messages %}<div class="flash-item">⚠️ {{ m }}</div>{% endfor %}</div>{% endif %}{% endwith %}
       <div class="ph">
-        <div class="ph-left"><div class="ph-icon">📦</div><div><div class="ph-title">Batch #{{ batch.id }}</div><div class="ph-sub">{{ batch.camp.name if batch.camp else 'No camp' }} · {{ batch.contract_date.strftime('%b %d, %Y') }}</div></div></div>
+        <div class="ph-left">
+          <div class="ph-icon">📦</div>
+          <div>
+            <div class="ph-title">Session #{{ batch.id }}</div>
+            <div class="ph-sub">{{ batch.camp.name if batch.camp else 'No name' }} · {{ batch.contract_date.strftime('%b %d, %Y') }}</div>
+          </div>
+        </div>
         <div class="ph-actions">
           <a href="{{ url_for('batches_list') }}" class="btn btn-sec btn-sm">← Back</a>
           <a href="{{ url_for('formulario', batch_id=batch.id) }}" class="btn btn-sec btn-sm">+ Add Work</a>
@@ -978,10 +1238,10 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <div class="card">
-        <div class="card-hd"><div class="card-ico">ℹ️</div><span class="card-title">Batch Info</span></div>
+        <div class="card-hd"><div class="card-ico">ℹ️</div><span class="card-title">Session Info</span></div>
         <div class="card-body">
           <div class="info-grid">
-            <div class="info-item"><label>Camp</label><span>{{ batch.camp.name if batch.camp else '—' }}</span></div>
+            <div class="info-item"><label>Session Name</label><span>{{ batch.camp.name if batch.camp else '—' }}</span></div>
             <div class="info-item"><label>Contract Date</label><span>{{ batch.contract_date.strftime('%B %d, %Y') }}</span></div>
             <div class="info-item"><label>Status</label><span class="status s-{{ batch.status }}"><span class="status-dot"></span>{{ batch.status | replace('_',' ') | title }}</span></div>
             <div class="info-item"><label>Created</label><span>{{ batch.created_at.strftime('%b %d, %Y %H:%M') }}</span></div>
@@ -989,7 +1249,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <div class="card">
-        <div class="card-hd"><div class="card-ico">🎵</div><span class="card-title">Works in Batch</span></div>
+        <div class="card-hd"><div class="card-ico">🎵</div><span class="card-title">Works in Session</span></div>
         <div class="tbl-wrap">
           <table class="tbl">
             <thead><tr><th>Work Title</th><th>Writers</th><th>Created</th><th></th></tr></thead>
@@ -1002,7 +1262,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
                 <td><a href="{{ url_for('work_detail', work_id=work.id) }}" class="btn btn-sec btn-sm">View →</a></td>
               </tr>
               {% endfor %}
-              {% if not works %}<tr class="empty"><td colspan="4">No works in this batch.</td></tr>{% endif %}
+              {% if not works %}<tr class="empty"><td colspan="4">No works in this session.</td></tr>{% endif %}
             </tbody>
           </table>
         </div>
@@ -1023,7 +1283,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
                 <td>{% if item.writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}<span style="color:var(--t3)">No</span>{% endif %}</td>
               </tr>
               {% endfor %}
-              {% if not writer_summary %}<tr class="empty"><td colspan="6">No writers in this batch.</td></tr>{% endif %}
+              {% if not writer_summary %}<tr class="empty"><td colspan="6">No writers in this session.</td></tr>{% endif %}
             </tbody>
           </table>
         </div>
@@ -1031,15 +1291,34 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
       <div class="card">
         <div class="card-hd"><div class="card-ico">📄</div><span class="card-title">Generated Documents</span></div>
         <div class="tbl-wrap">
-          <table class="tbl" style="min-width:900px">
-            <thead><tr><th>Writer</th><th>Type</th><th>File</th><th>Generated</th><th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Upload Signed</th><th>Signed</th><th>Status</th></tr></thead>
+          <table class="tbl" style="min-width:860px">
+            <thead>
+              <tr>
+                <th>Writer</th>
+                <th>Type</th>
+                <th>File (click to open)</th>
+                <th>Generated</th>
+                <th>DocuSign</th>
+                <th>DS Status</th>
+                <th>Certificate</th>
+                <th>Upload Signed</th>
+                <th>Signed PDF</th>
+                <th>Status</th>
+              </tr>
+            </thead>
             <tbody id="generatedDocumentsBody">
               {% for doc in documents %}
               <tr data-doc-id="{{ doc.id }}">
                 <td style="font-weight:600;white-space:nowrap">{{ doc.writer_name_snapshot }}</td>
                 <td><span class="tag tag-full">{{ doc.document_type }}</span></td>
-                <td style="color:var(--t2);font-size:11.5px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ doc.file_name }}</td>
-                <td>{% if doc.drive_web_view_link %}<a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-cyan btn-xs">Open ↗</a>{% else %}—{% endif %}</td>
+                <td>
+                  {% if doc.drive_web_view_link %}
+                    <a href="{{ doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ doc.file_name }}">📝 {{ doc.file_name | truncate(30, true, '…') }}</a>
+                  {% else %}
+                    <span class="file-link-plain">{{ doc.file_name }}</span>
+                  {% endif %}
+                </td>
+                <td style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d %H:%M') if doc.generated_at else '—' }}</td>
                 <td>
                   <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}" class="ds-form">
                     <button type="submit" class="btn btn-sec btn-xs ds-btn">
@@ -1056,7 +1335,13 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
                     <button type="submit" class="btn btn-success btn-xs">Upload</button>
                   </form>
                 </td>
-                <td>{% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% else %}—{% endif %}</td>
+                <td>
+                  {% if doc.signed_pdf_drive_web_view_link %}
+                    <a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">📑 Signed</a>
+                  {% elif doc.signed_web_view_link %}
+                    <a href="{{ doc.signed_web_view_link }}" target="_blank" class="file-link">📑 Signed</a>
+                  {% else %}—{% endif %}
+                </td>
                 <td>{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}—{% endif %}</td>
               </tr>
               {% endfor %}
@@ -1068,17 +1353,112 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
     </div>
   </main>
 </div>
+""" + _SB_JS + """
 <script>
-const SEND_URL_TPL="{{ url_for('send_document_docusign', document_id=0) }}";
-const batchId={{ batch.id }};
+var SEND_URL_TPL="{{ url_for('send_document_docusign', document_id=0) }}";
+var batchId={{ batch.id }};
+
 function esc(v){return(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function renderDsBtn(doc){const id=doc.id||doc.document_id;const url=SEND_URL_TPL.replace('/0/send-docusign',`/${id}/send-docusign`);let lbl='Send';if(doc.docusign_status==='completed')lbl='Resend';else if(doc.docusign_status==='delivered')lbl='Delivered';else if(doc.docusign_status==='sent')lbl='Sent';return `<form method="post" action="${url}" class="ds-form"><button type="submit" class="btn btn-sec btn-xs ds-btn"><span class="ds-lbl">${lbl}</span><span class="spin ds-spin"></span></button></form>`;}
-function renderStatus(val,cls){if(!val)return '—';const c=cls+val.replace(/[ _]/g,'_');const l=val.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase());return `<span class="status ${c}"><span class="status-dot"></span>${l}</span>`;}
-function updateDocs(data){const tb=document.getElementById('generatedDocumentsBody');if(!tb||!data.documents)return;tb.innerHTML=data.documents.map(doc=>`<tr data-doc-id="${doc.id}"><td style="font-weight:600;white-space:nowrap">${esc(doc.writer_name_snapshot)}</td><td><span class="tag tag-full">${esc(doc.document_type)}</span></td><td style="color:var(--t2);font-size:11.5px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(doc.file_name)}</td><td>${doc.drive_web_view_link?`<a href="${doc.drive_web_view_link}" target="_blank" class="btn btn-cyan btn-xs">Open ↗</a>`:'—'}</td><td>${renderDsBtn(doc)}</td><td>${renderStatus(doc.docusign_status,'s-')}</td><td>${doc.certificate_drive_web_view_link?`<a href="${doc.certificate_drive_web_view_link}" target="_blank" class="btn btn-sec btn-xs">Cert ↗</a>`:'—'}</td><td><form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data" class="upl-form"><input type="file" name="signed_file" class="upl-inp" required><button type="submit" class="btn btn-success btn-xs">Upload</button></form></td><td>${doc.signed_pdf_drive_web_view_link?`<a href="${doc.signed_pdf_drive_web_view_link}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>`:doc.signed_web_view_link?`<a href="${doc.signed_web_view_link}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>`:'—'}</td><td>${renderStatus(doc.status,'s-')}</td></tr>`).join('');bindDs();if(data.documents.length>0)stopGenSpin();}
-async function poll(){try{const r=await fetch(`/batches/${batchId}/status-json`,{cache:'no-store'});if(r.ok)updateDocs(await r.json());}catch(e){console.error(e);}}
-function stopGenSpin(){const btn=document.getElementById('genBtn');if(!btn)return;btn.disabled=false;document.getElementById('genSpin').classList.remove('on');document.getElementById('genLabel').textContent='⚡ Generate Docs';}
-function bindDs(){document.querySelectorAll('.ds-form').forEach(f=>{if(f.dataset.bound)return;f.dataset.bound='1';f.addEventListener('submit',function(e){e.preventDefault();const btn=f.querySelector('.ds-btn');const spin=f.querySelector('.ds-spin');const lbl=f.querySelector('.ds-lbl');if(btn)btn.disabled=true;if(spin)spin.classList.add('on');if(lbl)lbl.textContent='Sending…';setTimeout(()=>f.submit(),150);});});}
-document.addEventListener('DOMContentLoaded',()=>{bindDs();const gf=document.getElementById('genForm');if(gf){gf.addEventListener('submit',function(e){e.preventDefault();const btn=document.getElementById('genBtn');btn.disabled=true;document.getElementById('genSpin').classList.add('on');document.getElementById('genLabel').textContent='Generating…';setTimeout(()=>gf.submit(),150);setTimeout(()=>window.location.reload(),5000);});}setInterval(poll,5000);});
+
+function renderFileCell(doc){
+  if(doc.drive_web_view_link){
+    var name=esc(doc.file_name);
+    var short=doc.file_name.length>30?doc.file_name.substring(0,30)+'…':doc.file_name;
+    return '<a href="'+doc.drive_web_view_link+'" target="_blank" class="file-link" title="'+name+'">📝 '+esc(short)+'</a>';
+  }
+  return '<span class="file-link-plain">'+esc(doc.file_name)+'</span>';
+}
+
+function renderDsBtn(doc){
+  var id=doc.id||doc.document_id;
+  var url=SEND_URL_TPL.replace('/0/send-docusign','/'+id+'/send-docusign');
+  var lbl='Send';
+  if(doc.docusign_status==='completed')lbl='Resend';
+  else if(doc.docusign_status==='delivered')lbl='Delivered';
+  else if(doc.docusign_status==='sent')lbl='Sent';
+  return '<form method="post" action="'+url+'" class="ds-form"><button type="submit" class="btn btn-sec btn-xs ds-btn"><span class="ds-lbl">'+lbl+'</span><span class="spin ds-spin"></span></button></form>';
+}
+
+function renderStatus(val,cls){
+  if(!val)return '—';
+  var c=cls+val.replace(/[ _]/g,'_');
+  var l=val.replace(/_/g,' ').replace(/\b\w/g,function(x){return x.toUpperCase();});
+  return '<span class="status '+c+'"><span class="status-dot"></span>'+l+'</span>';
+}
+
+function updateDocs(data){
+  var tb=document.getElementById('generatedDocumentsBody');
+  if(!tb||!data.documents)return;
+  tb.innerHTML=data.documents.map(function(doc){
+    var signedCell='—';
+    if(doc.signed_pdf_drive_web_view_link)signedCell='<a href="'+doc.signed_pdf_drive_web_view_link+'" target="_blank" class="file-link">📑 Signed</a>';
+    else if(doc.signed_web_view_link)signedCell='<a href="'+doc.signed_web_view_link+'" target="_blank" class="file-link">📑 Signed</a>';
+    var certCell=doc.certificate_drive_web_view_link?'<a href="'+doc.certificate_drive_web_view_link+'" target="_blank" class="btn btn-sec btn-xs">Cert ↗</a>':'—';
+    return '<tr data-doc-id="'+doc.id+'">'
+      +'<td style="font-weight:600;white-space:nowrap">'+esc(doc.writer_name_snapshot)+'</td>'
+      +'<td><span class="tag tag-full">'+esc(doc.document_type)+'</span></td>'
+      +'<td>'+renderFileCell(doc)+'</td>'
+      +'<td style="color:var(--t3);font-size:11.5px">'+(doc.generated_at||'—')+'</td>'
+      +'<td>'+renderDsBtn(doc)+'</td>'
+      +'<td>'+renderStatus(doc.docusign_status,'s-')+'</td>'
+      +'<td>'+certCell+'</td>'
+      +'<td><form method="post" action="/documents/'+doc.id+'/upload-signed" enctype="multipart/form-data" class="upl-form"><input type="file" name="signed_file" class="upl-inp" required><button type="submit" class="btn btn-success btn-xs">Upload</button></form></td>'
+      +'<td>'+signedCell+'</td>'
+      +'<td>'+renderStatus(doc.status,'s-')+'</td>'
+      +'</tr>';
+  }).join('');
+  bindDs();
+  if(data.documents.length>0)stopGenSpin();
+}
+
+async function poll(){
+  try{
+    var r=await fetch('/batches/'+batchId+'/status-json',{cache:'no-store'});
+    if(r.ok)updateDocs(await r.json());
+  }catch(e){console.error(e);}
+}
+
+function stopGenSpin(){
+  var btn=document.getElementById('genBtn');
+  if(!btn)return;
+  btn.disabled=false;
+  document.getElementById('genSpin').classList.remove('on');
+  document.getElementById('genLabel').textContent='⚡ Generate Docs';
+}
+
+function bindDs(){
+  document.querySelectorAll('.ds-form').forEach(function(f){
+    if(f.dataset.bound)return;
+    f.dataset.bound='1';
+    f.addEventListener('submit',function(e){
+      e.preventDefault();
+      var btn=f.querySelector('.ds-btn');
+      var spin=f.querySelector('.ds-spin');
+      var lbl=f.querySelector('.ds-lbl');
+      if(btn)btn.disabled=true;
+      if(spin)spin.classList.add('on');
+      if(lbl)lbl.textContent='Sending…';
+      setTimeout(function(){f.submit();},150);
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  bindDs();
+  var gf=document.getElementById('genForm');
+  if(gf){
+    gf.addEventListener('submit',function(e){
+      e.preventDefault();
+      var btn=document.getElementById('genBtn');
+      btn.disabled=true;
+      document.getElementById('genSpin').classList.add('on');
+      document.getElementById('genLabel').textContent='Generating…';
+      setTimeout(function(){gf.submit();},150);
+      setTimeout(function(){window.location.reload();},5000);
+    });
+  }
+  setInterval(poll,5000);
+});
 </script>
 </body>
 </html>"""
@@ -1090,26 +1470,49 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <title>{{ work.title }} — LabelMind</title>""" + _STYLE + """
 </head>
 <body>
-<div class="app">
-  <aside class="sb">
-    <a class="sb-logo" href="{{ url_for('formulario') }}"><div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span></a>
+<div class="app" id="mainApp">
+  <aside class="sb" id="mainSidebar">
+    <a class="sb-logo" href="{{ url_for('works_list') }}">
+      <div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span>
+      <span class="sb-toggle" id="sbToggle" onclick="toggleSidebar(event)" title="Toggle sidebar">◀</span>
+    </a>
     <div class="sb-sec">Contracts</div>
     <nav class="sb-nav">
-      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">🎵</span>Works</a>
-      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span>Batches</a>
+      <a href="{{ url_for('works_list') }}" class="on"><span class="ni">🎵</span><span class="nl">Works</span></a>
+      <a href="{{ url_for('formulario') }}"><span class="ni">✏️</span><span class="nl">New Work</span></a>
+      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span><span class="nl">Sessions</span></a>
+      <a href="#"><span class="ni">📄</span><span class="nl">Templates</span></a>
     </nav>
-    <div class="sb-foot"><b>LabelMind</b>© 2026 LabelMind.ai</div>
+    <div class="sb-sec">Resources</div>
+    <nav class="sb-nav">
+      <a href="#"><span class="ni">👥</span><span class="nl">Writer Directory</span></a>
+      <a href="#"><span class="ni">⚙️</span><span class="nl">Settings</span></a>
+    </nav>
+    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
       <div class="tb-search">🔍 Search…<span class="tb-kbd">⌘K</span></div>
-      <div class="tb-right"><div class="pill-group"><a href="{{ url_for('works_list') }}" class="pill on">Works</a><a href="{{ url_for('batches_list') }}" class="pill">Batches</a></div><div class="avatar">IS</div></div>
+      <div class="tb-right">
+        <div class="pill-group">
+          <a href="{{ url_for('works_list') }}" class="pill on">Works</a>
+          <a href="{{ url_for('batches_list') }}" class="pill">Sessions</a>
+        </div>
+        {% if team_auth_enabled and session.get('logged_in') %}<a href="{{ url_for('logout') }}" class="tb-ibtn">🚪</a>{% endif %}
+        <div class="avatar">IS</div>
+      </div>
     </header>
     <div class="page">
       <div class="ph">
-        <div class="ph-left"><div class="ph-icon">🎵</div><div><div class="ph-title">{{ work.title }}</div><div class="ph-sub">{{ work.camp.name if work.camp else 'No camp' }} · {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '—' }}</div></div></div>
+        <div class="ph-left">
+          <div class="ph-icon">🎵</div>
+          <div>
+            <div class="ph-title">{{ work.title }}</div>
+            <div class="ph-sub">{{ work.camp.name if work.camp else 'No session' }} · {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '—' }}</div>
+          </div>
+        </div>
         <div class="ph-actions">
-          {% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}" class="btn btn-sec btn-sm">View Batch</a>{% endif %}
+          {% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
           <a href="{{ url_for('works_list') }}" class="btn btn-sec btn-sm">← Back</a>
         </div>
       </div>
@@ -1117,8 +1520,8 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
         <div class="card-hd"><div class="card-ico">📋</div><span class="card-title">Work Info</span></div>
         <div class="card-body">
           <div class="info-grid">
-            <div class="info-item"><label>Camp</label><span>{{ work.camp.name if work.camp else '—' }}</span></div>
-            <div class="info-item"><label>Batch</label>{% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}">Batch #{{ work.batch_id }}</a>{% else %}<span>—</span>{% endif %}</div>
+            <div class="info-item"><label>Session Name</label><span>{{ work.camp.name if work.camp else '—' }}</span></div>
+            <div class="info-item"><label>Session</label>{% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}">Session #{{ work.batch_id }}</a>{% else %}<span>—</span>{% endif %}</div>
             <div class="info-item"><label>Contract Date</label><span>{{ work.contract_date.strftime('%B %d, %Y') if work.contract_date else '—' }}</span></div>
             <div class="info-item"><label>Created</label><span>{{ work.created_at.strftime('%b %d, %Y %H:%M') }}</span></div>
           </div>
@@ -1150,15 +1553,25 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
         <div class="card-hd"><div class="card-ico">📄</div><span class="card-title">Generated Documents</span></div>
         <div class="tbl-wrap">
           <table class="tbl" style="min-width:860px">
-            <thead><tr><th>Writer</th><th>Type</th><th>File</th><th>Generated At</th><th>Doc</th><th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Signed</th><th>Status</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Writer</th><th>Type</th><th>File (click to open)</th><th>Generated At</th>
+                <th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Signed PDF</th><th>Status</th>
+              </tr>
+            </thead>
             <tbody>
               {% for doc in documents %}
               <tr data-doc-id="{{ doc.id }}">
                 <td style="font-weight:600;white-space:nowrap">{{ doc.writer_name_snapshot }}</td>
                 <td><span class="tag tag-full">{{ doc.document_type }}</span></td>
-                <td style="color:var(--t2);font-size:11.5px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ doc.file_name }}</td>
+                <td>
+                  {% if doc.drive_web_view_link %}
+                    <a href="{{ doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ doc.file_name }}">📝 {{ doc.file_name | truncate(30, true, '…') }}</a>
+                  {% else %}
+                    <span class="file-link-plain">{{ doc.file_name }}</span>
+                  {% endif %}
+                </td>
                 <td style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d, %Y') if doc.generated_at else '—' }}</td>
-                <td>{% if doc.drive_web_view_link %}<a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-cyan btn-xs">Open ↗</a>{% else %}—{% endif %}</td>
                 <td>
                   <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}" class="ds-form">
                     <button type="submit" class="btn btn-sec btn-xs ds-btn">
@@ -1169,11 +1582,17 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
                 </td>
                 <td>{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}—{% endif %}</td>
                 <td>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert ↗</a>{% else %}—{% endif %}</td>
-                <td>{% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% else %}—{% endif %}</td>
+                <td>
+                  {% if doc.signed_pdf_drive_web_view_link %}
+                    <a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">📑 Signed</a>
+                  {% elif doc.signed_web_view_link %}
+                    <a href="{{ doc.signed_web_view_link }}" target="_blank" class="file-link">📑 Signed</a>
+                  {% else %}—{% endif %}
+                </td>
                 <td>{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}—{% endif %}</td>
               </tr>
               {% endfor %}
-              {% if not documents %}<tr class="empty"><td colspan="10">No documents generated yet.</td></tr>{% endif %}
+              {% if not documents %}<tr class="empty"><td colspan="9">No documents generated yet.</td></tr>{% endif %}
             </tbody>
           </table>
         </div>
@@ -1181,12 +1600,28 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
     </div>
   </main>
 </div>
+""" + _SB_JS + """
 <script>
-document.querySelectorAll('.ds-form').forEach(f=>{f.addEventListener('submit',function(e){e.preventDefault();const btn=f.querySelector('.ds-btn');const spin=f.querySelector('.ds-spin');const lbl=f.querySelector('.ds-lbl');if(btn)btn.disabled=true;if(spin)spin.classList.add('on');if(lbl)lbl.textContent='Sending…';setTimeout(()=>f.submit(),150);});});
+document.querySelectorAll('.ds-form').forEach(function(f){
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    var btn=f.querySelector('.ds-btn');
+    var spin=f.querySelector('.ds-spin');
+    var lbl=f.querySelector('.ds-lbl');
+    if(btn)btn.disabled=true;
+    if(spin)spin.classList.add('on');
+    if(lbl)lbl.textContent='Sending…';
+    setTimeout(function(){f.submit();},150);
+  });
+});
 </script>
 </body>
 </html>"""
 
+
+# ══════════════════════════════════════════════════════
+#  HELPERS
+# ══════════════════════════════════════════════════════
 
 def auth_required():
     if not (TEAM_USERNAME and TEAM_PASSWORD):
@@ -1204,10 +1639,8 @@ def get_or_create_camp(existing_camp_id: str, new_camp_name: str):
         db.session.add(camp)
         db.session.flush()
         return camp
-
     if existing_camp_id:
         return Camp.query.get(int(existing_camp_id))
-
     return None
 
 
@@ -1252,7 +1685,6 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
             table.rows[0].cells[2].text = "Songwriter Share"
             table.rows[0].cells[3].text = "Publisher Name"
             table.rows[0].cells[4].text = "Publisher Share"
-
             for item in works_for_table or []:
                 row = table.add_row().cells
                 row[0].text = item.get("work_title", "")
@@ -1271,8 +1703,11 @@ def render_docx_template(template_path: str, data: dict, works_for_table=None) -
 
 
 def collect_form_context():
-    selected_batch_id = request.form.get("existing_batch_id") or ""
-
+    selected_batch_id = (
+        request.form.get("existing_batch_id")
+        or request.args.get("batch_id")
+        or ""
+    )
     return {
         "camps": Camp.query.order_by(Camp.name.asc()).all(),
         "batches": GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all(),
@@ -1292,32 +1727,26 @@ def get_batch_writer_summary(batch_id: int):
         .filter(Work.batch_id == batch_id)
         .all()
     )
-
     grouped = {}
     for ww in work_writers:
         if ww.writer_id not in grouped:
-            grouped[ww.writer_id] = {
-                "writer": ww.writer,
-                "work_titles": set(),
-            }
+            grouped[ww.writer_id] = {"writer": ww.writer, "work_titles": set()}
         grouped[ww.writer_id]["work_titles"].add(ww.work.title)
-
     summary = []
     for item in grouped.values():
-        summary.append({
-            "writer": item["writer"],
-            "work_count": len(item["work_titles"]),
-        })
-
+        summary.append({"writer": item["writer"], "work_count": len(item["work_titles"])})
     summary.sort(key=lambda x: x["writer"].full_name.lower())
     return summary
 
+
+# ══════════════════════════════════════════════════════
+#  ROUTES
+# ══════════════════════════════════════════════════════
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if not (TEAM_USERNAME and TEAM_PASSWORD):
         return redirect(url_for("formulario"))
-
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
@@ -1325,7 +1754,6 @@ def login():
             session["logged_in"] = True
             return redirect(url_for("formulario"))
         flash("Incorrect username or password.")
-
     return render_template_string(LOGIN_HTML)
 
 
@@ -1455,8 +1883,6 @@ def formulario():
                     return render_template_string(FORM_HTML, **collect_form_context())
                 seen_names.add(normalized_name)
 
-        warnings = []
-
         for row in writer_rows:
             if row["ipi"]:
                 existing_ipi_writer = Writer.query.filter(func.lower(Writer.ipi) == row["ipi"].lower()).first()
@@ -1466,6 +1892,7 @@ def formulario():
                         flash(f"IPI {row['ipi']} already belongs to {existing_ipi_writer.full_name}. Please select the existing writer.")
                         return render_template_string(FORM_HTML, **collect_form_context())
 
+        warnings = []
         for row in writer_rows:
             if not row["ipi"]:
                 existing_name_writer = Writer.query.filter(
@@ -1509,14 +1936,12 @@ def formulario():
         if existing_batch_id:
             batch = GenerationBatch.query.get(int(existing_batch_id))
             if not batch:
-                flash("Selected batch was not found.")
+                flash("Selected session was not found.")
                 return render_template_string(FORM_HTML, **collect_form_context())
-
             camp = batch.camp
             contract_date = batch.contract_date
         else:
             camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
-
             batch = GenerationBatch(
                 camp_id=camp.id if camp else None,
                 contract_date=contract_date,
@@ -1604,7 +2029,6 @@ def search_writers():
         return jsonify([])
 
     like_q = f"%{q.lower()}%"
-
     writers = (
         Writer.query
         .filter(
@@ -1673,23 +2097,19 @@ def batch_detail(batch_id):
         return redirect(url_for("login"))
 
     batch = GenerationBatch.query.get_or_404(batch_id)
-
     works = (
         Work.query
         .filter_by(batch_id=batch.id)
         .order_by(Work.created_at.asc())
         .all()
     )
-
     documents = (
         ContractDocument.query
         .filter_by(batch_id=batch.id)
         .order_by(ContractDocument.generated_at.desc())
         .all()
     )
-
     writer_summary = get_batch_writer_summary(batch.id)
-
     return render_template_string(
         BATCH_DETAIL_HTML,
         batch=batch,
@@ -1705,7 +2125,12 @@ def batch_status_json(batch_id):
         return jsonify({"error": "unauthorized"}), 401
 
     batch = GenerationBatch.query.get_or_404(batch_id)
-    documents = ContractDocument.query.filter_by(batch_id=batch.id).order_by(ContractDocument.generated_at.asc()).all()
+    documents = (
+        ContractDocument.query
+        .filter_by(batch_id=batch.id)
+        .order_by(ContractDocument.generated_at.asc())
+        .all()
+    )
 
     return jsonify({
         "batch_id": batch.id,
@@ -1716,11 +2141,12 @@ def batch_status_json(batch_id):
                 "writer_name_snapshot": doc.writer_name_snapshot,
                 "document_type": doc.document_type,
                 "file_name": doc.file_name,
-                "generated_at": doc.generated_at.strftime('%Y-%m-%d %H:%M') if doc.generated_at else "",
+                "generated_at": doc.generated_at.strftime('%b %d %H:%M') if doc.generated_at else "",
                 "drive_web_view_link": doc.drive_web_view_link,
                 "docusign_status": doc.docusign_status,
                 "status": doc.status,
                 "signed_pdf_drive_web_view_link": getattr(doc, "signed_pdf_drive_web_view_link", None),
+                "signed_web_view_link": getattr(doc, "signed_web_view_link", None),
                 "certificate_drive_web_view_link": getattr(doc, "certificate_drive_web_view_link", None),
             }
             for doc in documents
@@ -1744,16 +2170,13 @@ def generate_batch_documents(batch_id):
     )
 
     if not work_writers:
-        flash("No works found in this batch.")
+        flash("No works found in this session.")
         return redirect(url_for("batch_detail", batch_id=batch.id))
 
     grouped = {}
     for ww in work_writers:
         if ww.writer_id not in grouped:
-            grouped[ww.writer_id] = {
-                "writer": ww.writer,
-                "rows": []
-            }
+            grouped[ww.writer_id] = {"writer": ww.writer, "rows": []}
         grouped[ww.writer_id]["rows"].append(ww)
 
     existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
@@ -1863,7 +2286,7 @@ def generate_batch_documents(batch_id):
     db.session.commit()
 
     zip_buffer.seek(0)
-    zip_name = f"batch_{batch.id}_documents.zip"
+    zip_name = f"session_{batch.id}_documents.zip"
     return send_file(
         zip_buffer,
         as_attachment=True,
@@ -1879,17 +2302,14 @@ def docusign_webhook():
 
     try:
         root = ET.fromstring(raw_data)
-
         envelope_id = None
         raw_status = ""
 
         for elem in root.iter():
             tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
             text = (elem.text or "").strip()
-
             if tag == "EnvelopeID" and text:
                 envelope_id = text
-
             if tag == "Status" and text:
                 raw_status = text.lower()
 
@@ -1955,7 +2375,6 @@ def docusign_webhook():
 
             document.certificate_drive_file_id = certificate_drive_info.get("file_id")
             document.certificate_drive_web_view_link = certificate_drive_info.get("web_view_link")
-
             document.completed_at = datetime.datetime.utcnow()
             document.status = "signed"
 
@@ -1970,14 +2389,13 @@ def docusign_webhook():
 @app.route("/documents/<int:document_id>/send-docusign", methods=["POST"])
 def send_document_docusign(document_id):
     document = None
-
     try:
         if auth_required():
             return redirect(url_for("login"))
 
         document = ContractDocument.query.get(document_id)
         if not document:
-            flash("This document no longer exists. Please refresh the batch page.")
+            flash("This document no longer exists. Please refresh the session page.")
             return redirect(request.referrer or url_for("batches_list"))
 
         writer = Writer.query.get(document.writer_id)
@@ -2081,7 +2499,6 @@ def send_document_docusign(document_id):
         app.logger.error(f"DOCUSIGN SEND ERROR: {e}")
         app.logger.error(traceback.format_exc())
         flash(f"DocuSign send failed: {e}")
-
         if document:
             return redirect(url_for("batch_detail", batch_id=document.batch_id))
         return redirect(request.referrer or url_for("batches_list"))
