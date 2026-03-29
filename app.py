@@ -557,7 +557,7 @@ FORM_HTML = """<!DOCTYPE html>
       <a href="#"><span class="ni">👥</span>Writer Directory</a>
       <a href="#"><span class="ni">⚙️</span>Settings</a>
     </nav>
-    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>©️ 2026 LabelMind.ai</div>
+    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -764,7 +764,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
       <a href="{{ url_for('formulario') }}" class="on"><span class="ni">🎵</span>Works</a>
       <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span>Batches</a>
     </nav>
-    <div class="sb-foot"><b>LabelMind</b>©️ 2026 LabelMind.ai</div>
+    <div class="sb-foot"><b>LabelMind</b>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -821,7 +821,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
     </nav>
     <div class="sb-sec">Resources</div>
     <nav class="sb-nav"><a href="#"><span class="ni">👥</span>Writer Directory</a><a href="#"><span class="ni">⚙️</span>Settings</a></nav>
-    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>©️ 2026 LabelMind.ai</div>
+    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -893,7 +893,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
     </nav>
     <div class="sb-sec">Resources</div>
     <nav class="sb-nav"><a href="#"><span class="ni">👥</span>Writer Directory</a><a href="#"><span class="ni">⚙️</span>Settings</a></nav>
-    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>©️ 2026 LabelMind.ai</div>
+    <div class="sb-foot"><b>LabelMind</b>Music Publishing Contracts<br>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -952,7 +952,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
       <a href="{{ url_for('formulario') }}"><span class="ni">🎵</span>Works</a>
       <a href="{{ url_for('batches_list') }}" class="on"><span class="ni">📦</span>Batches</a>
     </nav>
-    <div class="sb-foot"><b>LabelMind</b>©️ 2026 LabelMind.ai</div>
+    <div class="sb-foot"><b>LabelMind</b>© 2026 LabelMind.ai</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -1039,7 +1039,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
                 <td style="font-weight:600;white-space:nowrap">{{ doc.writer_name_snapshot }}</td>
                 <td><span class="tag tag-full">{{ doc.document_type }}</span></td>
                 <td style="color:var(--t2);font-size:11.5px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ doc.file_name }}</td>
-                <td>{% if doc.drive_web_view_link %}<a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-cyan btn-xs">Open ↗️</a>{% else %}—{% endif %}</td>
+                <td>{% if doc.drive_web_view_link %}<a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-cyan btn-xs">Open ↗</a>{% else %}—{% endif %}</td>
                 <td>
                   <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}" class="ds-form">
                     <button type="submit" class="btn btn-sec btn-xs ds-btn">
@@ -1049,14 +1049,14 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
                   </form>
                 </td>
                 <td>{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}—{% endif %}</td>
-                <td>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert ↗️</a>{% else %}—{% endif %}</td>
+                <td>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert ↗</a>{% else %}—{% endif %}</td>
                 <td>
                   <form method="post" action="{{ url_for('upload_signed_document', document_id=doc.id) }}" enctype="multipart/form-data" class="upl-form">
                     <input type="file" name="signed_file" class="upl-inp" required>
                     <button type="submit" class="btn btn-success btn-xs">Upload</button>
                   </form>
                 </td>
-                <td>{% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗️</a>{% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗️</a>{% else %}—{% endif %}</td>
+                <td>{% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% else %}—{% endif %}</td>
                 <td>{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}—{% endif %}</td>
               </tr>
               {% endfor %}
@@ -1074,4 +1074,1087 @@ const batchId={{ batch.id }};
 function esc(v){return(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function renderDsBtn(doc){const id=doc.id||doc.document_id;const url=SEND_URL_TPL.replace('/0/send-docusign',`/${id}/send-docusign`);let lbl='Send';if(doc.docusign_status==='completed')lbl='Resend';else if(doc.docusign_status==='delivered')lbl='Delivered';else if(doc.docusign_status==='sent')lbl='Sent';return `<form method="post" action="${url}" class="ds-form"><button type="submit" class="btn btn-sec btn-xs ds-btn"><span class="ds-lbl">${lbl}</span><span class="spin ds-spin"></span></button></form>`;}
 function renderStatus(val,cls){if(!val)return '—';const c=cls+val.replace(/[ _]/g,'_');const l=val.replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase());return `<span class="status ${c}"><span class="status-dot"></span>${l}</span>`;}
-function updateDocs(data){const tb=document.getElementById('generatedDocumentsBody');if(!tb||!data.documents)return;tb.innerHTML=data.documents.map(doc=>`<tr data-doc-id="${doc.id}"><td style="font-weight:600;white-space:nowrap">${esc(doc.writer_name_snapshot)}</td><td><span class="tag tag-full">${esc(doc.document_type)}</span></td><td style="color:var(--t2);font-size:11.5px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(doc.file_name)}</td><td>${doc.drive_web_view_link?`<a href="${doc.drive_web_view_link}" target="_blank" class="btn btn-cyan btn-xs">Open ↗️</a>`:'—'}</td><td>${renderDsBtn(doc)}</td><td>${renderStatus(doc.docusign_status,'s-')}</td><td>${doc.certificate_drive_web_view_link?`<a href="${doc.certificate_drive_web_view_link}" target="_blank" class="btn btn-sec btn-xs">Cert ↗️</a>`:'—'}</td><td><form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data" class="upl-form"><input type="file" name="signed_file" class="upl-inp" required><button type="submit" class="btn btn-success btn-xs">Upload</button></form></td><td>${doc.signed_pdf_drive_web_view_link?`<a href="${doc.signed_pdf_drive_web_view_link}" target="_blank" class="btn btn-success btn-xs">Signed ↗️</a>`:doc.signed_web_view_link
+function updateDocs(data){const tb=document.getElementById('generatedDocumentsBody');if(!tb||!data.documents)return;tb.innerHTML=data.documents.map(doc=>`<tr data-doc-id="${doc.id}"><td style="font-weight:600;white-space:nowrap">${esc(doc.writer_name_snapshot)}</td><td><span class="tag tag-full">${esc(doc.document_type)}</span></td><td style="color:var(--t2);font-size:11.5px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(doc.file_name)}</td><td>${doc.drive_web_view_link?`<a href="${doc.drive_web_view_link}" target="_blank" class="btn btn-cyan btn-xs">Open ↗</a>`:'—'}</td><td>${renderDsBtn(doc)}</td><td>${renderStatus(doc.docusign_status,'s-')}</td><td>${doc.certificate_drive_web_view_link?`<a href="${doc.certificate_drive_web_view_link}" target="_blank" class="btn btn-sec btn-xs">Cert ↗</a>`:'—'}</td><td><form method="post" action="/documents/${doc.id}/upload-signed" enctype="multipart/form-data" class="upl-form"><input type="file" name="signed_file" class="upl-inp" required><button type="submit" class="btn btn-success btn-xs">Upload</button></form></td><td>${doc.signed_pdf_drive_web_view_link?`<a href="${doc.signed_pdf_drive_web_view_link}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>`:doc.signed_web_view_link?`<a href="${doc.signed_web_view_link}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>`:'—'}</td><td>${renderStatus(doc.status,'s-')}</td></tr>`).join('');bindDs();if(data.documents.length>0)stopGenSpin();}
+async function poll(){try{const r=await fetch(`/batches/${batchId}/status-json`,{cache:'no-store'});if(r.ok)updateDocs(await r.json());}catch(e){console.error(e);}}
+function stopGenSpin(){const btn=document.getElementById('genBtn');if(!btn)return;btn.disabled=false;document.getElementById('genSpin').classList.remove('on');document.getElementById('genLabel').textContent='⚡ Generate Docs';}
+function bindDs(){document.querySelectorAll('.ds-form').forEach(f=>{if(f.dataset.bound)return;f.dataset.bound='1';f.addEventListener('submit',function(e){e.preventDefault();const btn=f.querySelector('.ds-btn');const spin=f.querySelector('.ds-spin');const lbl=f.querySelector('.ds-lbl');if(btn)btn.disabled=true;if(spin)spin.classList.add('on');if(lbl)lbl.textContent='Sending…';setTimeout(()=>f.submit(),150);});});}
+document.addEventListener('DOMContentLoaded',()=>{bindDs();const gf=document.getElementById('genForm');if(gf){gf.addEventListener('submit',function(e){e.preventDefault();const btn=document.getElementById('genBtn');btn.disabled=true;document.getElementById('genSpin').classList.add('on');document.getElementById('genLabel').textContent='Generating…';setTimeout(()=>gf.submit(),150);setTimeout(()=>window.location.reload(),5000);});}setInterval(poll,5000);});
+</script>
+</body>
+</html>"""
+
+WORK_DETAIL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ work.title }} — LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app">
+  <aside class="sb">
+    <a class="sb-logo" href="{{ url_for('formulario') }}"><div class="sb-ico">🎵</div><span class="sb-name">LabelMind</span></a>
+    <div class="sb-sec">Contracts</div>
+    <nav class="sb-nav">
+      <a href="{{ url_for('formulario') }}" class="on"><span class="ni">🎵</span>Works</a>
+      <a href="{{ url_for('batches_list') }}"><span class="ni">📦</span>Batches</a>
+    </nav>
+    <div class="sb-foot"><b>LabelMind</b>© 2026 LabelMind.ai</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="tb-search">🔍 Search…<span class="tb-kbd">⌘K</span></div>
+      <div class="tb-right"><div class="pill-group"><a href="{{ url_for('works_list') }}" class="pill on">Works</a><a href="{{ url_for('batches_list') }}" class="pill">Batches</a></div><div class="avatar">IS</div></div>
+    </header>
+    <div class="page">
+      <div class="ph">
+        <div class="ph-left"><div class="ph-icon">🎵</div><div><div class="ph-title">{{ work.title }}</div><div class="ph-sub">{{ work.camp.name if work.camp else 'No camp' }} · {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '—' }}</div></div></div>
+        <div class="ph-actions">
+          {% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}" class="btn btn-sec btn-sm">View Batch</a>{% endif %}
+          <a href="{{ url_for('works_list') }}" class="btn btn-sec btn-sm">← Back</a>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-ico">📋</div><span class="card-title">Work Info</span></div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item"><label>Camp</label><span>{{ work.camp.name if work.camp else '—' }}</span></div>
+            <div class="info-item"><label>Batch</label>{% if work.batch_id %}<a href="{{ url_for('batch_detail', batch_id=work.batch_id) }}">Batch #{{ work.batch_id }}</a>{% else %}<span>—</span>{% endif %}</div>
+            <div class="info-item"><label>Contract Date</label><span>{{ work.contract_date.strftime('%B %d, %Y') if work.contract_date else '—' }}</span></div>
+            <div class="info-item"><label>Created</label><span>{{ work.created_at.strftime('%b %d, %Y %H:%M') }}</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-ico">👥</div><span class="card-title">Writers &amp; Splits</span></div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Split %</th><th>Publisher</th><th>Pub IPI</th><th>Master</th></tr></thead>
+            <tbody>
+              {% for ww in work.work_writers %}
+              <tr>
+                <td style="font-weight:600">{{ ww.writer.full_name }}</td>
+                <td style="color:var(--t2)">{{ ww.writer.writer_aka or '—' }}</td>
+                <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ ww.writer.ipi or '—' }}</td>
+                <td><span class="tag tag-full">{{ ww.writer.pro or '—' }}</span></td>
+                <td><span style="font-family:var(--fm);font-size:13px;font-weight:600;color:var(--a)">{{ "%.2f"|format(ww.writer_percentage) }}%</span></td>
+                <td style="color:var(--t2)">{{ ww.publisher or '—' }}</td>
+                <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ ww.publisher_ipi or '—' }}</td>
+                <td>{% if ww.writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}<span style="color:var(--t3)">No</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-ico">📄</div><span class="card-title">Generated Documents</span></div>
+        <div class="tbl-wrap">
+          <table class="tbl" style="min-width:860px">
+            <thead><tr><th>Writer</th><th>Type</th><th>File</th><th>Generated At</th><th>Doc</th><th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Signed</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for doc in documents %}
+              <tr data-doc-id="{{ doc.id }}">
+                <td style="font-weight:600;white-space:nowrap">{{ doc.writer_name_snapshot }}</td>
+                <td><span class="tag tag-full">{{ doc.document_type }}</span></td>
+                <td style="color:var(--t2);font-size:11.5px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ doc.file_name }}</td>
+                <td style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d, %Y') if doc.generated_at else '—' }}</td>
+                <td>{% if doc.drive_web_view_link %}<a href="{{ doc.drive_web_view_link }}" target="_blank" class="btn btn-cyan btn-xs">Open ↗</a>{% else %}—{% endif %}</td>
+                <td>
+                  <form method="post" action="{{ url_for('send_document_docusign', document_id=doc.id) }}" class="ds-form">
+                    <button type="submit" class="btn btn-sec btn-xs ds-btn">
+                      <span class="ds-lbl">{% if doc.docusign_status == 'completed' %}Resend{% elif doc.docusign_status == 'sent' %}Sent{% elif doc.docusign_status == 'delivered' %}Delivered{% else %}Send{% endif %}</span>
+                      <span class="spin ds-spin"></span>
+                    </button>
+                  </form>
+                </td>
+                <td>{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}—{% endif %}</td>
+                <td>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert ↗</a>{% else %}—{% endif %}</td>
+                <td>{% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="btn btn-success btn-xs">Signed ↗</a>{% else %}—{% endif %}</td>
+                <td>{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+              {% if not documents %}<tr class="empty"><td colspan="10">No documents generated yet.</td></tr>{% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+document.querySelectorAll('.ds-form').forEach(f=>{f.addEventListener('submit',function(e){e.preventDefault();const btn=f.querySelector('.ds-btn');const spin=f.querySelector('.ds-spin');const lbl=f.querySelector('.ds-lbl');if(btn)btn.disabled=true;if(spin)spin.classList.add('on');if(lbl)lbl.textContent='Sending…';setTimeout(()=>f.submit(),150);});});
+</script>
+</body>
+</html>"""
+
+
+def auth_required():
+    if not (TEAM_USERNAME and TEAM_PASSWORD):
+        return False
+    return not session.get("logged_in")
+
+
+def get_or_create_camp(existing_camp_id: str, new_camp_name: str):
+    new_camp_name = (new_camp_name or "").strip()
+    if new_camp_name:
+        existing = Camp.query.filter(func.lower(Camp.name) == new_camp_name.lower()).first()
+        if existing:
+            return existing
+        camp = Camp(name=new_camp_name)
+        db.session.add(camp)
+        db.session.flush()
+        return camp
+
+    if existing_camp_id:
+        return Camp.query.get(int(existing_camp_id))
+
+    return None
+
+
+def find_existing_writer(selected_writer_id: str):
+    if selected_writer_id:
+        writer = Writer.query.get(int(selected_writer_id))
+        if writer:
+            return writer
+    return None
+
+
+def render_docx_template(template_path: str, data: dict, works_for_table=None) -> io.BytesIO:
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(template_path)
+
+    doc = Document(template_path)
+
+    def replace_all(paragraph):
+        text = "".join(run.text for run in paragraph.runs)
+        for k, v in data.items():
+            text = text.replace(f"[[{k}]]", str(v))
+        for run in paragraph.runs:
+            run.text = ""
+        if paragraph.runs:
+            paragraph.runs[0].text = text
+
+    for p in doc.paragraphs:
+        replace_all(p)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    replace_all(p)
+
+    for p in doc.paragraphs:
+        if "[[ContractTable]]" in p.text:
+            table = doc.add_table(rows=1, cols=5)
+            table.style = "Table Grid"
+            table.rows[0].cells[0].text = "Work Title"
+            table.rows[0].cells[1].text = "Songwriter Name"
+            table.rows[0].cells[2].text = "Songwriter Share"
+            table.rows[0].cells[3].text = "Publisher Name"
+            table.rows[0].cells[4].text = "Publisher Share"
+
+            for item in works_for_table or []:
+                row = table.add_row().cells
+                row[0].text = item.get("work_title", "")
+                row[1].text = item.get("writer_name", "")
+                row[2].text = item.get("writer_percentage", "")
+                row[3].text = item.get("publisher", "")
+                row[4].text = item.get("writer_percentage", "")
+            p.text = ""
+            p._element.addnext(table._element)
+            break
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def collect_form_context():
+    selected_batch_id = request.form.get("existing_batch_id") or ""
+
+    return {
+        "camps": Camp.query.order_by(Camp.name.asc()).all(),
+        "batches": GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all(),
+        "default_publisher_address": DEFAULT_PUBLISHER_ADDRESS,
+        "default_publisher_city": DEFAULT_PUBLISHER_CITY,
+        "default_publisher_state": DEFAULT_PUBLISHER_STATE,
+        "default_publisher_zip": DEFAULT_PUBLISHER_ZIP,
+        "force_create": request.form.get("force_create", ""),
+        "selected_batch_id": selected_batch_id,
+    }
+
+
+def get_batch_writer_summary(batch_id: int):
+    work_writers = (
+        WorkWriter.query
+        .join(Work)
+        .filter(Work.batch_id == batch_id)
+        .all()
+    )
+
+    grouped = {}
+    for ww in work_writers:
+        if ww.writer_id not in grouped:
+            grouped[ww.writer_id] = {
+                "writer": ww.writer,
+                "work_titles": set(),
+            }
+        grouped[ww.writer_id]["work_titles"].add(ww.work.title)
+
+    summary = []
+    for item in grouped.values():
+        summary.append({
+            "writer": item["writer"],
+            "work_count": len(item["work_titles"]),
+        })
+
+    summary.sort(key=lambda x: x["writer"].full_name.lower())
+    return summary
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not (TEAM_USERNAME and TEAM_PASSWORD):
+        return redirect(url_for("formulario"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if username == TEAM_USERNAME and password == TEAM_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("formulario"))
+        flash("Incorrect username or password.")
+
+    return render_template_string(LOGIN_HTML)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/", methods=["GET", "POST"])
+def formulario():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        work_title = (request.form.get("work_title") or "").strip()
+        contract_date_str = (request.form.get("contract_date") or "").strip()
+
+        if not work_title:
+            flash("Work title is required.")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        if not contract_date_str:
+            flash("Contract date is required.")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        try:
+            contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Please enter a valid contract date.")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        writer_ids = request.form.getlist("writer_id")
+        first_names = request.form.getlist("writer_first_name")
+        middle_names = request.form.getlist("writer_middle_name")
+        last_names_list = request.form.getlist("writer_last_names")
+        writer_akas = request.form.getlist("writer_aka")
+        ipis = request.form.getlist("writer_ipi")
+        emails = request.form.getlist("writer_email")
+        pros = request.form.getlist("writer_pro")
+        percentages = request.form.getlist("writer_percentage")
+        publishers = request.form.getlist("writer_publisher")
+        publisher_ipis = request.form.getlist("publisher_ipi")
+        publisher_addresses = request.form.getlist("publisher_address")
+        publisher_cities = request.form.getlist("publisher_city")
+        publisher_states = request.form.getlist("publisher_state")
+        publisher_zips = request.form.getlist("publisher_zip_code")
+        addresses = request.form.getlist("writer_address")
+        cities = request.form.getlist("writer_city")
+        states = request.form.getlist("writer_state")
+        zip_codes = request.form.getlist("writer_zip_code")
+
+        writer_rows = []
+        total_split = 0.0
+
+        for i in range(len(first_names)):
+            first_name = (first_names[i] or "").strip()
+            middle_name = (middle_names[i] or "").strip()
+            last_names = (last_names_list[i] or "").strip()
+            full_name = build_full_name(first_name, middle_name, last_names)
+
+            if not full_name:
+                continue
+
+            split_value = parse_float(percentages[i] if i < len(percentages) else "0")
+            if split_value <= 0:
+                flash(f"Writer '{full_name}' must have a split greater than 0.")
+                return render_template_string(FORM_HTML, **collect_form_context())
+
+            total_split += split_value
+
+            writer_rows.append({
+                "selected_writer_id": writer_ids[i] if i < len(writer_ids) else "",
+                "first_name": first_name,
+                "middle_name": middle_name,
+                "last_names": last_names,
+                "full_name": full_name,
+                "writer_aka": (writer_akas[i] or "").strip(),
+                "ipi": (ipis[i] or "").strip(),
+                "email": (emails[i] or "").strip(),
+                "pro": (pros[i] or "").strip(),
+                "writer_percentage": split_value,
+                "publisher": (publishers[i] or "").strip(),
+                "publisher_ipi": (publisher_ipis[i] or "").strip(),
+                "publisher_address": (publisher_addresses[i] or DEFAULT_PUBLISHER_ADDRESS).strip(),
+                "publisher_city": (publisher_cities[i] or DEFAULT_PUBLISHER_CITY).strip(),
+                "publisher_state": (publisher_states[i] or DEFAULT_PUBLISHER_STATE).strip(),
+                "publisher_zip_code": (publisher_zips[i] or DEFAULT_PUBLISHER_ZIP).strip(),
+                "address": (addresses[i] or "").strip(),
+                "city": (cities[i] or "").strip(),
+                "state": (states[i] or "").strip(),
+                "zip_code": (zip_codes[i] or "").strip(),
+            })
+
+        if not writer_rows:
+            flash("Add at least one writer.")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        if abs(total_split - 100.0) >= 0.001:
+            flash(f"Total writer split must equal 100%. Current total: {total_split:.2f}%")
+            return render_template_string(FORM_HTML, **collect_form_context())
+
+        seen_writer_ids = set()
+        seen_ipis = set()
+        seen_names = set()
+
+        for row in writer_rows:
+            selected_writer_id = (row["selected_writer_id"] or "").strip()
+            ipi = (row["ipi"] or "").strip()
+            normalized_name = normalize_text(row["full_name"])
+
+            if selected_writer_id:
+                if selected_writer_id in seen_writer_ids:
+                    flash(f"Duplicate writer selected in this work: {row['full_name']}")
+                    return render_template_string(FORM_HTML, **collect_form_context())
+                seen_writer_ids.add(selected_writer_id)
+
+            if ipi:
+                ipi_key = ipi.lower()
+                if ipi_key in seen_ipis:
+                    flash(f"Duplicate IPI in this work: {ipi}")
+                    return render_template_string(FORM_HTML, **collect_form_context())
+                seen_ipis.add(ipi_key)
+            else:
+                if normalized_name in seen_names:
+                    flash(f"Duplicate writer name in this work: {row['full_name']}")
+                    return render_template_string(FORM_HTML, **collect_form_context())
+                seen_names.add(normalized_name)
+
+        warnings = []
+
+        for row in writer_rows:
+            if row["ipi"]:
+                existing_ipi_writer = Writer.query.filter(func.lower(Writer.ipi) == row["ipi"].lower()).first()
+                if existing_ipi_writer:
+                    selected_id = (row["selected_writer_id"] or "").strip()
+                    if not selected_id or str(existing_ipi_writer.id) != selected_id:
+                        flash(f"IPI {row['ipi']} already belongs to {existing_ipi_writer.full_name}. Please select the existing writer.")
+                        return render_template_string(FORM_HTML, **collect_form_context())
+
+        for row in writer_rows:
+            if not row["ipi"]:
+                existing_name_writer = Writer.query.filter(
+                    func.lower(Writer.full_name) == normalize_text(row["full_name"])
+                ).first()
+                if existing_name_writer:
+                    warnings.append(f"Writer '{row['full_name']}' already exists in the system without using an IPI match.")
+
+        normalized_title = normalize_title(work_title)
+        writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
+
+        possible_duplicates = []
+        existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
+        for existing_work in existing_works:
+            existing_identities = sorted([
+                build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
+            ])
+            if existing_identities == writer_identity_set:
+                possible_duplicates.append({
+                    "title": existing_work.title,
+                    "camp_name": existing_work.camp.name if existing_work.camp else "",
+                    "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                })
+
+        if possible_duplicates and not request.form.get("force_create"):
+            form_data = {}
+            for key in request.form.keys():
+                values = request.form.getlist(key)
+                form_data[key] = values if len(values) > 1 else values[0]
+            return render_template_string(
+                DUPLICATE_WARNING_HTML,
+                duplicates=possible_duplicates,
+                form_data=form_data,
+            )
+
+        for warning in warnings:
+            flash(warning)
+
+        existing_batch_id = (request.form.get("existing_batch_id") or "").strip()
+
+        if existing_batch_id:
+            batch = GenerationBatch.query.get(int(existing_batch_id))
+            if not batch:
+                flash("Selected batch was not found.")
+                return render_template_string(FORM_HTML, **collect_form_context())
+
+            camp = batch.camp
+            contract_date = batch.contract_date
+        else:
+            camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+
+            batch = GenerationBatch(
+                camp_id=camp.id if camp else None,
+                contract_date=contract_date,
+                created_by="",
+                status="draft",
+            )
+            db.session.add(batch)
+            db.session.flush()
+
+        work = Work(
+            title=work_title,
+            normalized_title=normalized_title,
+            camp_id=camp.id if camp else None,
+            batch_id=batch.id,
+            contract_date=contract_date,
+        )
+        db.session.add(work)
+        db.session.flush()
+
+        for row in writer_rows:
+            writer = find_existing_writer(row["selected_writer_id"])
+
+            if writer:
+                if not writer.ipi and row["ipi"]:
+                    writer.ipi = row["ipi"] or None
+                if not writer.email and row["email"]:
+                    writer.email = row["email"]
+                if not writer.pro and row["pro"]:
+                    writer.pro = row["pro"]
+                if not writer.address and row["address"]:
+                    writer.address = row["address"]
+                if not writer.city and row["city"]:
+                    writer.city = row["city"]
+                if not writer.state and row["state"]:
+                    writer.state = row["state"]
+                if not writer.zip_code and row["zip_code"]:
+                    writer.zip_code = row["zip_code"]
+                if not writer.writer_aka and row["writer_aka"]:
+                    writer.writer_aka = row["writer_aka"]
+            else:
+                writer = Writer(
+                    first_name=row["first_name"],
+                    middle_name=row["middle_name"],
+                    last_names=row["last_names"],
+                    full_name=row["full_name"],
+                    writer_aka=row["writer_aka"],
+                    ipi=row["ipi"] or None,
+                    email=row["email"],
+                    pro=row["pro"],
+                    address=row["address"],
+                    city=row["city"],
+                    state=row["state"],
+                    zip_code=row["zip_code"],
+                    has_master_contract=False,
+                )
+                db.session.add(writer)
+                db.session.flush()
+
+            work_writer = WorkWriter(
+                work_id=work.id,
+                writer_id=writer.id,
+                writer_percentage=row["writer_percentage"],
+                publisher=row["publisher"],
+                publisher_ipi=row["publisher_ipi"],
+                publisher_address=row["publisher_address"],
+                publisher_city=row["publisher_city"],
+                publisher_state=row["publisher_state"],
+                publisher_zip_code=row["publisher_zip_code"],
+            )
+            db.session.add(work_writer)
+
+        db.session.commit()
+        return redirect(url_for("batch_detail", batch_id=batch.id))
+
+    return render_template_string(FORM_HTML, **collect_form_context())
+
+
+@app.route("/writers/search")
+def search_writers():
+    if auth_required():
+        return jsonify([])
+
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    like_q = f"%{q.lower()}%"
+
+    writers = (
+        Writer.query
+        .filter(
+            or_(
+                func.lower(Writer.full_name).like(like_q),
+                func.lower(Writer.first_name).like(like_q),
+                func.lower(Writer.middle_name).like(like_q),
+                func.lower(Writer.last_names).like(like_q),
+                func.lower(Writer.writer_aka).like(like_q),
+                func.lower(Writer.ipi).like(like_q),
+            )
+        )
+        .order_by(Writer.full_name.asc())
+        .limit(8)
+        .all()
+    )
+
+    return jsonify([
+        {
+            "id": writer.id,
+            "first_name": writer.first_name,
+            "middle_name": writer.middle_name,
+            "last_names": writer.last_names,
+            "full_name": writer.full_name,
+            "writer_aka": writer.writer_aka,
+            "ipi": writer.ipi or "",
+            "email": writer.email or "",
+            "pro": writer.pro,
+            "address": writer.address,
+            "city": writer.city,
+            "state": writer.state,
+            "zip_code": writer.zip_code,
+            "has_master_contract": writer.has_master_contract,
+            "default_publisher": default_publisher_for_pro(writer.pro),
+            "default_publisher_ipi": default_publisher_ipi_for_pro(writer.pro),
+        }
+        for writer in writers
+    ])
+
+
+@app.route("/works")
+def works_list():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    q = (request.args.get("q") or "").strip()
+    query = Work.query
+    if q:
+        query = query.filter(func.lower(Work.title).like(f"%{q.lower()}%"))
+    works = query.order_by(Work.created_at.desc()).all()
+    return render_template_string(WORKS_LIST_HTML, works=works, q=q)
+
+
+@app.route("/batches")
+def batches_list():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+    return render_template_string(BATCHES_LIST_HTML, batches=batches)
+
+
+@app.route("/batches/<int:batch_id>")
+def batch_detail(batch_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    batch = GenerationBatch.query.get_or_404(batch_id)
+
+    works = (
+        Work.query
+        .filter_by(batch_id=batch.id)
+        .order_by(Work.created_at.asc())
+        .all()
+    )
+
+    documents = (
+        ContractDocument.query
+        .filter_by(batch_id=batch.id)
+        .order_by(ContractDocument.generated_at.desc())
+        .all()
+    )
+
+    writer_summary = get_batch_writer_summary(batch.id)
+
+    return render_template_string(
+        BATCH_DETAIL_HTML,
+        batch=batch,
+        works=works,
+        documents=documents,
+        writer_summary=writer_summary,
+    )
+
+
+@app.route("/batches/<int:batch_id>/status-json")
+def batch_status_json(batch_id):
+    if auth_required():
+        return jsonify({"error": "unauthorized"}), 401
+
+    batch = GenerationBatch.query.get_or_404(batch_id)
+    documents = ContractDocument.query.filter_by(batch_id=batch.id).order_by(ContractDocument.generated_at.asc()).all()
+
+    return jsonify({
+        "batch_id": batch.id,
+        "status": batch.status,
+        "documents": [
+            {
+                "id": doc.id,
+                "writer_name_snapshot": doc.writer_name_snapshot,
+                "document_type": doc.document_type,
+                "file_name": doc.file_name,
+                "generated_at": doc.generated_at.strftime('%Y-%m-%d %H:%M') if doc.generated_at else "",
+                "drive_web_view_link": doc.drive_web_view_link,
+                "docusign_status": doc.docusign_status,
+                "status": doc.status,
+                "signed_pdf_drive_web_view_link": getattr(doc, "signed_pdf_drive_web_view_link", None),
+                "certificate_drive_web_view_link": getattr(doc, "certificate_drive_web_view_link", None),
+            }
+            for doc in documents
+        ]
+    })
+
+
+@app.route("/batches/<int:batch_id>/generate", methods=["POST"])
+def generate_batch_documents(batch_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    batch = GenerationBatch.query.get_or_404(batch_id)
+
+    work_writers = (
+        WorkWriter.query
+        .join(Work)
+        .filter(Work.batch_id == batch.id)
+        .order_by(Work.id.asc(), WorkWriter.id.asc())
+        .all()
+    )
+
+    if not work_writers:
+        flash("No works found in this batch.")
+        return redirect(url_for("batch_detail", batch_id=batch.id))
+
+    grouped = {}
+    for ww in work_writers:
+        if ww.writer_id not in grouped:
+            grouped[ww.writer_id] = {
+                "writer": ww.writer,
+                "rows": []
+            }
+        grouped[ww.writer_id]["rows"].append(ww)
+
+    existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
+    for doc in existing_docs:
+        db.session.delete(doc)
+    db.session.flush()
+
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for writer_id, item in grouped.items():
+            writer = item["writer"]
+            rows = item["rows"]
+
+            works_for_table = []
+            for ww in rows:
+                works_for_table.append({
+                    "work_title": ww.work.title,
+                    "writer_name": writer.full_name,
+                    "writer_percentage": f"{ww.writer_percentage:.2f}%",
+                    "publisher": ww.publisher or "",
+                })
+
+            first_work = rows[0].work
+            first_work_writer = rows[0]
+
+            if writer.has_master_contract:
+                document_type = "schedule_1"
+                template_path = SCHEDULE_1_TEMPLATE
+                prefix = "S1"
+            else:
+                document_type = "full_contract"
+                template_path = FULL_CONTRACT_TEMPLATE
+                prefix = "FULL"
+
+            contract_date = batch.contract_date
+            day = contract_date.day
+            suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+
+            data = {
+                "Date": f"{contract_date.strftime('%B')} {day}{suffix}, {contract_date.year}",
+                "Fecha": format_date(contract_date, format="d 'de' MMMM 'del' y", locale="es"),
+                "WriterName": writer.full_name,
+                "WriterFirstName": writer.first_name,
+                "WriterMiddleName": writer.middle_name,
+                "WriterLastNames": writer.last_names,
+                "WriterAKA": writer.writer_aka or "",
+                "WriterIPI": writer.ipi or "",
+                "WriterAddress": writer.address or "",
+                "WriterCity": writer.city or "",
+                "WriterState": writer.state or "",
+                "WriterZipCode": writer.zip_code or "",
+                "PRO": writer.pro or "",
+                "PublisherName": first_work_writer.publisher or "",
+                "PublisherIPI": first_work_writer.publisher_ipi or "",
+                "PublisherAddress": first_work_writer.publisher_address or "",
+                "PublisherCity": first_work_writer.publisher_city or "",
+                "PublisherState": first_work_writer.publisher_state or "",
+                "PublisherZipCode": first_work_writer.publisher_zip_code or "",
+                "WorkTitle": first_work.title,
+            }
+
+            file_buffer = render_docx_template(template_path, data, works_for_table=works_for_table)
+            file_bytes = file_buffer.getvalue()
+
+            batch_label = batch.camp.name if batch.camp else f"batch_{batch.id}"
+            file_name = f"{prefix}_{slugify(writer.full_name)}_{slugify(batch_label)}_{batch.contract_date.isoformat()}.docx"
+
+            zip_file.writestr(file_name, file_bytes)
+
+            drive_info = {"file_id": None, "web_view_link": None}
+
+            if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
+                try:
+                    drive_info = upload_bytes_to_drive(
+                        file_name=file_name,
+                        file_bytes=file_bytes,
+                        parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                    app.logger.warning("DRIVE SUCCESS: %s", drive_info)
+                except Exception as e:
+                    app.logger.error("DRIVE FAILURE: %s", e)
+                    traceback.print_exc()
+                    flash(f"Drive upload failed for {file_name}: {e}")
+            else:
+                flash("Drive upload skipped: missing GOOGLE_DRIVE_FOLDER_ID or GOOGLE_SERVICE_ACCOUNT_JSON")
+
+            doc_record = ContractDocument(
+                batch_id=batch.id,
+                work_id=first_work.id,
+                writer_id=writer.id,
+                document_type=document_type,
+                file_name=file_name,
+                writer_name_snapshot=writer.full_name,
+                work_title_snapshot=", ".join(sorted({ww.work.title for ww in rows})),
+                drive_file_id=drive_info["file_id"],
+                drive_web_view_link=drive_info["web_view_link"],
+                status="generated",
+            )
+            db.session.add(doc_record)
+
+            if document_type == "full_contract":
+                writer.has_master_contract = True
+
+    batch.status = "docs_generated"
+    db.session.commit()
+
+    zip_buffer.seek(0)
+    zip_name = f"batch_{batch.id}_documents.zip"
+    return send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name=zip_name,
+        mimetype="application/zip",
+    )
+
+
+@app.route("/docusign/webhook", methods=["POST"])
+def docusign_webhook():
+    raw_data = request.data
+    app.logger.warning(f"RAW BODY: {raw_data}")
+
+    try:
+        root = ET.fromstring(raw_data)
+
+        envelope_id = None
+        raw_status = ""
+
+        for elem in root.iter():
+            tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+            text = (elem.text or "").strip()
+
+            if tag == "EnvelopeID" and text:
+                envelope_id = text
+
+            if tag == "Status" and text:
+                raw_status = text.lower()
+
+        app.logger.warning(f"WEBHOOK ENVELOPE ID: {envelope_id}")
+        app.logger.warning(f"WEBHOOK STATUS: {raw_status}")
+
+        if not envelope_id:
+            return "ok", 200
+
+        document = ContractDocument.query.filter_by(docusign_envelope_id=envelope_id).first()
+        if not document:
+            return "ok", 200
+
+        if "completed" in raw_status:
+            normalized_status = "completed"
+        elif "delivered" in raw_status:
+            normalized_status = "delivered"
+        elif "sent" in raw_status:
+            normalized_status = "sent"
+        elif "declined" in raw_status:
+            normalized_status = "declined"
+        elif "voided" in raw_status:
+            normalized_status = "voided"
+        else:
+            normalized_status = raw_status or document.docusign_status or "sent"
+
+        document.docusign_status = normalized_status
+
+        if normalized_status == "completed":
+            api_client = get_docusign_api_client()
+            envelopes_api = EnvelopesApi(api_client)
+
+            signed_bytes = envelopes_api.get_document(
+                account_id=DOCUSIGN_ACCOUNT_ID,
+                envelope_id=document.docusign_envelope_id,
+                document_id="combined",
+            )
+
+            signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
+            signed_drive_info = upload_bytes_to_drive(
+                file_name=signed_file_name,
+                file_bytes=signed_bytes,
+                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                mime_type="application/pdf",
+            )
+
+            document.signed_pdf_drive_file_id = signed_drive_info.get("file_id")
+            document.signed_pdf_drive_web_view_link = signed_drive_info.get("web_view_link")
+
+            certificate_bytes = envelopes_api.get_document(
+                account_id=DOCUSIGN_ACCOUNT_ID,
+                envelope_id=document.docusign_envelope_id,
+                document_id="certificate",
+            )
+
+            certificate_file_name = document.file_name.rsplit(".", 1)[0] + "_CERTIFICATE.pdf"
+            certificate_drive_info = upload_bytes_to_drive(
+                file_name=certificate_file_name,
+                file_bytes=certificate_bytes,
+                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                mime_type="application/pdf",
+            )
+
+            document.certificate_drive_file_id = certificate_drive_info.get("file_id")
+            document.certificate_drive_web_view_link = certificate_drive_info.get("web_view_link")
+
+            document.completed_at = datetime.datetime.utcnow()
+            document.status = "signed"
+
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error("DocuSign webhook failed: %s", e)
+
+    return "ok", 200
+
+
+@app.route("/documents/<int:document_id>/send-docusign", methods=["POST"])
+def send_document_docusign(document_id):
+    document = None
+
+    try:
+        if auth_required():
+            return redirect(url_for("login"))
+
+        document = ContractDocument.query.get(document_id)
+        if not document:
+            flash("This document no longer exists. Please refresh the batch page.")
+            return redirect(request.referrer or url_for("batches_list"))
+
+        writer = Writer.query.get(document.writer_id)
+
+        app.logger.warning(f"DOCUSIGN SEND START document_id={document_id}")
+        app.logger.warning(f"DOCUSIGN SEND writer_id={document.writer_id if document else None}")
+        app.logger.warning(f"DOCUSIGN SEND writer_email={getattr(writer, 'email', None)}")
+        app.logger.warning(f"DOCUSIGN SEND drive_file_id={getattr(document, 'drive_file_id', None)}")
+
+        if not writer:
+            flash("Writer not found.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        if not getattr(writer, "email", None):
+            flash("Writer email is required before sending to DocuSign.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        if not document.drive_file_id:
+            flash("Generated document file is missing.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        if not DOCUSIGN_ACCOUNT_ID or not DOCUSIGN_INTEGRATION_KEY or not DOCUSIGN_USER_ID or not DOCUSIGN_PRIVATE_KEY:
+            flash("DocuSign environment variables are not fully configured.")
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+        service = get_drive_service()
+        file_bytes = service.files().get_media(
+            fileId=document.drive_file_id,
+            supportsAllDrives=True
+        ).execute()
+
+        api_client = get_docusign_api_client()
+        envelopes_api = EnvelopesApi(api_client)
+
+        doc_b64 = base64.b64encode(file_bytes).decode("ascii")
+
+        ds_document = DocusignDocument(
+            document_base64=doc_b64,
+            name=document.file_name,
+            file_extension="docx",
+            document_id="1",
+        )
+
+        signer = Signer(
+            email=writer.email,
+            name=writer.full_name,
+            recipient_id="1",
+            routing_order="1",
+        )
+
+        sign_here = SignHere(
+            anchor_string="[[DS_SIGN_HERE]]",
+            anchor_units="pixels",
+            anchor_x_offset="0",
+            anchor_y_offset="0",
+        )
+
+        signer.tabs = Tabs(sign_here_tabs=[sign_here])
+
+        webhook_url = request.url_root.rstrip("/") + url_for("docusign_webhook")
+
+        event_notification = {
+            "url": webhook_url,
+            "loggingEnabled": "true",
+            "requireAcknowledgment": "true",
+            "includeEnvelopeVoidReason": "true",
+            "includeTimeZone": "true",
+            "includeSenderAccountAsCustomField": "true",
+            "envelopeEvents": [
+                {"envelopeEventStatusCode": "sent"},
+                {"envelopeEventStatusCode": "delivered"},
+                {"envelopeEventStatusCode": "completed"},
+                {"envelopeEventStatusCode": "declined"},
+                {"envelopeEventStatusCode": "voided"},
+            ],
+        }
+
+        envelope_definition = EnvelopeDefinition(
+            email_subject=f"Please sign: {document.file_name}",
+            documents=[ds_document],
+            recipients=Recipients(signers=[signer]),
+            status="sent",
+            event_notification=event_notification,
+        )
+
+        result = envelopes_api.create_envelope(
+            account_id=DOCUSIGN_ACCOUNT_ID,
+            envelope_definition=envelope_definition,
+        )
+
+        document.docusign_envelope_id = result.envelope_id
+        document.docusign_status = "sent"
+        document.sent_for_signature_at = datetime.datetime.utcnow()
+        db.session.commit()
+
+        flash("Sent to DocuSign successfully.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"DOCUSIGN SEND ERROR: {e}")
+        app.logger.error(traceback.format_exc())
+        flash(f"DocuSign send failed: {e}")
+
+        if document:
+            return redirect(url_for("batch_detail", batch_id=document.batch_id))
+        return redirect(request.referrer or url_for("batches_list"))
+
+
+@app.route("/documents/<int:document_id>/upload-signed", methods=["POST"])
+def upload_signed_document(document_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    document = ContractDocument.query.get_or_404(document_id)
+    uploaded_file = request.files.get("signed_file")
+
+    if not uploaded_file or not uploaded_file.filename:
+        flash("Please choose a signed file to upload.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    if not GOOGLE_DRIVE_FOLDER_ID or not GOOGLE_SERVICE_ACCOUNT_JSON:
+        flash("Google Drive is not configured yet.")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    file_bytes = uploaded_file.read()
+    file_name = uploaded_file.filename
+    mime_type = uploaded_file.mimetype or "application/octet-stream"
+
+    try:
+        drive_info = upload_bytes_to_drive(
+            file_name=file_name,
+            file_bytes=file_bytes,
+            parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+            mime_type=mime_type,
+        )
+    except Exception as e:
+        flash(f"Signed upload failed: {e}")
+        return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+    document.signed_file_name = file_name
+    document.signed_drive_file_id = drive_info["file_id"]
+    document.signed_web_view_link = drive_info["web_view_link"]
+    document.signed_uploaded_at = datetime.datetime.utcnow()
+    document.status = "signed_uploaded"
+
+    batch_docs = ContractDocument.query.filter_by(batch_id=document.batch_id).all()
+    if batch_docs and all(doc.status == "signed_uploaded" for doc in batch_docs):
+        document.batch.status = "signed_complete"
+    else:
+        document.batch.status = "signed_partial"
+
+    db.session.commit()
+    flash("Signed file uploaded successfully.")
+    return redirect(url_for("batch_detail", batch_id=document.batch_id))
+
+
+@app.route("/works/<int:work_id>")
+def work_detail(work_id: int):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    work = Work.query.get_or_404(work_id)
+    documents = (
+        ContractDocument.query
+        .filter_by(work_id=work.id)
+        .order_by(ContractDocument.generated_at.desc())
+        .all()
+    )
+    return render_template_string(WORK_DETAIL_HTML, work=work, documents=documents)
+
+
+try:
+    init_db()
+except Exception as e:
+    print("DB INIT ERROR:", e)
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
