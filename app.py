@@ -4719,10 +4719,3 @@ except Exception as e:
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
-```
-
-Make sure there is **nothing after the closing parenthesis on the last line** — no extra text, no stray code, just that line and then end of file.
-
-The error message shows this got corrupted:
-```
-app.run(...)GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv(...)
