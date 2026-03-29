@@ -4712,10 +4712,10 @@ def work_detail(work_id: int):
     return render_template_string(WORK_DETAIL_HTML, work=work, documents=documents)
 
 
-try:
-    init_db()
-except Exception as e:
+    try:
+        init_db()
+    except Exception as e:
     print("DB INIT ERROR:", e)
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
+    if __name__ == "__main__":
+        app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
