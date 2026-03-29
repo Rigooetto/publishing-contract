@@ -2206,8 +2206,7 @@ except Exception as e:
     print("DB INIT ERROR:", e)
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
 app.logger.warning("ENV CHECK: folder=%s json=%s", bool(GOOGLE_DRIVE_FOLDER_ID), bool(GOOGLE_SERVICE_ACCOUNT_JSON))
 app.logger.warning("JSON LEN: %s", len(GOOGLE_SERVICE_ACCOUNT_JSON or ""))
 
