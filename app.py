@@ -469,6 +469,118 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .login-field{margin-bottom:14px}
 @media(max-width:860px){.g3{grid-template-columns:1fr 1fr}.g5,.g52{grid-template-columns:1fr 1fr}.g4,.g4a{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.sb{display:none}.main{margin-left:0!important}.page{padding:16px 13px 90px}.g3,.g2,.g4,.g4a,.g5,.g52{grid-template-columns:1fr}.topbar{padding:0 13px}.tb-search{display:none}.action-bar{left:0!important;padding:11px 14px}}
+/* ===== Dynamic sidebar overrides ===== */
+.sb,
+.main,
+.action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
+
+.sb-toggle{
+  display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;
+  background:var(--bg4);
+  border:1px solid var(--b0);
+  border-radius:6px;
+  cursor:pointer;
+  color:var(--t3);
+  font-size:11px;
+  margin-left:auto;
+  flex-shrink:0;
+  transition:color .14s,background .14s,transform .14s;
+  user-select:none;
+}
+.sb-toggle:hover{color:var(--t1);background:var(--bg5)}
+
+.sb.collapsed{
+  width:var(--sb-collapsed);
+}
+.app.sb-collapsed .main{
+  margin-left:var(--sb-collapsed);
+}
+.app.sb-collapsed .action-bar{
+  left:var(--sb-collapsed);
+}
+
+.sb.collapsed .sb-logo{
+  justify-content:center;
+  gap:0;
+  padding:15px 6px 13px;
+}
+.sb.collapsed .sb-name{
+  opacity:0;
+  width:0;
+  pointer-events:none;
+}
+.sb.collapsed .sb-sec{
+  opacity:0;
+  height:0;
+  padding:0;
+  pointer-events:none;
+}
+.sb.collapsed .sb-foot{
+  opacity:0;
+  pointer-events:none;
+}
+.sb.collapsed .sb-nav a{
+  justify-content:center;
+  gap:0;
+  padding:10px 0;
+}
+.sb.collapsed .sb-nav .nl{
+  opacity:0;
+  width:0;
+  pointer-events:none;
+}
+.sb.collapsed .sb-toggle{
+  position:absolute;
+  right:8px;
+  top:14px;
+  margin-left:0;
+}
+
+.sb.collapsed.hover-open{
+  width:var(--sb);
+  box-shadow:16px 0 34px rgba(0,0,0,.34);
+}
+.sb.collapsed.hover-open .sb-logo{
+  justify-content:flex-start;
+  gap:10px;
+  padding:15px 13px 13px;
+}
+.sb.collapsed.hover-open .sb-name{
+  opacity:1;
+  width:auto;
+  pointer-events:auto;
+}
+.sb.collapsed.hover-open .sb-sec{
+  opacity:1;
+  height:auto;
+  padding:13px 14px 4px;
+  pointer-events:auto;
+}
+.sb.collapsed.hover-open .sb-foot{
+  opacity:1;
+  pointer-events:auto;
+}
+.sb.collapsed.hover-open .sb-nav a{
+  justify-content:flex-start;
+  gap:9px;
+  padding:8px 13px;
+}
+.sb.collapsed.hover-open .sb-nav .nl{
+  opacity:1;
+  width:auto;
+  pointer-events:auto;
+}
+
+.sb-nav .ni{
+  font-size:14px;
+  min-width:18px;
+  text-align:center;
+  flex-shrink:0;
+}
+.sb-nav .ni-pencil{
+  color:var(--am);
+}
 </style>"""
 
 # ================================================================
@@ -478,26 +590,65 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 _SB_JS = """
 <script>
 (function(){
-  var sb=document.getElementById('mainSidebar');
-  var app=document.getElementById('mainApp');
-  if(!sb||!app)return;
-  if(localStorage.getItem('sb_collapsed')==='1'){
-    sb.classList.add('collapsed');
-    app.classList.add('sb-collapsed');
-    var tog=document.getElementById('sbToggle');
-    if(tog)tog.textContent='>';
+  function getEls(){
+    return {
+      sb: document.getElementById('mainSidebar'),
+      app: document.getElementById('mainApp'),
+      tog: document.getElementById('sbToggle')
+    };
   }
+
+  function applySidebarMode(mode){
+    var els = getEls();
+    if(!els.sb || !els.app) return;
+
+    var collapsed = mode === 'closed';
+    els.sb.classList.toggle('collapsed', collapsed);
+    els.app.classList.toggle('sb-collapsed', collapsed);
+
+    if(!collapsed){
+      els.sb.classList.remove('hover-open');
+    }
+
+    if(els.tog){
+      els.tog.textContent = collapsed ? '>' : '<';
+      els.tog.title = collapsed ? 'Pin sidebar open' : 'Pin sidebar closed';
+    }
+  }
+
+  window.toggleSidebar = function(e){
+    if(e){
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    var current = localStorage.getItem('sb_mode') || 'open';
+    var next = current === 'closed' ? 'open' : 'closed';
+    localStorage.setItem('sb_mode', next);
+    applySidebarMode(next);
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var els = getEls();
+    if(!els.sb || !els.app) return;
+
+    var savedMode = localStorage.getItem('sb_mode') || 'open';
+    applySidebarMode(savedMode);
+
+    els.sb.addEventListener('mouseenter', function(){
+      var mode = localStorage.getItem('sb_mode') || 'open';
+      if(mode === 'closed'){
+        els.sb.classList.add('hover-open');
+      }
+    });
+
+    els.sb.addEventListener('mouseleave', function(){
+      var mode = localStorage.getItem('sb_mode') || 'open';
+      if(mode === 'closed'){
+        els.sb.classList.remove('hover-open');
+      }
+    });
+  });
 })();
-function toggleSidebar(e){
-  e.preventDefault();e.stopPropagation();
-  var sb=document.getElementById('mainSidebar');
-  var app=document.getElementById('mainApp');
-  var tog=document.getElementById('sbToggle');
-  var collapsed=sb.classList.toggle('collapsed');
-  app.classList.toggle('sb-collapsed',collapsed);
-  if(tog)tog.textContent=collapsed?'>':'<';
-  localStorage.setItem('sb_collapsed',collapsed?'1':'0');
-}
 </script>"""
 
 # ================================================================
@@ -506,19 +657,22 @@ function toggleSidebar(e){
 
 def _sidebar(active):
     pages = [
-        ("works_list",   "Works",     "&#127925;"),
-        ("formulario",   "New Work",  "&#9999;"),
-        ("batches_list", "Sessions",  "&#128230;"),
+        ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
+        ("formulario",   "New Work",  "<span class='ni ni-pencil'>&#9999;</span>"),
+        ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
     ]
+
     html = "<aside class='sb' id='mainSidebar'>"
     html += "<a class='sb-logo' href='/works'>"
     html += "<div class='sb-ico'>&#127925;</div>"
     html += "<span class='sb-name'>LabelMind</span>"
-    html += "<span class='sb-toggle' id='sbToggle' onclick='toggleSidebar(event)' title='Toggle'>&lt;</span>"
+    html += "<span class='sb-toggle' id='sbToggle' onclick='toggleSidebar(event)' title='Pin sidebar closed'>&lt;</span>"
     html += "</a>"
+
     html += "<div class='sb-sec'>Contracts</div>"
     html += "<nav class='sb-nav'>"
-    for endpoint, label, icon in pages:
+
+    for endpoint, label, icon_html in pages:
         on = " class='on'" if active == endpoint else ""
         if endpoint == "works_list":
             href = "/works"
@@ -526,18 +680,23 @@ def _sidebar(active):
             href = "/"
         else:
             href = "/batches"
-        html += "<a href='" + href + "'" + on + "><span class='ni'>" + icon + "</span><span class='nl'>" + label + "</span></a>"
-    html += "<a href='#'><span class='ni'>&#128196;</span><span class='nl'>Templates</span></a>"
+
+        html += "<a href='" + href + "'" + on + " title='" + label + "'>"
+        html += icon_html
+        html += "<span class='nl'>" + label + "</span></a>"
+
+    html += "<a href='#' title='Templates'><span class='ni'>&#128196;</span><span class='nl'>Templates</span></a>"
     html += "</nav>"
+
     html += "<div class='sb-sec'>Resources</div>"
     html += "<nav class='sb-nav'>"
-    html += "<a href='#'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
-    html += "<a href='#'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
+    html += "<a href='#' title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
+    html += "<a href='#' title='Settings'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
+
     html += "<div class='sb-foot'><b>LabelMind</b>Music Publishing Contracts<br>2026 LabelMind.ai</div>"
     html += "</aside>"
     return html
-
 
 def _topbar(pill=""):
     works_on = " class='pill on'" if pill == "works" else " class='pill'"
