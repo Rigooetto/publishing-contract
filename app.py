@@ -1823,9 +1823,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
       <span style="font-weight:600;">Existing Session</span>
       <button type="button" onclick="closeExisting()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
     </div>
-    <div id="modalLoader" style="color:white;text-align:center;padding:20px;">
-      Loading session...
-    </div>
+   
 
     <iframe id="existingFrame" style="flex:1;border:none;background:#fff;"></iframe>
   </div>
@@ -1844,35 +1842,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
     setTimeout(function() { f.submit(); }, 150);
   });
 });
-</script>
-<script>
-<script>
-function openExisting(url) {
-  document.getElementById('existingFrame').src = url;
-  document.getElementById('existingModal').style.display = 'block';
-}
 
-function closeExisting() {
-  document.getElementById('existingModal').style.display = 'none';
-  document.getElementById('existingFrame').src = '';
-}
-
-document.addEventListener('click', function(e) {
-  var modal = document.getElementById('existingModal');
-  if (e.target === modal) {
-    closeExisting();
-  }
-});
-
-</script>
-
-document.addEventListener('click', function(e) {
-  var modal = document.getElementById('existingModal');
-  if (e.target === modal) {
-    closeExisting();
-  }
-});
-</script>
 </body></html>"""
 
 
