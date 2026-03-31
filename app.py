@@ -1225,17 +1225,20 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
         <button type="submit" class="btn btn-danger">Continue Anyway</button>
       </form>
 
-  <form method="post" style="margin:0">
-    {% for key, value in form_data.items() %}
-      {% if value is string %}
-        <input type="hidden" name="{{ key }}" value="{{ value }}">
-      {% else %}
-        {% for item in value %}
-          <input type="hidden" name="{{ key }}" value="{{ item }}">
+            <form method="post" style="margin:0">
+        {% for key, value in form_data.items() %}
+          {% if value is string %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+          {% else %}
+            {% for item in value %}
+              <input type="hidden" name="{{ key }}" value="{{ item }}">
+            {% endfor %}
+          {% endif %}
         {% endfor %}
-      {% endif %}
-   
-  </div>
+        <input type="hidden" name="return_to_form" value="1">
+        <button type="submit" class="btn btn-sec">Cancel</button>
+      </form>
+    </div>
 </div>
 </div>
 </main>
