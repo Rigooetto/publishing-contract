@@ -192,13 +192,11 @@ class Camp(db.Model):
 
 class GenerationBatch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    session_name = db.Column(db.String(255), default="", index=True)
-    contract_date = db.Column(db.Date, nullable=False)
-    created_by = db.Column(db.String(100), default="")
-    status = db.Column(db.String(50), default="draft")
+    session_name = db.Column(db.String(255))
+    contract_date = db.Column(db.Date)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    works = db.relationship("Work", backref="batch", lazy=True)
-    documents = db.relationship("ContractDocument", backref="batch", lazy=True)
+    created_by = db.Column(db.String(255))
+    status = db.Column(db.String(50))
 
 
 class Writer(db.Model):
@@ -224,7 +222,6 @@ class Work(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False, index=True)
     normalized_title = db.Column(db.String(255), index=True, default="")
-    camp_id = db.Column(db.Integer, db.ForeignKey("camp.id"), nullable=True)
     batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
     contract_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
