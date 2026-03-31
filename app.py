@@ -2014,7 +2014,10 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
             {% endif %}
           </td>
           <td style="color:var(--t3);font-size:12px">{{ item.writer.created_at.strftime('%b %d, %Y') if item.writer.created_at else '--' }}</td>
-          <td><a href="/writers/{{ item.writer.id }}" class="btn btn-sec btn-sm">View</a></td>
+          <td style="display:flex;gap:6px">
+            <a href="/writers/{{ item.writer.id }}" class="btn btn-sec btn-sm">View</a>
+            <a href="/writers/{{ item.writer.id }}/edit" class="btn btn-sec btn-sm">Edit</a>
+          </td>
         </tr>
         {% endfor %}
         {% if not writers %}
@@ -2056,6 +2059,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <div class="ph-actions">
+    <a href="/writers/{{ writer.id }}/edit" class="btn btn-primary btn-sm">Edit Writer</a>
     <a href="/writers" class="btn btn-sec btn-sm">Back</a>
   </div>
 </div>
@@ -2126,6 +2130,128 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
     </table>
   </div>
 </div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+</body></html>"""
+
+# ================================================================
+# WRITER EDIT HTML
+# ================================================================
+
+WRITER_EDIT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit {{ writer.full_name }} - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("writers_list") + """
+<main class="main">
+""" + _topbar("writers") + """
+<div class="page">
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#9998;</div>
+    <div>
+      <div class="ph-title">Edit Writer</div>
+      <div class="ph-sub">{{ writer.full_name }}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/writers/{{ writer.id }}" class="btn btn-sec btn-sm">Back to Profile</a>
+  </div>
+</div>
+
+<form method="post">
+  <div class="card">
+    <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writer Information</span></div>
+    <div class="card-body">
+      <div class="g g4" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">First Name</label>
+          <input class="inp" name="first_name" value="{{ writer.first_name or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">Middle Name</label>
+          <input class="inp" name="middle_name" value="{{ writer.middle_name or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">Last Name(s)</label>
+          <input class="inp" name="last_names" value="{{ writer.last_names or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">AKA / Stage</label>
+          <input class="inp" name="writer_aka" value="{{ writer.writer_aka or '' }}">
+        </div>
+      </div>
+
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Email</label>
+          <input class="inp" name="email" type="email" value="{{ writer.email or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">Phone Number</label>
+          <input class="inp" name="phone_number" value="{{ writer.phone_number or '' }}">
+        </div>
+      </div>
+
+      <div class="g g3" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">IPI</label>
+          <input class="inp" name="ipi" value="{{ writer.ipi or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">PRO</label>
+          <select class="inp" name="pro">
+            <option value="">Select PRO</option>
+            <option value="BMI" {% if writer.pro == 'BMI' %}selected{% endif %}>BMI</option>
+            <option value="ASCAP" {% if writer.pro == 'ASCAP' %}selected{% endif %}>ASCAP</option>
+            <option value="SESAC" {% if writer.pro == 'SESAC' %}selected{% endif %}>SESAC</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label">Master Contract</label>
+          <select class="inp" name="has_master_contract">
+            <option value="0" {% if not writer.has_master_contract %}selected{% endif %}>No</option>
+            <option value="1" {% if writer.has_master_contract %}selected{% endif %}>Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="g g4a">
+        <div class="field">
+          <label class="label">Street</label>
+          <input class="inp" name="address" value="{{ writer.address or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">City</label>
+          <input class="inp" name="city" value="{{ writer.city or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">State</label>
+          <input class="inp" name="state" value="{{ writer.state or '' }}">
+        </div>
+        <div class="field">
+          <label class="label">Zip</label>
+          <input class="inp" name="zip_code" value="{{ writer.zip_code or '' }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ph-actions" style="justify-content:flex-end">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </div>
+</form>
 </div>
 </main>
 </div>
@@ -3236,6 +3362,86 @@ def writer_detail(writer_id):
         writer=writer,
         work_writers=work_writers,
     )
+
+@app.route("/writers/<int:writer_id>/edit", methods=["GET", "POST"])
+def writer_edit(writer_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    writer = Writer.query.get_or_404(writer_id)
+
+    if request.method == "POST":
+        first_name = (request.form.get("first_name") or "").strip()
+        middle_name = (request.form.get("middle_name") or "").strip()
+        last_names = (request.form.get("last_names") or "").strip()
+        full_name = build_full_name(first_name, middle_name, last_names)
+        email = (request.form.get("email") or "").strip()
+        phone_number = (request.form.get("phone_number") or "").strip()
+        ipi = (request.form.get("ipi") or "").strip()
+        pro = (request.form.get("pro") or "").strip()
+        writer_aka = (request.form.get("writer_aka") or "").strip()
+        address = (request.form.get("address") or "").strip()
+        city = (request.form.get("city") or "").strip()
+        state = (request.form.get("state") or "").strip()
+        zip_code = (request.form.get("zip_code") or "").strip()
+        has_master_contract = request.form.get("has_master_contract") == "1"
+
+        if not first_name or not last_names:
+            flash("First and last name are required.")
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        if not email or "@" not in email:
+            flash("A valid email is required.")
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        if not ipi:
+            flash("IPI is required.")
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        if not pro:
+            flash("PRO is required.")
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        if not address or not city or not state or not zip_code:
+            flash("Complete address is required.")
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        existing_ipi = Writer.query.filter(
+            func.lower(Writer.ipi) == ipi.lower(),
+            Writer.id != writer.id
+        ).first()
+        if existing_ipi:
+            flash("That IPI already belongs to " + existing_ipi.full_name)
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        existing_name = Writer.query.filter(
+            func.lower(Writer.full_name) == full_name.lower(),
+            Writer.id != writer.id
+        ).first()
+        if existing_name:
+            flash("That full name already exists for another writer.")
+            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+        writer.first_name = first_name
+        writer.middle_name = middle_name
+        writer.last_names = last_names
+        writer.full_name = full_name
+        writer.writer_aka = writer_aka
+        writer.email = email
+        writer.phone_number = phone_number
+        writer.ipi = ipi
+        writer.pro = pro
+        writer.address = address
+        writer.city = city
+        writer.state = state
+        writer.zip_code = zip_code
+        writer.has_master_contract = has_master_contract
+
+        db.session.commit()
+        flash("Writer updated successfully.")
+        return redirect(url_for("writer_detail", writer_id=writer.id))
+
+    return render_template_string(WRITER_EDIT_HTML, writer=writer)
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id):
