@@ -2065,25 +2065,32 @@ def formulario():
         db.session.add(work)
         db.session.flush()
 
-        for row in writer_rows:
+                for row in writer_rows:
             writer = find_existing_writer(row["selected_writer_id"])
+
+            if not writer and row["ipi"]:
+                writer = Writer.query.filter(
+                    func.lower(Writer.ipi) == row["ipi"].lower()
+                ).first()
+
+            if not writer and row["full_name"]:
+                writer = Writer.query.filter(
+                    func.lower(Writer.full_name) == row["full_name"].lower()
+                ).first()
+
             if writer:
-                if not writer.ipi and row["ipi"]:
-                    writer.ipi = row["ipi"] or None
-                if not writer.email and row["email"]:
-                    writer.email = row["email"]
-                if not writer.pro and row["pro"]:
-                    writer.pro = row["pro"]
-                if not writer.address and row["address"]:
-                    writer.address = row["address"]
-                if not writer.city and row["city"]:
-                    writer.city = row["city"]
-                if not writer.state and row["state"]:
-                    writer.state = row["state"]
-                if not writer.zip_code and row["zip_code"]:
-                    writer.zip_code = row["zip_code"]
-                if not writer.writer_aka and row["writer_aka"]:
-                    writer.writer_aka = row["writer_aka"]
+                writer.first_name = row["first_name"] or writer.first_name
+                writer.middle_name = row["middle_name"] or writer.middle_name
+                writer.last_names = row["last_names"] or writer.last_names
+                writer.full_name = row["full_name"] or writer.full_name
+                writer.writer_aka = row["writer_aka"] or writer.writer_aka
+                writer.ipi = row["ipi"] or writer.ipi
+                writer.email = row["email"] or writer.email
+                writer.pro = row["pro"] or writer.pro
+                writer.address = row["address"] or writer.address
+                writer.city = row["city"] or writer.city
+                writer.state = row["state"] or writer.state
+                writer.zip_code = row["zip_code"] or writer.zip_code
             else:
                 writer = Writer(
                     first_name=row["first_name"],
