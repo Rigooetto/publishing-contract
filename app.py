@@ -1210,20 +1210,31 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
         {% endfor %}
       </tbody>
     </table>
-    <form method="post">
-      {% for key, value in form_data.items() %}
-        {% if value is string %}
-          <input type="hidden" name="{{ key }}" value="{{ value }}">
-        {% else %}
-          {% for item in value %}<input type="hidden" name="{{ key }}" value="{{ item }}">{% endfor %}
-        {% endif %}
-      {% endfor %}
-      <input type="hidden" name="force_create" value="1">
-      <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px">
+      <form method="post" style="margin:0">
+        {% for key, value in form_data.items() %}
+          {% if value is string %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+          {% else %}
+            {% for item in value %}
+              <input type="hidden" name="{{ key }}" value="{{ item }}">
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+        <input type="hidden" name="force_create" value="1">
         <button type="submit" class="btn btn-danger">Continue Anyway</button>
-        <a href="/" class="btn btn-sec">Cancel</a>
-      </div>
-    </form>
+      </form>
+
+  <form method="post" style="margin:0">
+    {% for key, value in form_data.items() %}
+      {% if value is string %}
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
+      {% else %}
+        {% for item in value %}
+          <input type="hidden" name="{{ key }}" value="{{ item }}">
+        {% endfor %}
+      {% endif %}
+   
   </div>
 </div>
 </div>
@@ -1852,12 +1863,6 @@ def collect_form_context():
         "selected_batch_id": selected_batch_id,
     }
 
-def collect_submitted_form_data():
-    return {
-        "work_title_value": request.form.get("work_title", ""),
-        "contract_date_value": request.form.get("contract_date", ""),
-        "new_session_name_value": request.form.get("new_session_name", ""),
-    }
 
 def collect_submitted_form_data():
     return {
@@ -2127,6 +2132,14 @@ def formulario():
         writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
 
         possible_duplicates = []
+
+        if request.method == "POST" and request.form.get("return_to_form"):
+            return render_template_string(
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
+            )
+        
         existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
         for existing_work in existing_works:
             existing_identities = sorted([
@@ -2140,8 +2153,6 @@ def formulario():
                     "camp_name": batch.session_name if batch else "",
                     "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
                 })
-
-
 
         if possible_duplicates and not request.form.get("force_create"):
             form_data = {}
