@@ -2017,7 +2017,9 @@ def formulario():
             if not batch:
                 flash("Selected session was not found.")
                 return render_template_string(FORM_HTML, **collect_form_context())
+
             contract_date = batch.contract_date
+
         else:
             if not new_session_name:
                 flash("Please enter a new session name or select an existing session.")
