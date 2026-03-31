@@ -186,8 +186,7 @@ class Camp(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False, unique=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    works = db.relationship("Work", backref="camp", lazy=True)
-    batches = db.relationship("GenerationBatch", backref="camp", lazy=True)
+    
 
 
 class GenerationBatch(db.Model):
@@ -1739,21 +1738,6 @@ def auth_required():
     return not session.get("logged_in")
 
 
-def get_or_create_camp(existing_camp_id, new_camp_name):
-    new_camp_name = (new_camp_name or "").strip()
-    if new_camp_name:
-        existing = Camp.query.filter(func.lower(Camp.name) == new_camp_name.lower()).first()
-        if existing:
-            return existing
-        camp = Camp(name=new_camp_name)
-        db.session.add(camp)
-        db.session.flush()
-        return camp
-    if existing_camp_id:
-        return Camp.query.get(int(existing_camp_id))
-    return None
-
-
 def find_existing_writer(selected_writer_id):
     if selected_writer_id:
         writer = Writer.query.get(int(selected_writer_id))
@@ -2051,7 +2035,6 @@ def formulario():
         work = Work(
             title=work_title,
             normalized_title=normalized_title,
-            camp_id=None,
             batch_id=batch.id,
             contract_date=contract_date,
         )
@@ -2311,7 +2294,7 @@ def generate_batch_documents(batch_id):
             file_buffer = render_docx_template(template_path, data, works_for_table=works_for_table)
             file_bytes = file_buffer.getvalue()
 
-            batch_label = batch.camp.name if batch.camp else "batch_" + str(batch.id)
+            batch_label = batch.session_name if batch.session_name else "batch_" + str(batch.id)
             file_name = prefix + "_" + slugify(writer.full_name) + "_" + slugify(batch_label) + "_" + batch.contract_date.isoformat() + ".docx"
 
             zip_file.writestr(file_name, file_bytes)
