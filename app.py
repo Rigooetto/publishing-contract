@@ -2156,17 +2156,23 @@ def formulario():
                     "camp_name": batch.session_name if batch else "",
                     "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
                 })
+            if request.method == "POST" and request.form.get("return_to_form"):
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
 
-        if possible_duplicates and not request.form.get("force_create"):
-            form_data = {}
-            for key in request.form.keys():
-                values = request.form.getlist(key)
-                form_data[key] = values if len(values) > 1 else values[0]
-            return render_template_string(
-                DUPLICATE_WARNING_HTML,
-                duplicates=possible_duplicates,
-                form_data=form_data,
-            )
+            if possible_duplicates and not request.form.get("force_create"):
+                form_data = {}
+                for key in request.form.keys():
+                    values = request.form.getlist(key)
+                    form_data[key] = values if len(values) > 1 else values[0]
+                return render_template_string(
+                    DUPLICATE_WARNING_HTML,
+                    duplicates=possible_duplicates,
+                    form_data=form_data,
+                )
 
         for warning in warnings:
             flash(warning)
