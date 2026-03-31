@@ -2220,11 +2220,63 @@ def formulario():
         if abs(total_split - 100.0) >= 0.001:
             flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
             return render_template_string(
-            FORM_HTML,
-            **collect_form_context(),
-            **collect_submitted_form_data()
-        )
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
+            )
 
+
+        for row in writer_rows:
+            if not row["first_name"] or not row["last_names"]:
+                flash("Each writer must have first and last name.")
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
+
+            if not row["email"]:
+                flash("Each writer must have an email.")
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
+
+            if "@" not in row["email"]:
+                flash("Invalid email format for " + row["full_name"])
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
+
+            if not row["ipi"]:
+                flash("Each writer must have an IPI number.")
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
+
+            if not row["pro"]:
+                flash("Each writer must have a PRO selected.")
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
+
+            if not row["address"] or not row["city"] or not row["state"] or not row["zip_code"]:
+                flash("Complete address required for " + row["full_name"])
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
+
+       
+            
         seen_writer_ids = set()
         seen_ipis = set()
         seen_names = set()
