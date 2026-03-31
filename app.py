@@ -306,23 +306,25 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .page{max-width:1200px;margin:0 auto;padding:22px 22px 100px}
 .sb{width:var(--sb);min-height:100vh;background:var(--bg1);border-right:1px solid var(--b0);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50;transition:width .22s ease;overflow:hidden}
 .sb.collapsed{width:var(--sb-collapsed)}
+.sb.hover-open{width:var(--sb)}
 .app.sb-collapsed .main{margin-left:var(--sb-collapsed)}
 .sb-logo{display:flex;align-items:center;gap:10px;padding:15px 13px 13px;border-bottom:1px solid var(--b0);margin-bottom:5px;text-decoration:none;white-space:nowrap;overflow:hidden}
 .sb-ico{width:28px;height:28px;background:linear-gradient(135deg,var(--a),var(--ae));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .sb-name{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.02em;transition:opacity .18s}
-.sb.collapsed .sb-name{opacity:0;pointer-events:none}
+.sb.collapsed .sb-name{opacity:0;pointer-events:none;width:0}
+.sb.hover-open .sb-name{opacity:1;pointer-events:auto;width:auto}
 .sb-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--bg4);border:1px solid var(--b0);border-radius:6px;cursor:pointer;color:var(--t3);font-size:11px;margin-left:auto;flex-shrink:0;transition:color .14s,background .14s;user-select:none}
 .sb-toggle:hover{color:var(--t1);background:var(--bg5)}
 .sb.collapsed .sb-toggle{margin-left:0}
 .sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb.collapsed .sb-sec{opacity:0;height:0;padding:0;pointer-events:none}
-.sb-nav a{display:flex;align-items:center;gap:9px;padding:8px 13px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative;white-space:nowrap;overflow:hidden}
+.sb.hover-open .sb-sec{opacity:1;height:auto;padding:13px 14px 4px;pointer-events:auto}.sb-nav a{display:flex;align-items:center;gap:9px;padding:8px 13px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative;white-space:nowrap;overflow:hidden}
 .sb-nav a:hover{color:var(--t1);background:rgba(255,255,255,.03)}
 .sb-nav a.on{color:var(--a);background:rgba(99,133,255,.08)}
 .sb-nav a.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--a);border-radius:0 2px 2px 0}
-.sb-nav .ni{font-size:13px;flex-shrink:0;opacity:.85;min-width:18px;text-align:center}
-.sb-nav .nl{transition:opacity .18s}
-.sb.collapsed .sb-nav .nl{opacity:0}
+.sb-nav .ni{font-size:13px;flex-shrink:0;opacity:.95;min-width:22px;width:22px;text-align:center;display:inline-flex;align-items:center;justify-content:center}.sb-nav .nl{transition:opacity .18s}
+.sb.collapsed .sb-nav .nl{opacity:0;width:0;pointer-events:none}
+.sb.hover-open .sb-nav .nl{opacity:1;width:auto;pointer-events:auto}
 .sb-foot{margin-top:auto;padding:13px 14px;border-top:1px solid var(--b0);font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb-foot b{color:var(--t2);font-size:11.5px;display:block;margin-bottom:2px}
 .sb.collapsed .sb-foot{opacity:0;pointer-events:none}
@@ -610,30 +612,28 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 _SB_JS = """
 <script>
 (function(){
-  function getEls(){
-    return {
-      sb: document.getElementById('mainSidebar'),
-      app: document.getElementById('mainApp'),
-      tog: document.getElementById('sbToggle')
-    };
+  function applySidebarState(collapsed){
+    var sb = document.getElementById('mainSidebar');
+    var app = document.getElementById('mainApp');
+    var tog = document.getElementById('sbToggle');
+    if(!sb || !app) return;
+
+    sb.classList.toggle('collapsed', collapsed);
+    app.classList.toggle('sb-collapsed', collapsed);
+
+    if(tog){
+      tog.textContent = collapsed ? '>' : '<';
+      tog.setAttribute('aria-label', collapsed ? 'Open sidebar' : 'Close sidebar');
+      tog.setAttribute('title', collapsed ? 'Open sidebar' : 'Close sidebar');
+    }
   }
 
-  function applySidebarMode(mode){
-    var els = getEls();
-    if(!els.sb || !els.app) return;
+  function getPinnedClosed(){
+    return localStorage.getItem('sb_pinned_closed') === '1';
+  }
 
-    var collapsed = mode === 'closed';
-    els.sb.classList.toggle('collapsed', collapsed);
-    els.app.classList.toggle('sb-collapsed', collapsed);
-
-    if(!collapsed){
-      els.sb.classList.remove('hover-open');
-    }
-
-    if(els.tog){
-      els.tog.textContent = collapsed ? '>' : '<';
-      els.tog.title = collapsed ? 'Pin sidebar open' : 'Pin sidebar closed';
-    }
+  function setPinnedClosed(value){
+    localStorage.setItem('sb_pinned_closed', value ? '1' : '0');
   }
 
   window.toggleSidebar = function(e){
@@ -641,30 +641,29 @@ _SB_JS = """
       e.preventDefault();
       e.stopPropagation();
     }
-    var current = localStorage.getItem('sb_mode') || 'open';
-    var next = current === 'closed' ? 'open' : 'closed';
-    localStorage.setItem('sb_mode', next);
-    applySidebarMode(next);
+    var nextCollapsed = !document.getElementById('mainSidebar').classList.contains('collapsed');
+    setPinnedClosed(nextCollapsed);
+    applySidebarState(nextCollapsed);
   };
 
   document.addEventListener('DOMContentLoaded', function(){
-    var els = getEls();
-    if(!els.sb || !els.app) return;
+    var sb = document.getElementById('mainSidebar');
+    var app = document.getElementById('mainApp');
+    if(!sb || !app) return;
 
-    var savedMode = localStorage.getItem('sb_mode') || 'open';
-    applySidebarMode(savedMode);
+    applySidebarState(getPinnedClosed());
 
-    els.sb.addEventListener('mouseenter', function(){
-      var mode = localStorage.getItem('sb_mode') || 'open';
-      if(mode === 'closed'){
-        els.sb.classList.add('hover-open');
+    sb.addEventListener('mouseenter', function(){
+      if(getPinnedClosed()){
+        applySidebarState(false);
+        sb.classList.add('hover-open');
       }
     });
 
-    els.sb.addEventListener('mouseleave', function(){
-      var mode = localStorage.getItem('sb_mode') || 'open';
-      if(mode === 'closed'){
-        els.sb.classList.remove('hover-open');
+    sb.addEventListener('mouseleave', function(){
+      if(getPinnedClosed()){
+        sb.classList.remove('hover-open');
+        applySidebarState(true);
       }
     });
   });
@@ -677,10 +676,10 @@ _SB_JS = """
 
 def _sidebar(active):
     pages = [
-        ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
-        ("formulario",   "New Work",  "<span class='ni ni-pencil-custom'></span>"),
-        ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
-    ]
+    ("works_list",   "Works",     "&#127925;"),
+    ("formulario",   "New Work",  "<span style='font-size:15px;filter:saturate(1.2) brightness(1.05)'>✏️</span>"),
+    ("batches_list", "Sessions",  "&#128230;"),
+]
 
     html = "<aside class='sb' id='mainSidebar'>"
     html += "<a class='sb-logo' href='/works'>"
