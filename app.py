@@ -2539,7 +2539,7 @@ def search_writers():
             "writer_aka": w.writer_aka,
             "ipi": w.ipi or "",
             "email": w.email or "",
-            "phonr_number": w.phone_number or "",
+            "phone_number": w.phone_number or "",
             "pro": w.pro,
             "address": w.address,
             "city": w.city,
