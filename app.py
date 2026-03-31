@@ -2133,9 +2133,11 @@ def formulario():
                 build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
             ])
             if existing_identities == writer_identity_set:
+                batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
+
                 possible_duplicates.append({
                     "title": existing_work.title,
-                    "camp_name": batch.session_name if batch and batch.session_name else "",
+                    "camp_name": batch.session_name if batch else "",
                     "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
                 })
 
