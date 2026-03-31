@@ -1199,13 +1199,20 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Matching Works</span></div>
   <div class="card-body">
     <table class="tbl" style="margin-bottom:18px">
-      <thead><tr><th>Title</th><th>Session</th><th>Created</th></tr></thead>
+      <thead><tr><th>Title</th><th>Session</th><th>Created</th><th>Action</th></tr></thead>
       <tbody>
         {% for item in duplicates %}
         <tr>
           <td style="font-weight:600">{{ item.title }}</td>
           <td>{{ item.camp_name or '--' }}</td>
           <td style="color:var(--t2)">{{ item.created_at }}</td>
+          <td>
+            {% if item.batch_id %}
+              <a href="{{ url_for('batch_detail', batch_id=item.batch_id) }}" class="btn btn-sec btn-sm">View Existing</a>
+            {% else %}
+              <span style="color:var(--t2)">--</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -2164,6 +2171,8 @@ def formulario():
                     "title": existing_work.title,
                     "camp_name": batch.session_name if batch else "",
                     "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                    "work_id": existing_work.id,
+                    "batch_id": existing_work.batch_id,
                 })
             if request.method == "POST" and request.form.get("return_to_form"):
                 return render_template_string(
