@@ -1300,6 +1300,62 @@ function openExisting(url) {
   });
 
   frame.onload = function() {
+    try {
+      var doc = frame.contentDocument || frame.contentWindow.document;
+
+      // Hide navigation / controls for cleaner preview
+      var selectorsToHide = [
+        '.sb',
+        '.topbar',
+        '.ph-actions',
+        '.action-bar',
+        '#genForm',
+        '.ds-form',
+        '.upl-form',
+        'a.btn',
+        'button'
+      ];
+
+      selectorsToHide.forEach(function(sel) {
+        doc.querySelectorAll(sel).forEach(function(el) {
+          el.style.display = 'none';
+        });
+      });
+
+      // Remove left margin caused by hidden sidebar
+      doc.querySelectorAll('.main').forEach(function(el) {
+        el.style.marginLeft = '0';
+      });
+
+      // Tighten page padding a bit
+      doc.querySelectorAll('.page').forEach(function(el) {
+        el.style.padding = '16px';
+      });
+
+      // Disable all links so nothing navigates inside popup
+      doc.querySelectorAll('a').forEach(function(a) {
+        a.removeAttribute('href');
+        a.style.pointerEvents = 'none';
+        a.style.cursor = 'default';
+        a.style.textDecoration = 'none';
+      });
+
+      // Disable forms and inputs
+      doc.querySelectorAll('form').forEach(function(f) {
+        f.addEventListener('submit', function(e) {
+          e.preventDefault();
+          return false;
+        });
+      });
+
+      doc.querySelectorAll('input, select, textarea, button').forEach(function(el) {
+        el.disabled = true;
+        el.style.pointerEvents = 'none';
+      });
+    } catch (e) {
+      console.log('Preview cleanup skipped:', e);
+    }
+
     loader.style.display = 'none';
     frame.style.display = 'block';
   };
