@@ -1208,11 +1208,17 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           <td style="color:var(--t2)">{{ item.created_at }}</td>
           <td>
             {% if item.batch_id %}
-              
+              <button
+                type="button"
+                class="btn btn-sec btn-sm"
+                onclick="openExisting('{{ url_for('batch_detail', batch_id=item.batch_id) }}')">
+                View Existing
+              </button>
             {% else %}
               <span style="color:var(--t2)">--</span>
             {% endif %}
           </td>
+
         </tr>
         {% endfor %}
       </tbody>
