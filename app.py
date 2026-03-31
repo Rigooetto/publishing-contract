@@ -208,6 +208,7 @@ class Writer(db.Model):
     ipi = db.Column(db.String(50), nullable=True, unique=True, index=True)
     pro = db.Column(db.String(20), default="")
     email = db.Column(db.String(255), nullable=True, index=True)
+    phone_number = db.Column(db.String(50), default="")
     address = db.Column(db.String(255), default="")
     city = db.Column(db.String(100), default="")
     state = db.Column(db.String(100), default="")
@@ -1059,6 +1060,7 @@ function fillWriter(r, w) {
   r.querySelector('.waka').value = w.writer_aka || '';
   r.querySelector('.wipi').value = w.ipi || '';
   r.querySelector('.wem').value = w.email || '';
+  r.querySelector('.wphone').value = w.phone_number || '';
   r.querySelector('.wpro').value = w.pro || '';
   r.querySelector('.waddr').value = w.address || '';
   r.querySelector('.wcity').value = w.city || '';
@@ -2453,6 +2455,7 @@ def formulario():
                 writer.writer_aka = row["writer_aka"] or writer.writer_aka
                 writer.ipi = row["ipi"] or writer.ipi
                 writer.email = row["email"] or writer.email
+                writer.phone_number = row["phone_number"] or writer.phone_number
                 writer.pro = row["pro"] or writer.pro
                 writer.address = row["address"] or writer.address
                 writer.city = row["city"] or writer.city
@@ -2467,6 +2470,7 @@ def formulario():
                     writer_aka=row["writer_aka"],
                     ipi=row["ipi"] or None,
                     email=row["email"],
+                    phone_number=row["phone_number"],
                     pro=row["pro"],
                     address=row["address"],
                     city=row["city"],
@@ -2535,6 +2539,7 @@ def search_writers():
             "writer_aka": w.writer_aka,
             "ipi": w.ipi or "",
             "email": w.email or "",
+            "phonr_number": w.phone_number or "",
             "pro": w.pro,
             "address": w.address,
             "city": w.city,
