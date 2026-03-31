@@ -1222,7 +1222,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           {% endif %}
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
-        <button type="submit" class="btn btn-danger">Continue Anyway</button>
+        <button onclick="return confirm('Create anyway? This may duplicate an existing work.')">
       </form>
 
             <form method="post" style="margin:0">
