@@ -2065,7 +2065,7 @@ def formulario():
         db.session.add(work)
         db.session.flush()
 
-                for row in writer_rows:
+        for row in writer_rows:
             writer = find_existing_writer(row["selected_writer_id"])
 
             if not writer and row["ipi"]:
