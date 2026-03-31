@@ -1239,8 +1239,8 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
             {% endif %}
           {% endif %}
         {% endfor %}
-        <input type="hidden" name="return_to_form" value="1">
-        <button type="submit" class="btn btn-sec">Cancel</button>
+        <input type="hidden" name="force_create" value="1">
+        <button type="submit" class="btn btn-danger">Continue Anyway</button>
       </form>
     </div>
 </div>
