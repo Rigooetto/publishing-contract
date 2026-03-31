@@ -1232,10 +1232,10 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
         <button 
-          type="submit" 
-          class="btn btn-danger"
-          onclick="if(confirm('Create duplicate work?')){ this.disabled=true; this.form.submit(); } return false;">
-          Continue Anyway
+          type="button" 
+          class="btn btn-sec btn-sm"
+          onclick="openExisting('{{ url_for('batch_detail', batch_id=item.batch_id) }}')">
+          View Existing
         </button>
       </form>
 
@@ -1260,6 +1260,28 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div id="existingModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;">
+  <div style="position:absolute;top:5%;left:5%;width:90%;height:90%;background:#fff;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;">
+    
+    <div style="padding:10px;background:#111;color:#fff;display:flex;justify-content:space-between;align-items:center;">
+      <span>Existing Session</span>
+      <button onclick="closeExisting()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+
+    <iframe id="existingFrame" style="flex:1;border:none;"></iframe>
+  </div>
+</div>
+<script>
+function openExisting(url) {
+  document.getElementById('existingFrame').src = url;
+  document.getElementById('existingModal').style.display = 'block';
+}
+
+function closeExisting() {
+  document.getElementById('existingModal').style.display = 'none';
+  document.getElementById('existingFrame').src = '';
+}
+</script>
 </body></html>"""
 
 # ================================================================
