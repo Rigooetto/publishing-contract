@@ -2164,7 +2164,11 @@ def formulario():
                 )
 
             force_create = request.form.get("force_create") == "1"
-            
+            print("FORCE_CREATE =", request.form.get("force_create"))
+            print("RETURN_TO_FORM =", request.form.get("return_to_form"))
+            print("FORM_KEYS =", list(request.form.keys()))
+
+
             if possible_duplicates and not force_create:
                 form_data = {}
                 for key in request.form.keys():
