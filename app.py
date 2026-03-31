@@ -1231,11 +1231,11 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           {% endif %}
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
-        <button 
-          type="button" 
-          class="btn btn-sec btn-sm"
-          onclick="openExisting('{{ url_for('batch_detail', batch_id=item.batch_id) }}')">
-          View Existing
+        <button
+          type="submit"
+          class="btn btn-danger"
+          onclick="return confirm('Are you sure you want to create this duplicate work?')">
+          Continue Anyway
         </button>
       </form>
 
