@@ -2030,6 +2030,7 @@ def collect_submitted_form_data():
                 "writer_aka": writer_aka,
                 "ipi": ipi,
                 "email": email,
+                "phone_number": phone_number,
                 "pro": pro,
                 "writer_percentage": percentage,
                 "publisher": publisher,
@@ -2043,7 +2044,7 @@ def collect_submitted_form_data():
                 "state": state,
                 "zip_code": zip_code,
             }
-            for writer_id, first_name, middle_name, last_name, writer_aka, ipi, email, pro, percentage,
+            for writer_id, first_name, middle_name, last_name, writer_aka, ipi, email, phone_number,pro, percentage,
                 publisher, publisher_ipi, publisher_address, publisher_city, publisher_state, publisher_zip_code,
                 address, city, state, zip_code
             in zip(
@@ -2054,6 +2055,7 @@ def collect_submitted_form_data():
                 request.form.getlist("writer_aka"),
                 request.form.getlist("writer_ipi"),
                 request.form.getlist("writer_email"),
+                request.form.getlist("writer_phone_number"),
                 request.form.getlist("writer_pro"),
                 request.form.getlist("writer_percentage"),
                 request.form.getlist("writer_publisher"),
