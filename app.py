@@ -714,7 +714,7 @@ def _sidebar(active):
 
     html += "<div class='sb-sec'>Resources</div>"
     html += "<nav class='sb-nav'>"
-    html += "<a href='#' title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
+    html += "<a href='/writers' class='" + ("active" if active == "writers_list" else "") + "' title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
     html += "<a href='#' title='Settings'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
