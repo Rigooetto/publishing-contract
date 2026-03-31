@@ -1266,24 +1266,63 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 </main>
 </div>
 <div id="existingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;">
-  <div style="position:absolute;top:5%;left:5%;width:90%;height:90%;background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;">
-    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);">
+  <div id="existingModalPanel" style="position:absolute;top:5%;left:5%;width:90%;height:90%;background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.45);transform:translateY(12px);opacity:0;transition:all .18s ease;">
+    
+    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;">
       <span style="font-weight:600;">Existing Session</span>
       <button type="button" onclick="closeExisting()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
     </div>
-    <iframe id="existingFrame" style="flex:1;border:none;background:#fff;"></iframe>
+
+    <div id="modalLoader" style="flex:1;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">
+      Loading session...
+    </div>
+
+    <iframe id="existingFrame" style="flex:1;border:none;background:#fff;display:none;"></iframe>
   </div>
 </div>
 """ + _SB_JS + """
 <script>
 function openExisting(url) {
-  document.getElementById('existingFrame').src = url;
-  document.getElementById('existingModal').style.display = 'block';
+  var modal = document.getElementById('existingModal');
+  var panel = document.getElementById('existingModalPanel');
+  var frame = document.getElementById('existingFrame');
+  var loader = document.getElementById('modalLoader');
+
+  loader.style.display = 'flex';
+  frame.style.display = 'none';
+  frame.src = '';
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+
+  requestAnimationFrame(function() {
+    panel.style.opacity = '1';
+    panel.style.transform = 'translateY(0)';
+  });
+
+  frame.onload = function() {
+    loader.style.display = 'none';
+    frame.style.display = 'block';
+  };
+
+  frame.src = url;
 }
 
 function closeExisting() {
-  document.getElementById('existingModal').style.display = 'none';
-  document.getElementById('existingFrame').src = '';
+  var modal = document.getElementById('existingModal');
+  var panel = document.getElementById('existingModalPanel');
+  var frame = document.getElementById('existingFrame');
+  var loader = document.getElementById('modalLoader');
+
+  panel.style.opacity = '0';
+  panel.style.transform = 'translateY(12px)';
+  document.body.style.overflow = 'auto';
+
+  setTimeout(function() {
+    modal.style.display = 'none';
+    frame.src = '';
+    frame.style.display = 'none';
+    loader.style.display = 'flex';
+  }, 180);
 }
 
 document.addEventListener('click', function(e) {
@@ -1816,18 +1855,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 </main>
 </div>
-<div id="existingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;">
-  <div style="position:absolute;top:5%;left:5%;width:90%;height:90%;background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.45);">
-    
-    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);">
-      <span style="font-weight:600;">Existing Session</span>
-      <button type="button" onclick="closeExisting()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
-    </div>
-   
 
-    <iframe id="existingFrame" style="flex:1;border:none;background:#fff;"></iframe>
-  </div>
-</div>
 """ + _SB_JS + """
 <script>
 document.querySelectorAll('.ds-form').forEach(function(f) {
