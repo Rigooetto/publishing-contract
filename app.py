@@ -1208,7 +1208,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           <td style="color:var(--t2)">{{ item.created_at }}</td>
           <td>
             {% if item.batch_id %}
-              <a href="{{ url_for('batch_detail', batch_id=item.batch_id) }}" class="btn btn-sec btn-sm">View Existing</a>
+              
             {% else %}
               <span style="color:var(--t2)">--</span>
             {% endif %}
@@ -1260,28 +1260,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div id="existingModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;">
-  <div style="position:absolute;top:5%;left:5%;width:90%;height:90%;background:#fff;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;">
-    
-    <div style="padding:10px;background:#111;color:#fff;display:flex;justify-content:space-between;align-items:center;">
-      <span>Existing Session</span>
-      <button onclick="closeExisting()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
-    </div>
 
-    <iframe id="existingFrame" style="flex:1;border:none;"></iframe>
-  </div>
-</div>
-<script>
-function openExisting(url) {
-  document.getElementById('existingFrame').src = url;
-  document.getElementById('existingModal').style.display = 'block';
-}
-
-function closeExisting() {
-  document.getElementById('existingModal').style.display = 'none';
-  document.getElementById('existingFrame').src = '';
-}
-</script>
 </body></html>"""
 
 # ================================================================
@@ -1805,6 +1784,17 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 </main>
 </div>
+<div id="existingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;">
+  <div style="position:absolute;top:5%;left:5%;width:90%;height:90%;background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.45);">
+    
+    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);">
+      <span style="font-weight:600;">Existing Session</span>
+      <button type="button" onclick="closeExisting()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
+    </div>
+
+    <iframe id="existingFrame" style="flex:1;border:none;background:#fff;"></iframe>
+  </div>
+</div>
 """ + _SB_JS + """
 <script>
 document.querySelectorAll('.ds-form').forEach(function(f) {
@@ -1818,6 +1808,24 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
     if (lbl) lbl.textContent = 'Sending...';
     setTimeout(function() { f.submit(); }, 150);
   });
+});
+</script>
+<script>
+function openExisting(url) {
+  document.getElementById('existingFrame').src = url;
+  document.getElementById('existingModal').style.display = 'block';
+}
+
+function closeExisting() {
+  document.getElementById('existingModal').style.display = 'none';
+  document.getElementById('existingFrame').src = '';
+}
+
+document.addEventListener('click', function(e) {
+  var modal = document.getElementById('existingModal');
+  if (e.target === modal) {
+    closeExisting();
+  }
 });
 </script>
 </body></html>"""
