@@ -114,6 +114,12 @@ def build_writer_identity_from_workwriter(work_writer):
         return "id:" + str(work_writer.writer_id)
     return "name:" + normalize_text(work_writer.writer.full_name if work_writer.writer else "")
 
+def build_session_name(raw_name):
+    raw_name = (raw_name or "").strip()
+    prefix = datetime.datetime.utcnow().strftime("%Y.%m.%d")
+    if raw_name:
+        return prefix + " " + raw_name
+    return prefix
 
 def default_publisher_for_pro(pro):
     return {
@@ -186,7 +192,7 @@ class Camp(db.Model):
 
 class GenerationBatch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    camp_id = db.Column(db.Integer, db.ForeignKey("camp.id"), nullable=True)
+    session_name = db.Column(db.String(255), default="", index=True)
     contract_date = db.Column(db.Date, nullable=False)
     created_by = db.Column(db.String(100), default="")
     status = db.Column(db.String(50), default="draft")
@@ -812,38 +818,26 @@ FORM_HTML = """<!DOCTYPE html>
   <div class="card">
     <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
-      <div class="g g3" style="margin-bottom:12px">
-        <div class="field">
-          <label class="label">Add to Existing Session</label>
-          <div class="inp-wrap">
-            <span class="inp-ico">&#128230;</span>
-            <select class="inp" name="existing_batch_id">
-              <option value="">-- Create new session</option>
-              {% for batch in batches %}
-              <option value="{{ batch.id }}" {% if selected_batch_id == (batch.id|string) %}selected{% endif %}>
-                Session #{{ batch.id }}{% if batch.camp %} -- {{ batch.camp.name }}{% endif %} -- {{ batch.contract_date.strftime('%Y-%m-%d') }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-        <div class="field">
-          <label class="label">Session Name</label>
-          <div class="inp-wrap">
-            <span class="inp-ico">&#127914;</span>
-            <select class="inp" name="camp_id">
-              <option value="">-- Select existing session name</option>
-              {% for camp in camps %}
-              <option value="{{ camp.id }}">{{ camp.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-        <div class="field">
-          <label class="label">Or Create New Session Name</label>
-          <input class="inp" name="new_camp_name" placeholder="New Session Name">
-        </div>
-      </div>
+      <div class="g g2" style="margin-bottom:12px">
+  <div class="field">
+    <label class="label">Add to Existing Session</label>
+    <div class="inp-wrap">
+      <span class="inp-ico">&#128230;</span>
+      <select class="inp" name="existing_batch_id">
+        <option value="">-- Create new session</option>
+        {% for batch in batches %}
+        <option value="{{ batch.id }}" {% if selected_batch_id == (batch.id|string) %}selected{% endif %}>
+          Session #{{ batch.id }}{% if batch.session_name %} -- {{ batch.session_name }}{% endif %} -- {{ batch.contract_date.strftime('%Y-%m-%d') }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="field">
+    <label class="label">Create New Session</label>
+    <input class="inp" name="new_session_name" placeholder="Session Name">
+  </div>
+</div>
       <div class="g g2">
         <div class="field">
           <label class="label">Work Title</label>
@@ -1252,7 +1246,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
           <td style="color:var(--t2)">
             {% if work.batch_id %}
               <a href="/batches/{{ work.batch_id }}" style="color:var(--a)">
-                {% if work.camp %}{{ work.camp.name }}{% else %}Session #{{ work.batch_id }}{% endif %}
+                {% if work.batch and work.batch.session_name %}{{ work.batch.session_name }}{% else %}Session #{{ work.batch_id }}{% endif %}
               </a>
             {% else %}--{% endif %}
           </td>
@@ -1333,7 +1327,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
         {% for batch in batches %}
         <tr>
           <td style="font-weight:600">Session #{{ batch.id }}</td>
-          <td style="color:var(--t2)">{{ batch.camp.name if batch.camp else '--' }}</td>
+          <td style="color:var(--t2)">{{ batch.session_name or '--' }}</td>
           <td style="color:var(--t2);font-size:12px">{{ batch.contract_date.strftime('%b %d, %Y') }}</td>
           <td><span class="status s-{{ batch.status }}"><span class="status-dot"></span>{{ batch.status | replace('_',' ') | title }}</span></td>
           <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ batch.works|length }}</span></td>
@@ -1376,7 +1370,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
     <div class="ph-icon">&#128230;</div>
     <div>
       <div class="ph-title">Session #{{ batch.id }}</div>
-      <div class="ph-sub">{{ batch.camp.name if batch.camp else 'No name' }} - {{ batch.contract_date.strftime('%b %d, %Y') }}</div>
+      <div class="ph-sub">{{ batch.session_name or 'No name' }} - {{ batch.contract_date.strftime('%b %d, %Y') }}</div>
     </div>
   </div>
   <div class="ph-actions">
@@ -1393,7 +1387,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Session Info</span></div>
   <div class="card-body">
     <div class="info-grid">
-      <div class="info-item"><label>Session Name</label><span>{{ batch.camp.name if batch.camp else '--' }}</span></div>
+      <div class="info-item"><label>Session Name</label><span>{{ batch.session_name or '--' }}</span></div>
       <div class="info-item"><label>Contract Date</label><span>{{ batch.contract_date.strftime('%B %d, %Y') }}</span></div>
       <div class="info-item"><label>Status</label><span class="status s-{{ batch.status }}"><span class="status-dot"></span>{{ batch.status | replace('_',' ') | title }}</span></div>
       <div class="info-item"><label>Created</label><span>{{ batch.created_at.strftime('%b %d, %Y %H:%M') }}</span></div>
@@ -1630,7 +1624,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
     <div class="ph-icon">&#127925;</div>
     <div>
       <div class="ph-title">{{ work.title }}</div>
-      <div class="ph-sub">{{ work.camp.name if work.camp else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
+      <div class="ph-sub">{{ work.batch.session_name if work.batch and work.batch.session_name else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
     </div>
   </div>
   <div class="ph-actions">
@@ -1642,7 +1636,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">Work Info</span></div>
   <div class="card-body">
     <div class="info-grid">
-      <div class="info-item"><label>Session Name</label><span>{{ work.camp.name if work.camp else '--' }}</span></div>
+      <div class="info-item"><label>Session Name</label><span>{{ work.batch.session_name if work.batch and work.batch.session_name else '--' }}</span></div>
       <div class="info-item"><label>Session</label>{% if work.batch_id %}<a href="/batches/{{ work.batch_id }}">Session #{{ work.batch_id }}</a>{% else %}<span>--</span>{% endif %}</div>
       <div class="info-item"><label>Contract Date</label><span>{{ work.contract_date.strftime('%B %d, %Y') if work.contract_date else '--' }}</span></div>
       <div class="info-item"><label>Created</label><span>{{ work.created_at.strftime('%b %d, %Y %H:%M') }}</span></div>
@@ -1825,7 +1819,6 @@ def collect_form_context():
         or ""
     )
     return {
-        "camps": Camp.query.order_by(Camp.name.asc()).all(),
         "batches": GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all(),
         "default_publisher_address": DEFAULT_PUBLISHER_ADDRESS,
         "default_publisher_city": DEFAULT_PUBLISHER_CITY,
@@ -2017,7 +2010,7 @@ def formulario():
             if existing_identities == writer_identity_set:
                 possible_duplicates.append({
                     "title": existing_work.title,
-                    "camp_name": existing_work.camp.name if existing_work.camp else "",
+                    "camp_name": existing_work.batch.session_name if existing_work.batch and existing_work.batch.session_name else "",
                     "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
                 })
 
@@ -2036,18 +2029,21 @@ def formulario():
             flash(warning)
 
         existing_batch_id = (request.form.get("existing_batch_id") or "").strip()
+        new_session_name = (request.form.get("new_session_name") or "").strip()
 
         if existing_batch_id:
             batch = GenerationBatch.query.get(int(existing_batch_id))
             if not batch:
                 flash("Selected session was not found.")
                 return render_template_string(FORM_HTML, **collect_form_context())
-            camp = batch.camp
             contract_date = batch.contract_date
         else:
-            camp = get_or_create_camp(request.form.get("camp_id"), request.form.get("new_camp_name"))
+            if not new_session_name:
+                flash("Please enter a new session name or select an existing session.")
+                return render_template_string(FORM_HTML, **collect_form_context())
+
             batch = GenerationBatch(
-                camp_id=camp.id if camp else None,
+                session_name=build_session_name(new_session_name),
                 contract_date=contract_date,
                 created_by="",
                 status="draft",
@@ -2058,7 +2054,7 @@ def formulario():
         work = Work(
             title=work_title,
             normalized_title=normalized_title,
-            camp_id=camp.id if camp else None,
+            camp_id=None,
             batch_id=batch.id,
             contract_date=contract_date,
         )
