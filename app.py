@@ -2135,7 +2135,7 @@ def formulario():
             if existing_identities == writer_identity_set:
                 possible_duplicates.append({
                     "title": existing_work.title,
-                    "camp_name": existing_work.batch.session_name if existing_work.batch and existing_work.batch.session_name else "",
+                    "camp_name": existing_work.batch_id or "",
                     "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
                 })
 
