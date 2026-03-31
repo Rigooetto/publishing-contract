@@ -831,7 +831,7 @@ FORM_HTML = """<!DOCTYPE html>
   </div>
   <div class="field">
     <label class="label">Create New Session</label>
-    <input class="inp" name="new_session_name" placeholder="Session Name">
+    <input class="inp" name="new_session_name" placeholder="Session Name" value="{{ new_session_name_value or '' }}">
   </div>
 </div>
       <div class="g g2">
@@ -839,14 +839,14 @@ FORM_HTML = """<!DOCTYPE html>
           <label class="label">Work Title</label>
           <div class="inp-wrap">
             <span class="inp-ico">&#127925;</span>
-            <input class="inp" name="work_title" required placeholder="e.g. La Serenata">
+            <input class="inp" name="work_title" required placeholder="e.g. La Serenata" value="{{ work_title_value or '' }}">
           </div>
         </div>
         <div class="field">
           <label class="label">Contract Date</label>
           <div class="inp-wrap">
             <span class="inp-ico">&#128197;</span>
-            <input class="inp" name="contract_date" type="date" required>
+            <input class="inp" name="contract_date" type="date" required value="{{ contract_date_value or '' }}">
           </div>
         </div>
       </div>
@@ -1809,6 +1809,13 @@ def collect_form_context():
         "selected_batch_id": selected_batch_id,
     }
 
+def collect_submitted_form_data():
+    return {
+        "work_title_value": request.form.get("work_title", ""),
+        "contract_date_value": request.form.get("contract_date", ""),
+        "new_session_name_value": request.form.get("new_session_name", ""),
+    }
+
 
 def get_batch_writer_summary(batch_id):
     work_writers = WorkWriter.query.join(Work).filter(Work.batch_id == batch_id).all()
@@ -2023,7 +2030,11 @@ def formulario():
         else:
             if not new_session_name:
                 flash("Please enter a new session name or select an existing session.")
-                return render_template_string(FORM_HTML, **collect_form_context())
+                return render_template_string(
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
+                )
 
             batch = GenerationBatch(
                 session_name=build_session_name(new_session_name),
