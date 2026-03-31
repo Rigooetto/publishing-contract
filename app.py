@@ -890,7 +890,8 @@ function statusHtml(ws, ct) {
   return '<span class="tag ' + wc + '">' + ws + '</span><span class="tag ' + cc + '">' + ct + '</span>';
 }
 
-function writerTpl(i) {
+function writerTpl(i, data) {
+  data = data || {};
   var h = '<div class="wc open" data-idx="' + i + '">';
   h += '<div class="wc-hd" onclick="toggleWC(this)">';
   h += '<div class="wc-av">&#128100;</div>';
@@ -900,59 +901,88 @@ function writerTpl(i) {
   h += '<span class="wc-chev">v</span>';
   h += '<button type="button" class="btn btn-danger btn-sm" onclick="rmWriter(event,this)" style="margin-left:8px">Remove</button>';
   h += '</div>';
+
   h += '<div class="wc-body">';
-  h += '<input type="hidden" name="writer_id" class="wid">';
+  h += '<input type="hidden" name="writer_id" class="wid" value="' + (data.selected_writer_id || '') + '">';
+
   h += '<div class="wc-sec">Identity</div>';
   h += '<div class="g g4" style="gap:10px">';
   h += '<div class="field ac-wrap"><label class="label">First Name</label>';
-  h += '<input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="off">';
+  h += '<input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="off" value="' + (data.first_name || '') + '">';
   h += '<div class="ac-box wsug"></div></div>';
+
   h += '<div class="field"><label class="label">Middle Name</label>';
-  h += '<input class="inp wmn" name="writer_middle_name" placeholder="Middle" autocomplete="off"></div>';
+  h += '<input class="inp wmn" name="writer_middle_name" placeholder="Middle" autocomplete="off" value="' + (data.middle_name || '') + '"></div>';
+
   h += '<div class="field"><label class="label">Last Name(s)</label>';
-  h += '<input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="off"></div>';
+  h += '<input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="off" value="' + (data.last_names || '') + '"></div>';
+
   h += '<div class="field"><label class="label">AKA / Stage</label>';
-  h += '<input class="inp waka" name="writer_aka" placeholder="Stage Name"></div>';
+  h += '<input class="inp waka" name="writer_aka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
   h += '</div>';
+
   h += '<div class="wc-sec">Publishing</div>';
   h += '<div class="g g5" style="gap:10px">';
+
   h += '<div class="field"><label class="label">IPI #</label>';
-  h += '<input class="inp wipi" name="writer_ipi" placeholder="IPI Number"></div>';
+  h += '<input class="inp wipi" name="writer_ipi" placeholder="IPI Number" value="' + (data.ipi || '') + '"></div>';
+
   h += '<div class="field"><label class="label">Email</label>';
-  h += '<input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email"></div>';
+  h += '<input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email" value="' + (data.email || '') + '"></div>';
+
   h += '<div class="field"><label class="label">PRO</label>';
   h += '<select class="inp wpro" name="writer_pro" onchange="syncPro(this)">';
-  h += '<option value="">PRO</option><option value="BMI">BMI</option>';
-  h += '<option value="ASCAP">ASCAP</option><option value="SESAC">SESAC</option></select></div>';
+  h += '<option value="">PRO</option>';
+  h += '<option value="BMI"' + ((data.pro || '') === 'BMI' ? ' selected' : '') + '>BMI</option>';
+  h += '<option value="ASCAP"' + ((data.pro || '') === 'ASCAP' ? ' selected' : '') + '>ASCAP</option>';
+  h += '<option value="SESAC"' + ((data.pro || '') === 'SESAC' ? ' selected' : '') + '>SESAC</option>';
+  h += '</select></div>';
+
   h += '<div class="field"><label class="label">Writer %</label>';
-  h += '<input class="inp wspl" name="writer_percentage" placeholder="0" type="number" step="0.01" min="0" max="100"></div>';
+  h += '<input class="inp wspl" name="writer_percentage" placeholder="0" type="number" step="0.01" min="0" max="100" value="' + (data.writer_percentage || '') + '"></div>';
+
   h += '<div class="field"><label class="label">Publisher</label>';
-  h += '<input class="inp wpub" name="writer_publisher" placeholder="Publisher Name"></div>';
+  h += '<input class="inp wpub" name="writer_publisher" placeholder="Publisher Name" value="' + (data.publisher || '') + '"></div>';
   h += '</div>';
+
   h += '<div class="wc-sec">Publisher Details</div>';
   h += '<div class="g g52" style="gap:10px">';
+
   h += '<div class="field"><label class="label">Publisher IPI</label>';
-  h += '<input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI"></div>';
+  h += '<input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI" value="' + (data.publisher_ipi || '') + '"></div>';
+
   h += '<div class="field"><label class="label">Address</label>';
-  h += '<input class="inp wpaddr" name="publisher_address" value="' + defAddr + '" placeholder="Address"></div>';
+  h += '<input class="inp wpaddr" name="publisher_address" value="' + (data.publisher_address || defAddr) + '" placeholder="Address"></div>';
+
   h += '<div class="field"><label class="label">City</label>';
-  h += '<input class="inp wpcity" name="publisher_city" value="' + defCity + '" placeholder="City"></div>';
+  h += '<input class="inp wpcity" name="publisher_city" value="' + (data.publisher_city || defCity) + '" placeholder="City"></div>';
+
   h += '<div class="field"><label class="label">State</label>';
-  h += '<input class="inp wpst" name="publisher_state" value="' + defState + '" placeholder="ST"></div>';
+  h += '<input class="inp wpst" name="publisher_state" value="' + (data.publisher_state || defState) + '" placeholder="ST"></div>';
+
   h += '<div class="field"><label class="label">Zip</label>';
-  h += '<input class="inp wpzip" name="publisher_zip_code" value="' + defZip + '" placeholder="Zip"></div>';
+  h += '<input class="inp wpzip" name="publisher_zip_code" value="' + (data.publisher_zip_code || defZip) + '" placeholder="Zip"></div>';
   h += '</div>';
+
   h += '<div class="wc-sec">Writer Address</div>';
   h += '<div class="g g4a" style="gap:10px">';
+
   h += '<div class="field"><label class="label">Street</label>';
-  h += '<input class="inp waddr" name="writer_address" placeholder="Street Address"></div>';
+  h += '<input class="inp waddr" name="writer_address" placeholder="Street Address" value="' + (data.address || '') + '"></div>';
+
   h += '<div class="field"><label class="label">City</label>';
-  h += '<input class="inp wcity" name="writer_city" placeholder="City"></div>';
+  h += '<input class="inp wcity" name="writer_city" placeholder="City" value="' + (data.city || '') + '"></div>';
+
   h += '<div class="field"><label class="label">State</label>';
-  h += '<input class="inp wst" name="writer_state" placeholder="ST"></div>';
+  h += '<input class="inp wst" name="writer_state" placeholder="ST" value="' + (data.state || '') + '"></div>';
+
   h += '<div class="field"><label class="label">Zip</label>';
-  h += '<input class="inp wzip" name="writer_zip_code" placeholder="Zip"></div>';
-  h += '</div></div></div>';
+  h += '<input class="inp wzip" name="writer_zip_code" placeholder="Zip" value="' + (data.zip_code || '') + '"></div>';
+
+  h += '</div>';
+  h += '</div>';
+  h += '</div>';
+
   return h;
 }
 
@@ -1122,8 +1152,21 @@ document.getElementById('workForm').addEventListener('submit', function(e) {
   var t = parseFloat(document.getElementById('splitTotal').textContent || 0) || 0;
   if (Math.abs(t - 100) >= 0.001) { e.preventDefault(); alert('Total split must equal 100%.'); }
 });
-
-addWriter();
+var submittedWriters = {{ submitted_writers | tojson | safe }};
+if (submittedWriters && submittedWriters.length) {
+  submittedWriters.forEach(function(writerData, i) {
+    var c = document.getElementById('writerRows');
+    c.insertAdjacentHTML('beforeend', writerTpl(idx, writerData));
+    var card = c.lastElementChild;
+    setupWriter(card);
+    updateHdr(card);
+    idx++;
+  });
+  reindexWriters();
+  recalc();
+} else {
+  addWriter();
+}
 </script>
 </body></html>"""
 
@@ -1816,6 +1859,60 @@ def collect_submitted_form_data():
         "new_session_name_value": request.form.get("new_session_name", ""),
     }
 
+def collect_submitted_form_data():
+    return {
+        "work_title_value": request.form.get("work_title", ""),
+        "contract_date_value": request.form.get("contract_date", ""),
+        "new_session_name_value": request.form.get("new_session_name", ""),
+        "submitted_writers": [
+            {
+                "selected_writer_id": writer_id,
+                "first_name": first_name,
+                "middle_name": middle_name,
+                "last_names": last_name,
+                "writer_aka": writer_aka,
+                "ipi": ipi,
+                "email": email,
+                "pro": pro,
+                "writer_percentage": percentage,
+                "publisher": publisher,
+                "publisher_ipi": publisher_ipi,
+                "publisher_address": publisher_address,
+                "publisher_city": publisher_city,
+                "publisher_state": publisher_state,
+                "publisher_zip_code": publisher_zip_code,
+                "address": address,
+                "city": city,
+                "state": state,
+                "zip_code": zip_code,
+            }
+            for writer_id, first_name, middle_name, last_name, writer_aka, ipi, email, pro, percentage,
+                publisher, publisher_ipi, publisher_address, publisher_city, publisher_state, publisher_zip_code,
+                address, city, state, zip_code
+            in zip(
+                request.form.getlist("writer_id"),
+                request.form.getlist("writer_first_name"),
+                request.form.getlist("writer_middle_name"),
+                request.form.getlist("writer_last_names"),
+                request.form.getlist("writer_aka"),
+                request.form.getlist("writer_ipi"),
+                request.form.getlist("writer_email"),
+                request.form.getlist("writer_pro"),
+                request.form.getlist("writer_percentage"),
+                request.form.getlist("writer_publisher"),
+                request.form.getlist("publisher_ipi"),
+                request.form.getlist("publisher_address"),
+                request.form.getlist("publisher_city"),
+                request.form.getlist("publisher_state"),
+                request.form.getlist("publisher_zip_code"),
+                request.form.getlist("writer_address"),
+                request.form.getlist("writer_city"),
+                request.form.getlist("writer_state"),
+                request.form.getlist("writer_zip_code"),
+            )
+        ]
+    }
+
 
 def get_batch_writer_summary(batch_id):
     work_writers = WorkWriter.query.join(Work).filter(Work.batch_id == batch_id).all()
@@ -1866,16 +1963,28 @@ def formulario():
 
         if not work_title:
             flash("Work title is required.")
-            return render_template_string(FORM_HTML, **collect_form_context())
+            return render_template_string(
+            FORM_HTML,
+            **collect_form_context(),
+            **collect_submitted_form_data()
+        )
         if not contract_date_str:
             flash("Contract date is required.")
-            return render_template_string(FORM_HTML, **collect_form_context())
+            return render_template_string(
+            FORM_HTML,
+            **collect_form_context(),
+            **collect_submitted_form_data()
+        )
 
         try:
             contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
         except ValueError:
             flash("Please enter a valid contract date.")
-            return render_template_string(FORM_HTML, **collect_form_context())
+            return render_template_string(
+            FORM_HTML,
+            **collect_form_context(),
+            **collect_submitted_form_data()
+        )
 
         writer_ids = request.form.getlist("writer_id")
         first_names = request.form.getlist("writer_first_name")
@@ -1910,7 +2019,11 @@ def formulario():
             split_value = parse_float(percentages[i] if i < len(percentages) else "0")
             if split_value <= 0:
                 flash("Writer '" + full_name + "' must have a split greater than 0.")
-                return render_template_string(FORM_HTML, **collect_form_context())
+                return render_template_string(
+            FORM_HTML,
+            **collect_form_context(),
+            **collect_submitted_form_data()
+        )
             total_split += split_value
             writer_rows.append({
                 "selected_writer_id": writer_ids[i] if i < len(writer_ids) else "",
@@ -1937,11 +2050,19 @@ def formulario():
 
         if not writer_rows:
             flash("Add at least one writer.")
-            return render_template_string(FORM_HTML, **collect_form_context())
+            return render_template_string(
+            FORM_HTML,
+            **collect_form_context(),
+            **collect_submitted_form_data()
+        )
 
         if abs(total_split - 100.0) >= 0.001:
             flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
-            return render_template_string(FORM_HTML, **collect_form_context())
+            return render_template_string(
+            FORM_HTML,
+            **collect_form_context(),
+            **collect_submitted_form_data()
+        )
 
         seen_writer_ids = set()
         seen_ipis = set()
@@ -1954,18 +2075,30 @@ def formulario():
             if selected_writer_id:
                 if selected_writer_id in seen_writer_ids:
                     flash("Duplicate writer selected in this work: " + row["full_name"])
-                    return render_template_string(FORM_HTML, **collect_form_context())
+                    return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
                 seen_writer_ids.add(selected_writer_id)
             if ipi:
                 ipi_key = ipi.lower()
                 if ipi_key in seen_ipis:
                     flash("Duplicate IPI in this work: " + ipi)
-                    return render_template_string(FORM_HTML, **collect_form_context())
+                    return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
                 seen_ipis.add(ipi_key)
             else:
                 if normalized_name in seen_names:
                     flash("Duplicate writer name in this work: " + row["full_name"])
-                    return render_template_string(FORM_HTML, **collect_form_context())
+                    return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
                 seen_names.add(normalized_name)
 
         for row in writer_rows:
@@ -1975,7 +2108,11 @@ def formulario():
                     selected_id = (row["selected_writer_id"] or "").strip()
                     if not selected_id or str(existing_ipi_writer.id) != selected_id:
                         flash("IPI " + row["ipi"] + " already belongs to " + existing_ipi_writer.full_name + ". Please select the existing writer.")
-                        return render_template_string(FORM_HTML, **collect_form_context())
+                        return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
 
         warnings = []
         for row in writer_rows:
@@ -2023,7 +2160,11 @@ def formulario():
             batch = GenerationBatch.query.get(int(existing_batch_id))
             if not batch:
                 flash("Selected session was not found.")
-                return render_template_string(FORM_HTML, **collect_form_context())
+                return render_template_string(
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
+            )
 
             contract_date = batch.contract_date
 
@@ -2115,7 +2256,14 @@ def formulario():
         db.session.commit()
         return redirect(url_for("batch_detail", batch_id=batch.id))
 
-    return render_template_string(FORM_HTML, **collect_form_context())
+    return render_template_string(
+        FORM_HTML,
+        **collect_form_context(),
+        work_title_value="",
+        contract_date_value="",
+        new_session_name_value="",
+        submitted_writers=[],
+    )
 
 
 @app.route("/writers/search")
