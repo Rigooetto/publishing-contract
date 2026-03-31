@@ -679,8 +679,8 @@ _SB_JS = """
 
 def _sidebar(active):
     pages = [
-        ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
         ("formulario",   "New Work",  "<span class='ni ni-pencil-custom'></span>"),
+        ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
         ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
     ]
 
@@ -920,15 +920,37 @@ function writerTpl(i, data) {
   h += '<div class="field"><label class="label">AKA / Stage</label>';
   h += '<input class="inp waka" name="writer_aka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
   h += '</div>';
+   h += '<div class="wc-sec">Writer Address</div>';
+  h += '<div class="g g4a" style="gap:10px">';
+  h += '<div class="field"><label class="label">Street</label>';
+  h += '<input class="inp waddr" name="writer_address" placeholder="Street Address" value="' + (data.address || '') + '"></div>';
+
+  h += '<div class="field"><label class="label">City</label>';
+  h += '<input class="inp wcity" name="writer_city" placeholder="City" value="' + (data.city || '') + '"></div>';
+
+  h += '<div class="field"><label class="label">State</label>';
+  h += '<input class="inp wst" name="writer_state" placeholder="ST" value="' + (data.state || '') + '"></div>';
+
+  h += '<div class="field"><label class="label">Zip</label>';
+  h += '<input class="inp wzip" name="writer_zip_code" placeholder="Zip" value="' + (data.zip_code || '') + '"></div>';
+  h += '</div>';
+
+  h += '<div class="wc-sec">Contact</div>';
+  h += '<div class="g g2" style="gap:10px">';
+  h += '<div class="field"><label class="label">Email</label>';
+  h += '<input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email" value="' + (data.email || '') + '"></div>';
+
+  h += '<div class="field"><label class="label">Phone Number</label>';
+  h += '<input class="inp wphone" name="writer_phone_number" placeholder="Phone Number" value="' + (data.phone_number || '') + '"></div>';
+  h += '</div>';
 
   h += '<div class="wc-sec">Publishing</div>';
-  h += '<div class="g g5" style="gap:10px">';
+  h += '<div class="g g3" style="gap:10px">';
+  h += '<div class="field"><label class="label">Writer %</label>';
+  h += '<input class="inp wspl" name="writer_percentage" placeholder="0" type="number" step="0.01" min="0" max="100" value="' + (data.writer_percentage || '') + '"></div>';
 
   h += '<div class="field"><label class="label">IPI #</label>';
   h += '<input class="inp wipi" name="writer_ipi" placeholder="IPI Number" value="' + (data.ipi || '') + '"></div>';
-
-  h += '<div class="field"><label class="label">Email</label>';
-  h += '<input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email" value="' + (data.email || '') + '"></div>';
 
   h += '<div class="field"><label class="label">PRO</label>';
   h += '<select class="inp wpro" name="writer_pro" onchange="syncPro(this)">';
@@ -937,16 +959,12 @@ function writerTpl(i, data) {
   h += '<option value="ASCAP"' + ((data.pro || '') === 'ASCAP' ? ' selected' : '') + '>ASCAP</option>';
   h += '<option value="SESAC"' + ((data.pro || '') === 'SESAC' ? ' selected' : '') + '>SESAC</option>';
   h += '</select></div>';
-
-  h += '<div class="field"><label class="label">Writer %</label>';
-  h += '<input class="inp wspl" name="writer_percentage" placeholder="0" type="number" step="0.01" min="0" max="100" value="' + (data.writer_percentage || '') + '"></div>';
-
-  h += '<div class="field"><label class="label">Publisher</label>';
-  h += '<input class="inp wpub" name="writer_publisher" placeholder="Publisher Name" value="' + (data.publisher || '') + '"></div>';
   h += '</div>';
 
   h += '<div class="wc-sec">Publisher Details</div>';
   h += '<div class="g g52" style="gap:10px">';
+  h += '<div class="field"><label class="label">Publisher</label>';
+  h += '<input class="inp wpub" name="writer_publisher" placeholder="Publisher Name" value="' + (data.publisher || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Publisher IPI</label>';
   h += '<input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI" value="' + (data.publisher_ipi || '') + '"></div>';
@@ -964,20 +982,6 @@ function writerTpl(i, data) {
   h += '<input class="inp wpzip" name="publisher_zip_code" value="' + (data.publisher_zip_code || defZip) + '" placeholder="Zip"></div>';
   h += '</div>';
 
-  h += '<div class="wc-sec">Writer Address</div>';
-  h += '<div class="g g4a" style="gap:10px">';
-
-  h += '<div class="field"><label class="label">Street</label>';
-  h += '<input class="inp waddr" name="writer_address" placeholder="Street Address" value="' + (data.address || '') + '"></div>';
-
-  h += '<div class="field"><label class="label">City</label>';
-  h += '<input class="inp wcity" name="writer_city" placeholder="City" value="' + (data.city || '') + '"></div>';
-
-  h += '<div class="field"><label class="label">State</label>';
-  h += '<input class="inp wst" name="writer_state" placeholder="ST" value="' + (data.state || '') + '"></div>';
-
-  h += '<div class="field"><label class="label">Zip</label>';
-  h += '<input class="inp wzip" name="writer_zip_code" placeholder="Zip" value="' + (data.zip_code || '') + '"></div>';
 
   h += '</div>';
   h += '</div>';
@@ -2146,6 +2150,7 @@ def formulario():
         writer_akas = request.form.getlist("writer_aka")
         ipis = request.form.getlist("writer_ipi")
         emails = request.form.getlist("writer_email")
+        phones = request.form.getlist("writer_phone_number")
         pros = request.form.getlist("writer_pro")
         percentages = request.form.getlist("writer_percentage")
         publishers = request.form.getlist("writer_publisher")
@@ -2187,6 +2192,7 @@ def formulario():
                 "writer_aka": (writer_akas[i] or "").strip(),
                 "ipi": (ipis[i] or "").strip(),
                 "email": (emails[i] or "").strip(),
+                "phone_number": (phones[i] if i < len(phones) else "").strip(),
                 "pro": (pros[i] or "").strip(),
                 "writer_percentage": split_value,
                 "publisher": (publishers[i] or "").strip(),
