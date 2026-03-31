@@ -1222,10 +1222,10 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           {% endif %}
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
-        <button onclick="return confirm('Create anyway? This may duplicate an existing work.')">
+        <button type="submit" class="btn btn-danger">Continue Anyway</button>
       </form>
 
-            <form method="post" style="margin:0">
+      <form method="post" style="margin:0">
         {% for key, value in form_data.items() %}
           {% if value is string %}
             <input type="hidden" name="{{ key }}" value="{{ value }}">
