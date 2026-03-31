@@ -1213,12 +1213,14 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
     <div style="display:flex;gap:10px">
       <form method="post" style="margin:0">
         {% for key, value in form_data.items() %}
-          {% if value is string %}
-            <input type="hidden" name="{{ key }}" value="{{ value }}">
-          {% else %}
-            {% for item in value %}
-              <input type="hidden" name="{{ key }}" value="{{ item }}">
-            {% endfor %}
+          {% if key != "force_create" and key != "return_to_form" %}
+            {% if value is string %}
+              <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% else %}
+              {% for item in value %}
+                <input type="hidden" name="{{ key }}" value="{{ item }}">
+              {% endfor %}
+            {% endif %}
           {% endif %}
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
@@ -1227,16 +1229,18 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 
       <form method="post" style="margin:0">
         {% for key, value in form_data.items() %}
-          {% if value is string %}
-            <input type="hidden" name="{{ key }}" value="{{ value }}">
-          {% else %}
-            {% for item in value %}
-              <input type="hidden" name="{{ key }}" value="{{ item }}">
-            {% endfor %}
+          {% if key != "force_create" and key != "return_to_form" %}
+            {% if value is string %}
+              <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% else %}
+              {% for item in value %}
+                <input type="hidden" name="{{ key }}" value="{{ item }}">
+              {% endfor %}
+            {% endif %}
           {% endif %}
         {% endfor %}
-        <input type="hidden" name="return_to_form" value="1">
-        <button type="submit" class="btn btn-sec">Cancel</button>
+        <input type="hidden" name="force_create" value="1">
+        <button type="submit" class="btn btn-danger">Continue Anyway</button>
       </form>
     </div>
 </div>
