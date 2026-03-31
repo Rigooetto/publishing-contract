@@ -683,6 +683,7 @@ def _sidebar(active):
         ("formulario",   "New Work",  "<span class='ni ni-pencil-custom'></span>"),
         ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
         ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
+        
     ]
 
     html = "<aside class='sb' id='mainSidebar'>"
@@ -1937,6 +1938,201 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
 
 
 # ================================================================
+# WRITER DIRECTORY
+# ================================================================
+
+WRITERS_LIST_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Writers - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("writers_list") + """
+<main class="main">
+""" + _topbar("writers") + """
+<div class="page">
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128101;</div>
+    <div>
+      <div class="ph-title">Writer Directory</div>
+      <div class="ph-sub">Search and review all writers in the system</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="inp" name="q" value="{{ q }}" placeholder="Search by name, IPI, email, or phone..." style="max-width:420px">
+      <button class="btn btn-sec" type="submit">Search</button>
+      {% if q %}<a href="/writers" class="btn btn-sec">Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Writers</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl" style="min-width:980px">
+      <thead>
+        <tr>
+          <th>Writer</th>
+          <th>AKA</th>
+          <th>IPI</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>PRO</th>
+          <th>Works</th>
+          <th>Master Contract</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in writers %}
+        <tr>
+          <td style="font-weight:600">{{ item.writer.full_name }}</td>
+          <td style="color:var(--t2)">{{ item.writer.writer_aka or '--' }}</td>
+          <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ item.writer.ipi or '--' }}</td>
+          <td style="color:var(--t2)">{{ item.writer.email or '--' }}</td>
+          <td style="color:var(--t2)">{{ item.writer.phone_number or '--' }}</td>
+          <td><span class="tag tag-full">{{ item.writer.pro or '--' }}</span></td>
+          <td>
+            <span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">
+              {{ item.work_count }}
+            </span>
+          </td>
+          <td>
+            {% if item.writer.has_master_contract %}
+              <span class="tag tag-s1">Yes</span>
+            {% else %}
+              <span style="color:var(--t3)">No</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--t3);font-size:12px">{{ item.writer.created_at.strftime('%b %d, %Y') if item.writer.created_at else '--' }}</td>
+          <td><a href="/writers/{{ item.writer.id }}" class="btn btn-sec btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+        {% if not writers %}
+          <tr class="empty"><td colspan="10">No writers found{% if q %} for "{{ q }}"{% endif %}.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+</body></html>"""
+
+
+# ================================================================
+# WRITER PROFILE HTML
+# ================================================================
+
+WRITER_DETAIL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ writer.full_name }} - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("writers_list") + """
+<main class="main">
+""" + _topbar("writers") + """
+<div class="page">
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128101;</div>
+    <div>
+      <div class="ph-title">{{ writer.full_name }}</div>
+      <div class="ph-sub">{{ writer.writer_aka or 'Writer profile' }}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/writers" class="btn btn-sec btn-sm">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Writer Info</span></div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item"><label>First Name</label><span>{{ writer.first_name or '--' }}</span></div>
+      <div class="info-item"><label>Middle Name</label><span>{{ writer.middle_name or '--' }}</span></div>
+      <div class="info-item"><label>Last Name(s)</label><span>{{ writer.last_names or '--' }}</span></div>
+      <div class="info-item"><label>AKA / Stage</label><span>{{ writer.writer_aka or '--' }}</span></div>
+      <div class="info-item"><label>IPI</label><span>{{ writer.ipi or '--' }}</span></div>
+      <div class="info-item"><label>PRO</label><span>{{ writer.pro or '--' }}</span></div>
+      <div class="info-item"><label>Email</label><span>{{ writer.email or '--' }}</span></div>
+      <div class="info-item"><label>Phone</label><span>{{ writer.phone_number or '--' }}</span></div>
+      <div class="info-item"><label>Street</label><span>{{ writer.address or '--' }}</span></div>
+      <div class="info-item"><label>City</label><span>{{ writer.city or '--' }}</span></div>
+      <div class="info-item"><label>State</label><span>{{ writer.state or '--' }}</span></div>
+      <div class="info-item"><label>Zip</label><span>{{ writer.zip_code or '--' }}</span></div>
+      <div class="info-item"><label>Master Contract</label>
+        <span>{% if writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}No{% endif %}</span>
+      </div>
+      <div class="info-item"><label>Created</label><span>{{ writer.created_at.strftime('%b %d, %Y %H:%M') if writer.created_at else '--' }}</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Works</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl" style="min-width:920px">
+      <thead>
+        <tr>
+          <th>Work Title</th>
+          <th>Split %</th>
+          <th>Publisher</th>
+          <th>Publisher IPI</th>
+          <th>Session</th>
+          <th>Contract Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ww in work_writers %}
+        <tr>
+          <td style="font-weight:600">{{ ww.work.title if ww.work else '--' }}</td>
+          <td style="font-family:var(--fm);font-size:13px;color:var(--a)">{{ "%.2f"|format(ww.writer_percentage or 0) }}%</td>
+          <td style="color:var(--t2)">{{ ww.publisher or '--' }}</td>
+          <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ ww.publisher_ipi or '--' }}</td>
+          <td style="color:var(--t2)">
+            {% if ww.work and ww.work.batch_id %}
+              <a href="/batches/{{ ww.work.batch_id }}" style="color:var(--a)">
+                {% if ww.work.batch and ww.work.batch.session_name %}{{ ww.work.batch.session_name }}{% else %}Session #{{ ww.work.batch_id }}{% endif %}
+              </a>
+            {% else %}
+              --
+            {% endif %}
+          </td>
+          <td style="color:var(--t2);font-size:12px">{{ ww.work.contract_date.strftime('%b %d, %Y') if ww.work and ww.work.contract_date else '--' }}</td>
+          <td>{% if ww.work %}<a href="/works/{{ ww.work.id }}" class="btn btn-sec btn-sm">View Work</a>{% else %}--{% endif %}</td>
+        </tr>
+        {% endfor %}
+        {% if not work_writers %}
+          <tr class="empty"><td colspan="7">No works found for this writer.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+</body></html>"""
+
+# ================================================================
 # HELPERS
 # ================================================================
 
@@ -2087,6 +2283,35 @@ def get_batch_writer_summary(batch_id):
         summary.append({"writer": item["writer"], "work_count": len(item["work_titles"])})
     summary.sort(key=lambda x: x["writer"].full_name.lower())
     return summary
+
+def get_writer_directory_rows(q=""):
+    query = Writer.query
+
+    if q:
+        like_q = "%" + q.lower() + "%"
+        query = query.filter(
+            db.or_(
+                func.lower(Writer.full_name).like(like_q),
+                func.lower(Writer.first_name).like(like_q),
+                func.lower(Writer.middle_name).like(like_q),
+                func.lower(Writer.last_names).like(like_q),
+                func.lower(Writer.writer_aka).like(like_q),
+                func.lower(Writer.ipi).like(like_q),
+                func.lower(Writer.email).like(like_q),
+                func.lower(Writer.phone_number).like(like_q),
+            )
+        )
+
+    writers = query.order_by(Writer.full_name.asc()).all()
+
+    rows = []
+    for writer in writers:
+        work_count = WorkWriter.query.filter_by(writer_id=writer.id).count()
+        rows.append({
+            "writer": writer,
+            "work_count": work_count,
+        })
+    return rows
 
 
 # ================================================================
@@ -2978,6 +3203,39 @@ def upload_signed_document(document_id):
     flash("Signed file uploaded successfully.")
     return redirect(url_for("batch_detail", batch_id=document.batch_id))
 
+@app.route("/writers")
+def writers_list():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    q = (request.args.get("q") or "").strip()
+    writers = get_writer_directory_rows(q)
+    return render_template_string(
+        WRITERS_LIST_HTML,
+        writers=writers,
+        q=q,
+    )
+
+
+@app.route("/writers/<int:writer_id>")
+def writer_detail(writer_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    writer = Writer.query.get_or_404(writer_id)
+    work_writers = (
+        WorkWriter.query
+        .filter_by(writer_id=writer.id)
+        .join(Work)
+        .order_by(Work.created_at.desc())
+        .all()
+    )
+
+    return render_template_string(
+        WRITER_DETAIL_HTML,
+        writer=writer,
+        work_writers=work_writers,
+    )
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id):
