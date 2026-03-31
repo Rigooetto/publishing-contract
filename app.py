@@ -1224,7 +1224,12 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           {% endif %}
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
-        <button type="submit" class="btn btn-danger">Continue Anyway</button>
+        <button 
+          type="submit" 
+          class="btn btn-danger"
+          onclick="if(confirm('Create duplicate work?')){ this.disabled=true; this.form.submit(); } return false;">
+          Continue Anyway
+        </button>
       </form>
 
       <form method="post" style="margin:0">
