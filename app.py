@@ -2135,13 +2135,9 @@ def formulario():
             if existing_identities == writer_identity_set:
                 possible_duplicates.append({
                     "title": existing_work.title,
-                    batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
-
-                    possible_duplicates.append({
-                        "title": existing_work.title,
-                        "camp_name": batch.session_name if batch and batch.session_name else "",
-                        "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
-                    })
+                    "camp_name": batch.session_name if batch and batch.session_name else "",
+                    "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                })
 
 
         if possible_duplicates and not request.form.get("force_create"):
