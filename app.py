@@ -2037,7 +2037,17 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
             {% for ww in work.work_writers %}
             <tr class="work-writer-row existing-row">
               <td style="font-weight:600">
-                {{ ww.writer.full_name if ww.writer else '--' }}
+                {% if ww.writer %}
+                  <button
+                    type="button"
+                    class="btn btn-sec btn-sm"
+                    style="padding:4px 8px"
+                    onclick="openWriterModal({{ ww.writer.id }})">
+                    {{ ww.writer.full_name }}
+                  </button>
+                {% else %}
+                  --
+                {% endif %}
                 <input type="hidden" name="work_writer_id" value="{{ ww.id }}">
                 <input type="hidden" name="existing_writer_id" value="{{ ww.writer.id if ww.writer else '' }}">
               </td>
@@ -2083,6 +2093,22 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 </div>
 </main>
 </div>
+
+<div id="writerEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;">
+  <div id="writerEditPanel" style="position:absolute;top:5%;left:50%;transform:translateX(-50%);width:92%;max-width:900px;height:88%;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);">
+    
+    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);">
+      <span style="font-weight:600;">Edit Writer</span>
+      <button type="button" onclick="closeWriterModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
+    </div>
+
+    <div id="writerModalBody" style="padding:18px;overflow:auto;flex:1;">
+      <div style="color:white">Loading writer...</div>
+    </div>
+
+  </div>
+</div>
+
 """ + _SB_JS + """
 <script>
 function recalcEditSplit() {
@@ -2198,6 +2224,64 @@ document.addEventListener('DOMContentLoaded', function() {
     inp.addEventListener('input', recalcEditSplit);
   });
   recalcEditSplit();
+});
+
+function openWriterModal(writerId) {
+  var modal = document.getElementById('writerEditModal');
+  var body = document.getElementById('writerModalBody');
+
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  body.innerHTML = '<div style="color:white">Loading writer...</div>';
+
+  fetch('/writers/' + writerId + '/modal')
+    .then(function(res) { return res.text(); })
+    .then(function(html) {
+      body.innerHTML = html;
+    })
+    .catch(function() {
+      body.innerHTML = '<div style="color:#ff8a8a">Failed to load writer.</div>';
+    });
+}
+
+function closeWriterModal() {
+  document.getElementById('writerEditModal').style.display = 'none';
+  document.getElementById('writerModalBody').innerHTML = '<div style="color:white">Loading writer...</div>';
+  document.body.style.overflow = 'auto';
+}
+
+function saveWriterModal(e, writerId) {
+  e.preventDefault();
+
+  var form = document.getElementById('writerModalForm');
+  var err = document.getElementById('writerModalError');
+  err.textContent = '';
+
+  var fd = new FormData(form);
+
+  fetch('/writers/' + writerId + '/modal-save', {
+    method: 'POST',
+    body: fd
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (!data.ok) {
+      err.textContent = data.error || 'Failed to save writer.';
+      return;
+    }
+
+    window.location.reload();
+  })
+  .catch(function() {
+    err.textContent = 'Failed to save writer.';
+  });
+}
+
+document.addEventListener('click', function(e) {
+  var modal = document.getElementById('writerEditModal');
+  if (e.target === modal) {
+    closeWriterModal();
+  }
 });
 </script>
 </body></html>"""
@@ -2539,6 +2623,93 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
 </div>
 """ + _SB_JS + """
 </body></html>"""
+
+# ================================================================
+# WRITER MODAL
+# ================================================================
+
+WRITER_MODAL_HTML = """
+<form id="writerModalForm" onsubmit="saveWriterModal(event, {{ writer.id }})">
+  <div class="g g4" style="margin-bottom:12px">
+    <div class="field">
+      <label class="label">First Name</label>
+      <input class="inp" name="first_name" value="{{ writer.first_name or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">Middle Name</label>
+      <input class="inp" name="middle_name" value="{{ writer.middle_name or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">Last Name(s)</label>
+      <input class="inp" name="last_names" value="{{ writer.last_names or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">AKA / Stage</label>
+      <input class="inp" name="writer_aka" value="{{ writer.writer_aka or '' }}">
+    </div>
+  </div>
+
+  <div class="g g2" style="margin-bottom:12px">
+    <div class="field">
+      <label class="label">Email</label>
+      <input class="inp" name="email" type="email" value="{{ writer.email or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">Phone Number</label>
+      <input class="inp" name="phone_number" value="{{ writer.phone_number or '' }}">
+    </div>
+  </div>
+
+  <div class="g g3" style="margin-bottom:12px">
+    <div class="field">
+      <label class="label">IPI</label>
+      <input class="inp" name="ipi" value="{{ writer.ipi or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">PRO</label>
+      <select class="inp" name="pro">
+        <option value="">Select PRO</option>
+        <option value="BMI" {% if writer.pro == 'BMI' %}selected{% endif %}>BMI</option>
+        <option value="ASCAP" {% if writer.pro == 'ASCAP' %}selected{% endif %}>ASCAP</option>
+        <option value="SESAC" {% if writer.pro == 'SESAC' %}selected{% endif %}>SESAC</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="label">Master Contract</label>
+      <select class="inp" name="has_master_contract">
+        <option value="0" {% if not writer.has_master_contract %}selected{% endif %}>No</option>
+        <option value="1" {% if writer.has_master_contract %}selected{% endif %}>Yes</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="g g4a" style="margin-bottom:12px">
+    <div class="field">
+      <label class="label">Street</label>
+      <input class="inp" name="address" value="{{ writer.address or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">City</label>
+      <input class="inp" name="city" value="{{ writer.city or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">State</label>
+      <input class="inp" name="state" value="{{ writer.state or '' }}">
+    </div>
+    <div class="field">
+      <label class="label">Zip</label>
+      <input class="inp" name="zip_code" value="{{ writer.zip_code or '' }}">
+    </div>
+  </div>
+
+  <div id="writerModalError" style="color:#ff8a8a;font-size:12px;margin-bottom:12px;"></div>
+
+  <div style="display:flex;justify-content:flex-end;gap:8px">
+    <button type="button" class="btn btn-sec" onclick="closeWriterModal()">Cancel</button>
+    <button type="submit" class="btn btn-primary">Save Writer</button>
+  </div>
+</form>
+"""
 
 # ================================================================
 # HELPERS
@@ -3874,6 +4045,90 @@ def work_edit(work_id):
         return redirect(url_for("work_detail", work_id=work.id))
 
     return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+@app.route("/writers/<int:writer_id>/modal-save", methods=["POST"])
+def writer_modal_save(writer_id):
+    if auth_required():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    writer = Writer.query.get_or_404(writer_id)
+
+    first_name = (request.form.get("first_name") or "").strip()
+    middle_name = (request.form.get("middle_name") or "").strip()
+    last_names = (request.form.get("last_names") or "").strip()
+    full_name = build_full_name(first_name, middle_name, last_names)
+    writer_aka = (request.form.get("writer_aka") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    phone_number = (request.form.get("phone_number") or "").strip()
+    ipi = (request.form.get("ipi") or "").strip()
+    pro = (request.form.get("pro") or "").strip()
+    address = (request.form.get("address") or "").strip()
+    city = (request.form.get("city") or "").strip()
+    state = (request.form.get("state") or "").strip()
+    zip_code = (request.form.get("zip_code") or "").strip()
+    has_master_contract = request.form.get("has_master_contract") == "1"
+
+    if not first_name or not last_names:
+        return jsonify({"ok": False, "error": "First and last name are required."})
+
+    if not email or "@" not in email:
+        return jsonify({"ok": False, "error": "Valid email is required."})
+
+    if not ipi:
+        return jsonify({"ok": False, "error": "IPI is required."})
+
+    if not pro:
+        return jsonify({"ok": False, "error": "PRO is required."})
+
+    existing_ipi = Writer.query.filter(
+        func.lower(Writer.ipi) == ipi.lower(),
+        Writer.id != writer.id
+    ).first()
+    if existing_ipi:
+        return jsonify({"ok": False, "error": "That IPI already belongs to " + existing_ipi.full_name})
+
+    existing_name = Writer.query.filter(
+        func.lower(Writer.full_name) == full_name.lower(),
+        Writer.id != writer.id
+    ).first()
+    if existing_name:
+        return jsonify({"ok": False, "error": "That full name already exists for another writer."})
+
+    writer.first_name = first_name
+    writer.middle_name = middle_name
+    writer.last_names = last_names
+    writer.full_name = full_name
+    writer.writer_aka = writer_aka
+    writer.email = email
+    writer.phone_number = phone_number
+    writer.ipi = ipi
+    writer.pro = pro
+    writer.address = address
+    writer.city = city
+    writer.state = state
+    writer.zip_code = zip_code
+    writer.has_master_contract = has_master_contract
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "writer": {
+            "id": writer.id,
+            "full_name": writer.full_name,
+            "ipi": writer.ipi or "",
+            "pro": writer.pro or "",
+            "email": writer.email or ""
+        }
+    })
+
+@app.route("/writers/<int:writer_id>/modal")
+def writer_modal(writer_id):
+    if auth_required():
+        return ""
+
+    writer = Writer.query.get_or_404(writer_id)
+    return render_template_string(WRITER_MODAL_HTML, writer=writer)
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id):
