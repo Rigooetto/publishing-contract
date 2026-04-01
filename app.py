@@ -6,6 +6,7 @@ from babel.dates import format_date
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+from sqlalchemy import func, or_
 import io
 import os
 import re
@@ -4256,7 +4257,12 @@ def writer_modal_save(writer_id):
     writer.default_publisher_ipi = default_publisher_ipi
     
     WorkWriter.query.filter(
-        WorkWriter.writer_id == writer.id
+        WorkWriter.writer_id == writer.id,
+        or_(
+            WorkWriter.publisher == None,
+            WorkWriter.publisher == "",
+            WorkWriter.publisher == old_default_publisher
+        )
     ).update({
         WorkWriter.publisher: default_publisher,
         WorkWriter.publisher_ipi: default_publisher_ipi
