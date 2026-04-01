@@ -2673,8 +2673,19 @@ def formulario():
         states = request.form.getlist("writer_state")
         zip_codes = request.form.getlist("writer_zip_code")
 
-        writer_rows = []
         total_split = 0.0
+        for pct in writer_percentages:
+            try:
+                total_split += float((pct or "0").strip() or 0)
+            except ValueError:
+                flash("Invalid writer split value.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        if abs(total_split - 100.0) >= 0.001:
+            flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        
 
         for i in range(len(first_names)):
             first_name = (first_names[i] or "").strip()
@@ -3653,6 +3664,29 @@ def work_edit(work_id):
         work.title = title
         work.normalized_title = normalized_title
         work.contract_date = contract_date
+
+        if batch_id:
+            batch = GenerationBatch.query.get(int(batch_id))
+            if not batch:
+                flash("Selected session was not found.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+            work.batch_id = batch.id
+        else:
+            work.batch_id = None
+
+        for i, ww_id in enumerate(work_writer_ids):
+            ww = WorkWriter.query.get(int(ww_id))
+            if not ww or ww.work_id != work.id:
+                continue
+
+            try:
+                ww.writer_percentage = float((writer_percentages[i] or "0").strip() or 0)
+            except ValueError:
+                flash("Invalid split value for one of the writers.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+            ww.publisher = (publishers[i] or "").strip()
+            ww.publisher_ipi = (publisher_ipis[i] or "").strip()
 
         for i, ww_id in enumerate(work_writer_ids):
             ww = WorkWriter.query.get(int(ww_id))
