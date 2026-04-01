@@ -3521,8 +3521,8 @@ def search_writers():
             "state": w.state,
             "zip_code": w.zip_code,
             "has_master_contract": w.has_master_contract,
-            "default_publisher": default_publisher_for_pro(w.pro),
-            "default_publisher_ipi": default_publisher_ipi_for_pro(w.pro),
+            "default_publisher": w.default_publisher or default_publisher_for_pro(w.pro),
+            "default_publisher_ipi": w.default_publisher_ipi or default_publisher_ipi_for_pro(w.pro),
         }
         for w in writers
     ])
@@ -4320,8 +4320,8 @@ def writer_json(writer_id):
         "state": w.state or "",
         "zip_code": w.zip_code or "",
         "has_master_contract": w.has_master_contract,
-        "default_publisher": default_publisher_for_pro(w.pro),
-        "default_publisher_ipi": default_publisher_ipi_for_pro(w.pro),
+        "default_publisher": w.default_publisher or default_publisher_for_pro(w.pro),
+        "default_publisher_ipi": w.default_publisher_ipi or default_publisher_ipi_for_pro(w.pro),
     })
 
 
