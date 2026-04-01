@@ -3616,7 +3616,7 @@ def work_edit(work_id):
             flash("Contract date is required.")
             return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
-         try:
+        try:
             contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
         except ValueError:
             flash("Please enter a valid contract date.")
