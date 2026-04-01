@@ -1976,7 +1976,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<form method="post">
+<form method="post" id="workEditForm">
   <div class="card">
     <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
@@ -2012,10 +2012,16 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
   </div>
 
   <div class="card">
-    <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Work Writers</span></div>
+    <div class="card-hd">
+      <div class="card-ico">&#128101;</div>
+      <span class="card-title">Work Writers</span>
+      <div class="card-actions">
+        <button type="button" class="btn btn-sec btn-sm" onclick="addExistingWriterRow()">+ Add Existing Writer</button>
+      </div>
+    </div>
     <div class="card-body">
       <div class="tbl-wrap">
-        <table class="tbl" style="min-width:980px">
+        <table class="tbl" style="min-width:1100px">
           <thead>
             <tr>
               <th>Writer</th>
@@ -2024,14 +2030,16 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
               <th>Split %</th>
               <th>Publisher</th>
               <th>Publisher IPI</th>
+              <th></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="workWriterTableBody">
             {% for ww in work.work_writers %}
-            <tr>
+            <tr class="work-writer-row existing-row">
               <td style="font-weight:600">
                 {{ ww.writer.full_name if ww.writer else '--' }}
                 <input type="hidden" name="work_writer_id" value="{{ ww.id }}">
+                <input type="hidden" name="existing_writer_id" value="{{ ww.writer.id if ww.writer else '' }}">
               </td>
               <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">
                 {{ ww.writer.ipi if ww.writer and ww.writer.ipi else '--' }}
@@ -2040,7 +2048,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
                 <span class="tag tag-full">{{ ww.writer.pro if ww.writer and ww.writer.pro else '--' }}</span>
               </td>
               <td>
-                <input class="inp" type="number" step="0.01" min="0" max="100" name="writer_percentage" value="{{ ww.writer_percentage or 0 }}">
+                <input class="inp split-inp" type="number" step="0.01" min="0" max="100" name="writer_percentage" value="{{ ww.writer_percentage or 0 }}">
               </td>
               <td>
                 <input class="inp" name="publisher" value="{{ ww.publisher or '' }}">
@@ -2048,14 +2056,22 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
               <td>
                 <input class="inp" name="publisher_ipi" value="{{ ww.publisher_ipi or '' }}">
               </td>
+              <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeWorkWriterRow(this)">Remove</button>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
-      <div style="margin-top:12px;color:var(--t2);font-size:12px">
-        Total split must equal 100%.
+      <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="color:var(--t2);font-size:12px">
+          Total split must equal 100%.
+        </div>
+        <div style="font-family:var(--fm);font-size:12px;color:var(--t1)">
+          Total: <span id="editSplitTotal">0.00</span>%
+        </div>
       </div>
     </div>
   </div>
@@ -2068,6 +2084,113 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function recalcEditSplit() {
+  var total = 0;
+  document.querySelectorAll('.split-inp').forEach(function(inp) {
+    total += parseFloat(inp.value || 0) || 0;
+  });
+  var el = document.getElementById('editSplitTotal');
+  if (el) el.textContent = total.toFixed(2);
+}
+
+function removeWorkWriterRow(btn) {
+  var row = btn.closest('tr');
+  if (row) row.remove();
+  recalcEditSplit();
+}
+
+function addExistingWriterRow() {
+  var tbody = document.getElementById('workWriterTableBody');
+  var tr = document.createElement('tr');
+  tr.className = 'work-writer-row new-row';
+  tr.innerHTML = `
+    <td>
+      <div class="ac-wrap" style="min-width:220px">
+        <input class="inp new-writer-search" type="text" placeholder="Search existing writer...">
+        <div class="ac-box new-writer-sug"></div>
+      </div>
+      <input type="hidden" name="work_writer_id" value="">
+      <input type="hidden" name="existing_writer_id" value="">
+      <div class="new-writer-name" style="margin-top:6px;font-size:12px;color:var(--t2)">No writer selected</div>
+    </td>
+    <td class="new-writer-ipi" style="font-family:var(--fm);font-size:12px;color:var(--t2)">--</td>
+    <td class="new-writer-pro"><span class="tag tag-full">--</span></td>
+    <td><input class="inp split-inp" type="number" step="0.01" min="0" max="100" name="writer_percentage" value="0"></td>
+    <td><input class="inp" name="publisher" value=""></td>
+    <td><input class="inp" name="publisher_ipi" value=""></td>
+    <td><button type="button" class="btn btn-danger btn-sm" onclick="removeWorkWriterRow(this)">Remove</button></td>
+  `;
+  tbody.appendChild(tr);
+
+  var searchInp = tr.querySelector('.new-writer-search');
+  var sug = tr.querySelector('.new-writer-sug');
+  var hiddenWriterId = tr.querySelector('input[name="existing_writer_id"]');
+  var displayName = tr.querySelector('.new-writer-name');
+  var ipiCell = tr.querySelector('.new-writer-ipi');
+  var proCell = tr.querySelector('.new-writer-pro');
+
+  searchInp.addEventListener('input', function() {
+    var q = (searchInp.value || '').trim();
+    if (q.length < 2) {
+      sug.style.display = 'none';
+      sug.innerHTML = '';
+      return;
+    }
+
+    fetch('/writers/search?q=' + encodeURIComponent(q))
+      .then(function(res) { return res.json(); })
+      .then(function(ws) {
+        if (!ws.length) {
+          sug.style.display = 'none';
+          sug.innerHTML = '';
+          return;
+        }
+
+        sug.innerHTML = ws.map(function(w) {
+          var safe = JSON.stringify(w).replace(/'/g, "&#39;");
+          return "<div class='ac-item' data-w='" + safe + "'>" +
+            "<strong>" + w.full_name + "</strong><br>" +
+            "<small>" + (w.ipi || '--') + "</small>" +
+            "</div>";
+        }).join('');
+        sug.style.display = 'block';
+
+        sug.querySelectorAll('.ac-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            var w = JSON.parse(item.dataset.w);
+            hiddenWriterId.value = w.id || '';
+            displayName.textContent = w.full_name || 'No writer selected';
+            ipiCell.textContent = w.ipi || '--';
+            proCell.innerHTML = "<span class='tag tag-full'>" + (w.pro || '--') + "</span>";
+            tr.querySelector('input[name="publisher"]').value = w.default_publisher || '';
+            tr.querySelector('input[name="publisher_ipi"]').value = w.default_publisher_ipi || '';
+            searchInp.value = '';
+            sug.style.display = 'none';
+            sug.innerHTML = '';
+          });
+        });
+      });
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!searchInp.contains(e.target) && !sug.contains(e.target)) {
+      sug.style.display = 'none';
+    }
+  });
+
+  var splitInp = tr.querySelector('.split-inp');
+  splitInp.addEventListener('input', recalcEditSplit);
+  recalcEditSplit();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.split-inp').forEach(function(inp) {
+    inp.addEventListener('input', recalcEditSplit);
+  });
+  recalcEditSplit();
+});
+</script>
 </body></html>"""
 
 # ================================================================
@@ -3610,7 +3733,9 @@ def work_edit(work_id):
         title = (request.form.get("title") or "").strip()
         contract_date_str = (request.form.get("contract_date") or "").strip()
         batch_id = (request.form.get("batch_id") or "").strip()
+
         work_writer_ids = request.form.getlist("work_writer_id")
+        existing_writer_ids = request.form.getlist("existing_writer_id")
         writer_percentages = request.form.getlist("writer_percentage")
         publishers = request.form.getlist("publisher")
         publisher_ipis = request.form.getlist("publisher_ipi")
@@ -3629,13 +3754,33 @@ def work_edit(work_id):
             flash("Please enter a valid contract date.")
             return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
+        # Build submitted writer identities from posted rows
+        submitted_writer_ids = []
         total_split = 0.0
-        for pct in writer_percentages:
+
+        for i in range(len(existing_writer_ids)):
+            writer_id = (existing_writer_ids[i] or "").strip()
+            pct = (writer_percentages[i] or "0").strip()
+
+            if not writer_id:
+                flash("Each work-writer row must have a selected writer.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+            if writer_id in submitted_writer_ids:
+                flash("Duplicate writer selected in this work.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+            submitted_writer_ids.append(writer_id)
+
             try:
-                total_split += float((pct or "0").strip() or 0)
+                total_split += float(pct or 0)
             except ValueError:
                 flash("Invalid writer split value.")
                 return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        if not submitted_writer_ids:
+            flash("At least one writer is required.")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
         if abs(total_split - 100.0) >= 0.001:
             flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
@@ -3643,9 +3788,7 @@ def work_edit(work_id):
 
         normalized_title = normalize_title(title)
 
-        writer_identity_set = sorted([
-            build_writer_identity_from_workwriter(ww) for ww in work.work_writers
-        ])
+        submitted_identities = sorted(["id:" + wid for wid in submitted_writer_ids])
 
         duplicate_query = Work.query.filter(
             Work.id != work.id,
@@ -3656,7 +3799,7 @@ def work_edit(work_id):
             existing_identities = sorted([
                 build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
             ])
-            if existing_identities == writer_identity_set:
+            if existing_identities == submitted_identities:
                 flash("Another work with this same title and writer set already exists.")
                 return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
@@ -3673,19 +3816,49 @@ def work_edit(work_id):
         else:
             work.batch_id = None
 
-        for i, ww_id in enumerate(work_writer_ids):
-            ww = WorkWriter.query.get(int(ww_id))
-            if not ww or ww.work_id != work.id:
-                continue
+        # Remove rows no longer submitted
+        existing_links = {str(ww.id): ww for ww in work.work_writers}
+        submitted_existing_link_ids = set([wid for wid in work_writer_ids if wid.strip()])
 
-            try:
-                ww.writer_percentage = float((writer_percentages[i] or "0").strip() or 0)
-            except ValueError:
-                flash("Invalid split value for one of the writers.")
+        for existing_link_id, ww in existing_links.items():
+            if existing_link_id not in submitted_existing_link_ids:
+                db.session.delete(ww)
+
+        # Update existing or create new rows
+        for i in range(len(existing_writer_ids)):
+            ww_id = (work_writer_ids[i] or "").strip()
+            writer_id = (existing_writer_ids[i] or "").strip()
+
+            writer = Writer.query.get(int(writer_id)) if writer_id else None
+            if not writer:
+                flash("Selected writer was not found.")
                 return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
-            ww.publisher = (publishers[i] or "").strip()
-            ww.publisher_ipi = (publisher_ipis[i] or "").strip()
+            pct = float((writer_percentages[i] or "0").strip() or 0)
+            publisher = (publishers[i] or "").strip()
+            publisher_ipi = (publisher_ipis[i] or "").strip()
+
+            if ww_id:
+                ww = WorkWriter.query.get(int(ww_id))
+                if not ww or ww.work_id != work.id:
+                    continue
+                ww.writer_id = writer.id
+                ww.writer_percentage = pct
+                ww.publisher = publisher
+                ww.publisher_ipi = publisher_ipi
+            else:
+                ww = WorkWriter(
+                    work_id=work.id,
+                    writer_id=writer.id,
+                    writer_percentage=pct,
+                    publisher=publisher,
+                    publisher_ipi=publisher_ipi,
+                    publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                    publisher_city=DEFAULT_PUBLISHER_CITY,
+                    publisher_state=DEFAULT_PUBLISHER_STATE,
+                    publisher_zip_code=DEFAULT_PUBLISHER_ZIP,
+                )
+                db.session.add(ww)
 
         db.session.commit()
         flash("Work updated successfully.")
