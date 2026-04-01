@@ -2630,6 +2630,8 @@ def formulario():
             **collect_form_context(),
             **collect_submitted_form_data()
         )
+        work_title = request.form.get("work_title")
+        
         if not contract_date_str:
             flash("Contract date is required.")
             return render_template_string(
