@@ -2097,6 +2097,15 @@ function recalcEditSplit() {
 function removeWorkWriterRow(btn) {
   var row = btn.closest('tr');
   if (row) row.remove();
+
+  var rows = document.querySelectorAll('#workWriterTableBody tr');
+  if (rows.length === 1) {
+    var onlySplit = rows[0].querySelector('.split-inp');
+    if (onlySplit) {
+      onlySplit.value = '100.00';
+    }
+  }
+
   recalcEditSplit();
 }
 
