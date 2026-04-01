@@ -1989,6 +1989,55 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
+            <div class="card">
+            <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Work Writers</span></div>
+            <div class="card-body">
+              <div class="tbl-wrap">
+                <table class="tbl" style="min-width:980px">
+                  <thead>
+                    <tr>
+                      <th>Writer</th>
+                      <th>IPI</th>
+                      <th>PRO</th>
+                      <th>Split %</th>
+                      <th>Publisher</th>
+                      <th>Publisher IPI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for ww in work.work_writers %}
+                    <tr>
+                      <td style="font-weight:600">
+                        {{ ww.writer.full_name if ww.writer else '--' }}
+                        <input type="hidden" name="work_writer_id" value="{{ ww.id }}">
+                      </td>
+                      <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">
+                        {{ ww.writer.ipi if ww.writer and ww.writer.ipi else '--' }}
+                      </td>
+                      <td>
+                        <span class="tag tag-full">{{ ww.writer.pro if ww.writer and ww.writer.pro else '--' }}</span>
+                      </td>
+                      <td>
+                        <input class="inp" type="number" step="0.01" min="0" max="100" name="writer_percentage" value="{{ ww.writer_percentage or 0 }}">
+                      </td>
+                      <td>
+                        <input class="inp" name="publisher" value="{{ ww.publisher or '' }}">
+                      </td>
+                      <td>
+                        <input class="inp" name="publisher_ipi" value="{{ ww.publisher_ipi or '' }}">
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style="margin-top:12px;color:var(--t2);font-size:12px">
+                Total split must equal 100%.
+              </div>
+            </div>
+          </div>   
+
       <div class="g g2">
         <div class="field">
           <label class="label">Session</label>
@@ -2253,22 +2302,31 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
 </div>
 
 <form method="post">
+
   <div class="card">
-    <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writer Information</span></div>
+    <div class="card-hd">
+      <div class="card-ico">&#128101;</div>
+      <span class="card-title">Writer Information</span>
+    </div>
+
     <div class="card-body">
+
       <div class="g g4" style="margin-bottom:12px">
         <div class="field">
           <label class="label">First Name</label>
           <input class="inp" name="first_name" value="{{ writer.first_name or '' }}">
         </div>
+
         <div class="field">
           <label class="label">Middle Name</label>
           <input class="inp" name="middle_name" value="{{ writer.middle_name or '' }}">
         </div>
+
         <div class="field">
           <label class="label">Last Name(s)</label>
           <input class="inp" name="last_names" value="{{ writer.last_names or '' }}">
         </div>
+
         <div class="field">
           <label class="label">AKA / Stage</label>
           <input class="inp" name="writer_aka" value="{{ writer.writer_aka or '' }}">
@@ -2280,6 +2338,7 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
           <label class="label">Email</label>
           <input class="inp" name="email" type="email" value="{{ writer.email or '' }}">
         </div>
+
         <div class="field">
           <label class="label">Phone Number</label>
           <input class="inp" name="phone_number" value="{{ writer.phone_number or '' }}">
@@ -2291,6 +2350,7 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
           <label class="label">IPI</label>
           <input class="inp" name="ipi" value="{{ writer.ipi or '' }}">
         </div>
+
         <div class="field">
           <label class="label">PRO</label>
           <select class="inp" name="pro">
@@ -2300,6 +2360,7 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
             <option value="SESAC" {% if writer.pro == 'SESAC' %}selected{% endif %}>SESAC</option>
           </select>
         </div>
+
         <div class="field">
           <label class="label">Master Contract</label>
           <select class="inp" name="has_master_contract">
@@ -2314,25 +2375,30 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
           <label class="label">Street</label>
           <input class="inp" name="address" value="{{ writer.address or '' }}">
         </div>
+
         <div class="field">
           <label class="label">City</label>
           <input class="inp" name="city" value="{{ writer.city or '' }}">
         </div>
+
         <div class="field">
           <label class="label">State</label>
           <input class="inp" name="state" value="{{ writer.state or '' }}">
         </div>
+
         <div class="field">
           <label class="label">Zip</label>
           <input class="inp" name="zip_code" value="{{ writer.zip_code or '' }}">
         </div>
       </div>
+
     </div>
   </div>
 
   <div class="ph-actions" style="justify-content:flex-end">
     <button type="submit" class="btn btn-primary">Save Changes</button>
   </div>
+
 </form>
 </div>
 </main>
@@ -3537,6 +3603,10 @@ def work_edit(work_id):
         title = (request.form.get("title") or "").strip()
         contract_date_str = (request.form.get("contract_date") or "").strip()
         batch_id = (request.form.get("batch_id") or "").strip()
+        work_writer_ids = request.form.getlist("work_writer_id")
+        writer_percentages = request.form.getlist("writer_percentage")
+        publishers = request.form.getlist("publisher")
+        publisher_ipis = request.form.getlist("publisher_ipi")
 
         if not title:
             flash("Work title is required.")
@@ -3546,11 +3616,24 @@ def work_edit(work_id):
             flash("Contract date is required.")
             return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
-        try:
+         try:
             contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
         except ValueError:
             flash("Please enter a valid contract date.")
             return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        total_split = 0.0
+        for pct in writer_percentages:
+            try:
+                total_split += float((pct or "0").strip() or 0)
+            except ValueError:
+                flash("Invalid writer split value.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        if abs(total_split - 100.0) >= 0.001:
+            flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+        
 
         normalized_title = normalize_title(title)
 
@@ -3574,6 +3657,20 @@ def work_edit(work_id):
         work.title = title
         work.normalized_title = normalized_title
         work.contract_date = contract_date
+
+        for i, ww_id in enumerate(work_writer_ids):
+            ww = WorkWriter.query.get(int(ww_id))
+            if not ww or ww.work_id != work.id:
+                continue
+
+            try:
+                ww.writer_percentage = float((writer_percentages[i] or "0").strip() or 0)
+            except ValueError:
+                flash("Invalid split value for one of the writers.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+            ww.publisher = (publishers[i] or "").strip()
+            ww.publisher_ipi = (publisher_ipis[i] or "").strip()
 
         if batch_id:
             batch = GenerationBatch.query.get(int(batch_id))
