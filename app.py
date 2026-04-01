@@ -2623,6 +2623,8 @@ def formulario():
         work_title = (request.form.get("work_title") or "").strip()
         contract_date_str = (request.form.get("contract_date") or "").strip()
 
+        normalized_title = normalize_title(work_title)
+
         if not work_title:
             flash("Work title is required.")
             return render_template_string(
@@ -2630,8 +2632,8 @@ def formulario():
             **collect_form_context(),
             **collect_submitted_form_data()
         )
-        work_title = request.form.get("work_title")
-        
+
+
         if not contract_date_str:
             flash("Contract date is required.")
             return render_template_string(
