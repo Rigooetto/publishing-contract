@@ -4336,14 +4336,18 @@ def work_detail(work_id):
         .order_by(ContractDocument.generated_at.desc())
         .all()
     )
-    return render_template_string(WORK_DETAIL_HTML, work=work, documents=documents)
+    return render_template_string(
+    WRITER_MODAL_HTML,
+    writer=writer,
+    default_publisher_for_pro=default_publisher_for_pro
+)
 
 
 try:
     init_db()
 except Exception as e:
     print("DB INIT ERROR:", e)
-    
+
 with app.app_context():
     print("Creating DB...")
     db.create_all()
