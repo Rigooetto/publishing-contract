@@ -873,6 +873,19 @@ FORM_HTML = """<!DOCTYPE html>
 </div>
 </main>
 </div>
+
+<div id="writerEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;">
+  <div id="writerEditPanel" style="position:absolute;top:5%;left:50%;transform:translateX(-50%);width:92%;max-width:900px;height:88%;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);">
+    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);">
+      <span style="font-weight:600;">Edit Writer</span>
+      <button type="button" onclick="closeWriterModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div id="writerModalBody" style="padding:18px;overflow:auto;flex:1;">
+      <div style="color:white">Loading writer...</div>
+    </div>
+  </div>
+</div>
+
 """ + _SB_JS + """
 <script>
 var proMap = {
@@ -1045,7 +1058,15 @@ function updateHdr(r) {
   var n = fullName(r) || 'Writer ' + (i + 1);
   var pro = r.querySelector('.wpro').value || '--';
   var pct = r.querySelector('.wspl').value || '--';
-  r.querySelector('.wc-dn').textContent = n;
+  var writerId = r.querySelector('.wid').value || '';
+
+  if (writerId) {
+    r.querySelector('.wc-dn').innerHTML =
+      '<button type="button" class="btn btn-sec btn-sm" style="padding:3px 8px" onclick="event.stopPropagation(); openWriterModal(' + writerId + ')">' + n + '</button>';
+  } else {
+    r.querySelector('.wc-dn').textContent = n;
+  }
+
   r.querySelector('.wc-ds').textContent = pro + ' / ' + pct + '%';
 }
 
@@ -1174,6 +1195,83 @@ if (submittedWriters && submittedWriters.length) {
 } else {
   addWriter();
 }
+
+function openWriterModal(writerId) {
+  var modal = document.getElementById('writerEditModal');
+  var body = document.getElementById('writerModalBody');
+
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  body.innerHTML = '<div style="color:white">Loading writer...</div>';
+
+  fetch('/writers/' + writerId + '/modal')
+    .then(function(res) { return res.text(); })
+    .then(function(html) {
+      body.innerHTML = html;
+    })
+    .catch(function() {
+      body.innerHTML = '<div style="color:#ff8a8a">Failed to load writer.</div>';
+    });
+}
+
+function closeWriterModal() {
+  document.getElementById('writerEditModal').style.display = 'none';
+  document.getElementById('writerModalBody').innerHTML = '<div style="color:white">Loading writer...</div>';
+  document.body.style.overflow = 'auto';
+}
+
+function saveWriterModal(e, writerId) {
+  e.preventDefault();
+
+  var form = document.getElementById('writerModalForm');
+  var err = document.getElementById('writerModalError');
+  err.textContent = '';
+
+  var fd = new FormData(form);
+
+  fetch('/writers/' + writerId + '/modal-save', {
+    method: 'POST',
+    body: fd
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (!data.ok) {
+      err.textContent = data.error || 'Failed to save writer.';
+      return;
+    }
+
+    closeWriterModal();
+    refreshWriterCards(writerId);
+  })
+  .catch(function() {
+    err.textContent = 'Failed to save writer.';
+  });
+}
+
+document.addEventListener('click', function(e) {
+  var modal = document.getElementById('writerEditModal');
+  if (e.target === modal) {
+    closeWriterModal();
+  }
+});
+
+function refreshWriterCards(writerId) {
+  fetch('/writers/search?q=' + encodeURIComponent(''))
+    .catch(function(){});
+
+  document.querySelectorAll('#writerRows .wc').forEach(function(card) {
+    var selectedId = card.querySelector('.wid') ? card.querySelector('.wid').value : '';
+    if (String(selectedId) !== String(writerId)) return;
+
+    fetch('/writers/' + writerId + '/json')
+      .then(function(res) { return res.json(); })
+      .then(function(w) {
+        fillWriter(card, w);
+      });
+  });
+}
+
+
 </script>
 </body></html>"""
 
@@ -4129,6 +4227,33 @@ def writer_modal(writer_id):
 
     writer = Writer.query.get_or_404(writer_id)
     return render_template_string(WRITER_MODAL_HTML, writer=writer)
+
+@app.route("/writers/<int:writer_id>/json")
+def writer_json(writer_id):
+    if auth_required():
+        return jsonify({}), 401
+
+    w = Writer.query.get_or_404(writer_id)
+    return jsonify({
+        "id": w.id,
+        "first_name": w.first_name,
+        "middle_name": w.middle_name,
+        "last_names": w.last_names,
+        "full_name": w.full_name,
+        "writer_aka": w.writer_aka,
+        "ipi": w.ipi or "",
+        "email": w.email or "",
+        "phone_number": w.phone_number or "",
+        "pro": w.pro or "",
+        "address": w.address or "",
+        "city": w.city or "",
+        "state": w.state or "",
+        "zip_code": w.zip_code or "",
+        "has_master_contract": w.has_master_contract,
+        "default_publisher": default_publisher_for_pro(w.pro),
+        "default_publisher_ipi": default_publisher_ipi_for_pro(w.pro),
+    })
+
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id):
