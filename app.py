@@ -4296,7 +4296,12 @@ def writer_modal(writer_id):
         return ""
 
     writer = Writer.query.get_or_404(writer_id)
-    return render_template_string(WRITER_MODAL_HTML, writer=writer)
+    return render_template_string(
+        WRITER_MODAL_HTML,
+        writer=writer,
+        default_publisher_for_pro=default_publisher_for_pro,
+        default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+    )
 
 @app.route("/writers/<int:writer_id>/json")
 def writer_json(writer_id):
