@@ -2625,6 +2625,8 @@ def formulario():
 
         normalized_title = normalize_title(work_title)
 
+        writer_percentages = request.form.getlist("writer_percentage")
+
         if not work_title:
             flash("Work title is required.")
             return render_template_string(
