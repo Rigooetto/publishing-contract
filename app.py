@@ -2727,7 +2727,7 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
 
         <div class="field">
           <label class="label">PRO</label>
-          <select class="inp" name="pro">
+          <select class="inp" name="pro" onchange="syncWriterModalPro(this)">
             <option value="">Select PRO</option>
             <option value="BMI" {% if writer.pro == 'BMI' %}selected{% endif %}>BMI</option>
             <option value="ASCAP" {% if writer.pro == 'ASCAP' %}selected{% endif %}>ASCAP</option>
@@ -2830,22 +2830,23 @@ WRITER_MODAL_HTML = """
         <option value="SESAC" {% if writer.pro == 'SESAC' %}selected{% endif %}>SESAC</option>
       </select>
     </div>
-    <div class="g g2" style="margin-bottom:12px">
-      <div class="field">
-        <label class="label">Default Publisher</label>
-        <input class="inp" name="default_publisher" value="{{ default_publisher_for_pro(writer.pro) }}">
-      </div>
-      <div class="field">
-        <label class="label">Default Publisher IPI</label>
-        <input class="inp" name="default_publisher_ipi" value="{{ default_publisher_ipi_for_pro(writer.pro) }}">
-      </div>
-    </div>
     <div class="field">
       <label class="label">Master Contract</label>
       <select class="inp" name="has_master_contract">
         <option value="0" {% if not writer.has_master_contract %}selected{% endif %}>No</option>
         <option value="1" {% if writer.has_master_contract %}selected{% endif %}>Yes</option>
       </select>
+    </div>
+  </div>
+
+  <div class="g g2" style="margin-bottom:12px">
+    <div class="field">
+      <label class="label">Default Publisher</label>
+      <input class="inp" name="default_publisher" value="{{ writer.default_publisher or default_publisher_for_pro(writer.pro) }}">
+    </div>
+    <div class="field">
+      <label class="label">Default Publisher IPI</label>
+      <input class="inp" name="default_publisher_ipi" value="{{ writer.default_publisher_ipi or default_publisher_ipi_for_pro(writer.pro) }}">
     </div>
   </div>
 
