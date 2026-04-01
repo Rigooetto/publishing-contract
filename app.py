@@ -4253,7 +4253,7 @@ def writer_modal_save(writer_id):
     writer.has_master_contract = has_master_contract
 
     writer.default_publisher = default_publisher
-    writer.default_publisher_ipi = default_publisher_ip
+    writer.default_publisher_ipi = default_publisher_ipi
     
     WorkWriter.query.filter(
         WorkWriter.writer_id == writer.id
