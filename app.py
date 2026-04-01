@@ -714,7 +714,7 @@ def _sidebar(active):
 
     html += "<div class='sb-sec'>Resources</div>"
     html += "<nav class='sb-nav'>"
-    html += "<a href='/writers' class='" + ("active" if active == "writers_list" else "") + "' title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
+    html += "<a href='/writers'" + (" class='on'" if active == "writers_list" else "") + " title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
     html += "<a href='#' title='Settings'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
@@ -1834,12 +1834,13 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
       <div class="ph-sub">{{ work.batch.session_name if work.batch and work.batch.session_name else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
     </div>
   </div>
-    <div class="ph-actions">
-      <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm">Edit Work</a>
-      {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
-      <a href="/works" class="btn btn-sec btn-sm">Back</a>
-    </div>
+  <div class="ph-actions">
+    <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm">Edit Work</a>
+    {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
+    <a href="/works" class="btn btn-sec btn-sm">Back</a>
+  </div>
 </div>
+
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">Work Info</span></div>
   <div class="card-body">
@@ -1851,6 +1852,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
     </div>
   </div>
 </div>
+
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writers &amp; Splits</span></div>
   <div class="tbl-wrap">
@@ -1873,6 +1875,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
     </table>
   </div>
 </div>
+
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128196;</div><span class="card-title">Generated Documents</span></div>
   <div class="tbl-wrap">
@@ -1922,7 +1925,6 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 </main>
 </div>
-
 """ + _SB_JS + """
 <script>
 document.querySelectorAll('.ds-form').forEach(function(f) {
@@ -1937,7 +1939,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
     setTimeout(function() { f.submit(); }, 150);
   });
 });
-
+</script>
 </body></html>"""
 
 # ================================================================
@@ -1989,55 +1991,6 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
-            <div class="card">
-            <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Work Writers</span></div>
-            <div class="card-body">
-              <div class="tbl-wrap">
-                <table class="tbl" style="min-width:980px">
-                  <thead>
-                    <tr>
-                      <th>Writer</th>
-                      <th>IPI</th>
-                      <th>PRO</th>
-                      <th>Split %</th>
-                      <th>Publisher</th>
-                      <th>Publisher IPI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for ww in work.work_writers %}
-                    <tr>
-                      <td style="font-weight:600">
-                        {{ ww.writer.full_name if ww.writer else '--' }}
-                        <input type="hidden" name="work_writer_id" value="{{ ww.id }}">
-                      </td>
-                      <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">
-                        {{ ww.writer.ipi if ww.writer and ww.writer.ipi else '--' }}
-                      </td>
-                      <td>
-                        <span class="tag tag-full">{{ ww.writer.pro if ww.writer and ww.writer.pro else '--' }}</span>
-                      </td>
-                      <td>
-                        <input class="inp" type="number" step="0.01" min="0" max="100" name="writer_percentage" value="{{ ww.writer_percentage or 0 }}">
-                      </td>
-                      <td>
-                        <input class="inp" name="publisher" value="{{ ww.publisher or '' }}">
-                      </td>
-                      <td>
-                        <input class="inp" name="publisher_ipi" value="{{ ww.publisher_ipi or '' }}">
-                      </td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style="margin-top:12px;color:var(--t2);font-size:12px">
-                Total split must equal 100%.
-              </div>
-            </div>
-          </div>   
-
       <div class="g g2">
         <div class="field">
           <label class="label">Session</label>
@@ -2054,6 +2007,55 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
           <label class="label">Current Session</label>
           <input class="inp" value="{% if work.batch and work.batch.session_name %}{{ work.batch.session_name }}{% elif work.batch_id %}Session #{{ work.batch_id }}{% else %}--{% endif %}" disabled>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Work Writers</span></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl" style="min-width:980px">
+          <thead>
+            <tr>
+              <th>Writer</th>
+              <th>IPI</th>
+              <th>PRO</th>
+              <th>Split %</th>
+              <th>Publisher</th>
+              <th>Publisher IPI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ww in work.work_writers %}
+            <tr>
+              <td style="font-weight:600">
+                {{ ww.writer.full_name if ww.writer else '--' }}
+                <input type="hidden" name="work_writer_id" value="{{ ww.id }}">
+              </td>
+              <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">
+                {{ ww.writer.ipi if ww.writer and ww.writer.ipi else '--' }}
+              </td>
+              <td>
+                <span class="tag tag-full">{{ ww.writer.pro if ww.writer and ww.writer.pro else '--' }}</span>
+              </td>
+              <td>
+                <input class="inp" type="number" step="0.01" min="0" max="100" name="writer_percentage" value="{{ ww.writer_percentage or 0 }}">
+              </td>
+              <td>
+                <input class="inp" name="publisher" value="{{ ww.publisher or '' }}">
+              </td>
+              <td>
+                <input class="inp" name="publisher_ipi" value="{{ ww.publisher_ipi or '' }}">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:12px;color:var(--t2);font-size:12px">
+        Total split must equal 100%.
       </div>
     </div>
   </div>
@@ -2837,56 +2839,46 @@ def formulario():
                 if existing_name_writer:
                     warnings.append("Writer '" + row["full_name"] + "' already exists in the system without using an IPI match.")
 
-        normalized_title = normalize_title(work_title)
-        writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
+                normalized_title = normalize_title(work_title)
+                writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
 
-        possible_duplicates = []
+                possible_duplicates = []
 
-        if request.method == "POST" and request.form.get("return_to_form"):
-            return render_template_string(
-                FORM_HTML,
-                **collect_form_context(),
-                **collect_submitted_form_data()
-            )
-        
-        existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
-        for existing_work in existing_works:
-            existing_identities = sorted([
-                build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
-            ])
-            if existing_identities == writer_identity_set:
-                batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
+                if request.form.get("return_to_form"):
+                    return render_template_string(
+                        FORM_HTML,
+                        **collect_form_context(),
+                        **collect_submitted_form_data()
+                    )
 
-                possible_duplicates.append({
-                    "title": existing_work.title,
-                    "camp_name": batch.session_name if batch else "",
-                    "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
-                    "work_id": existing_work.id,
-                    "batch_id": existing_work.batch_id,
-                })
-            if request.method == "POST" and request.form.get("return_to_form"):
-                return render_template_string(
-                    FORM_HTML,
-                    **collect_form_context(),
-                    **collect_submitted_form_data()
-                )
+                existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
+                for existing_work in existing_works:
+                    existing_identities = sorted([
+                        build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
+                    ])
+                    if existing_identities == writer_identity_set:
+                        batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
+                        possible_duplicates.append({
+                            "title": existing_work.title,
+                            "camp_name": batch.session_name if batch else "",
+                            "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                            "work_id": existing_work.id,
+                            "batch_id": existing_work.batch_id,
+                        })
 
-            force_create = request.form.get("force_create") == "1"
-            print("FORCE_CREATE =", request.form.get("force_create"))
-            print("RETURN_TO_FORM =", request.form.get("return_to_form"))
-            print("FORM_KEYS =", list(request.form.keys()))
+                force_create = request.form.get("force_create") == "1"
 
+                if possible_duplicates and not force_create:
+                    form_data = {}
+                    for key in request.form.keys():
+                        values = request.form.getlist(key)
+                        form_data[key] = values if len(values) > 1 else values[0]
 
-            if possible_duplicates and not force_create:
-                form_data = {}
-                for key in request.form.keys():
-                    values = request.form.getlist(key)
-                    form_data[key] = values if len(values) > 1 else values[0]
-                return render_template_string(
-                    DUPLICATE_WARNING_HTML,
-                    duplicates=possible_duplicates,
-                    form_data=form_data,
-                )
+                    return render_template_string(
+                        DUPLICATE_WARNING_HTML,
+                        duplicates=possible_duplicates,
+                        form_data=form_data,
+                    )
 
         for warning in warnings:
             flash(warning)
