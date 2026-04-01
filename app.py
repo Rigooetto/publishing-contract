@@ -216,6 +216,8 @@ class Writer(db.Model):
     has_master_contract = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    default_publisher = db.Column(db.String(255), default="")
+    default_publisher_ipi = db.Column(db.String(50), default="")
 
 
 class Work(db.Model):
@@ -1217,7 +1219,7 @@ function openWriterModal(writerId) {
   if (profileLink) {
     profileLink.href = '/writers/' + writerId;
   }
-  
+
   fetch('/writers/' + writerId + '/modal')
     .then(function(res) { return res.text(); })
     .then(function(html) {
