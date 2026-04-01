@@ -1624,7 +1624,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writer Summary</span></div>
   <div class="tbl-wrap">
     <table class="tbl">
-      <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Works</th><th>Master Contract</th></tr></thead>
+      <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Works</th><th>Publishing Contract</th></tr></thead>
       <tbody>
         {% for item in writer_summary %}
         <tr>
@@ -1857,7 +1857,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writers &amp; Splits</span></div>
   <div class="tbl-wrap">
     <table class="tbl">
-      <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Split %</th><th>Publisher</th><th>Pub IPI</th><th>Master</th></tr></thead>
+      <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Split %</th><th>Publisher</th><th>Pub IPI</th><th>Publishing</th></tr></thead>
       <tbody>
         {% for ww in work.work_writers %}
         <tr>
@@ -2120,7 +2120,7 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
           <th>Phone</th>
           <th>PRO</th>
           <th>Works</th>
-          <th>Master Contract</th>
+          <th>Publishing Contract</th>
           <th>Created</th>
           <th></th>
         </tr>
@@ -2213,7 +2213,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
       <div class="info-item"><label>City</label><span>{{ writer.city or '--' }}</span></div>
       <div class="info-item"><label>State</label><span>{{ writer.state or '--' }}</span></div>
       <div class="info-item"><label>Zip</label><span>{{ writer.zip_code or '--' }}</span></div>
-      <div class="info-item"><label>Master Contract</label>
+      <div class="info-item"><label>Publishing Contract</label>
         <span>{% if writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}No{% endif %}</span>
       </div>
       <div class="info-item"><label>Created</label><span>{{ writer.created_at.strftime('%b %d, %Y %H:%M') if writer.created_at else '--' }}</span></div>
@@ -2364,7 +2364,7 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
         </div>
 
         <div class="field">
-          <label class="label">Master Contract</label>
+          <label class="label">Publishing Contract</label>
           <select class="inp" name="has_master_contract">
             <option value="0" {% if not writer.has_master_contract %}selected{% endif %}>No</option>
             <option value="1" {% if writer.has_master_contract %}selected{% endif %}>Yes</option>
