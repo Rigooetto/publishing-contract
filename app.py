@@ -1236,33 +1236,6 @@ function closeWriterModal() {
   document.body.style.overflow = 'auto';
 }
 
-function saveWriterModal(e, writerId) {
-  e.preventDefault();
-
-  var form = document.getElementById('writerModalForm');
-  var err = document.getElementById('writerModalError');
-  err.textContent = '';
-
-  var fd = new FormData(form);
-
-  fetch('/writers/' + writerId + '/modal-save', {
-    method: 'POST',
-    body: fd
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(data) {
-    if (!data.ok) {
-      err.textContent = data.error || 'Failed to save writer.';
-      return;
-    }
-
-    closeWriterModal();
-    refreshWriterCards(writerId);
-  })
-  .catch(function() {
-    err.textContent = 'Failed to save writer.';
-  });
-}
 
 document.addEventListener('click', function(e) {
   var modal = document.getElementById('writerEditModal');
@@ -2404,6 +2377,7 @@ function saveWriterModal(e, writerId) {
       return;
     }
 
+    closeWriterModal();
     window.location.reload();
   })
   .catch(function() {
@@ -4278,6 +4252,15 @@ def writer_modal_save(writer_id):
     writer.zip_code = zip_code
     writer.has_master_contract = has_master_contract
 
+    writer.default_publisher = default_publisher
+    writer.default_publisher_ipi = default_publisher_ip
+    
+    WorkWriter.query.filter(
+        WorkWriter.writer_id == writer.id
+    ).update({
+        WorkWriter.publisher: default_publisher,
+        WorkWriter.publisher_ipi: default_publisher_ipi
+    })
     db.session.commit()
 
     return jsonify({
