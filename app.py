@@ -2625,7 +2625,6 @@ def formulario():
 
         normalized_title = normalize_title(work_title)
 
-        writer_percentages = request.form.getlist("writer_percentage")
 
         if not work_title:
             flash("Work title is required.")
@@ -2674,19 +2673,27 @@ def formulario():
         cities = request.form.getlist("writer_city")
         states = request.form.getlist("writer_state")
         zip_codes = request.form.getlist("writer_zip_code")
-
+        
+        writer_rows = []
         total_split = 0.0
-        for pct in writer_percentages:
+        for pct in percentages:
             try:
                 total_split += float((pct or "0").strip() or 0)
             except ValueError:
                 flash("Invalid writer split value.")
-                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+                return render_template_string(
+                    FORM_HTML,
+                    **collect_form_context(),
+                    **collect_submitted_form_data()
+                )
 
         if abs(total_split - 100.0) >= 0.001:
             flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
-            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
-
+            return render_template_string(
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
+             )
         
 
         for i in range(len(first_names)):
@@ -2704,7 +2711,7 @@ def formulario():
             **collect_form_context(),
             **collect_submitted_form_data()
         )
-            total_split += split_value
+            
             writer_rows.append({
                 "selected_writer_id": writer_ids[i] if i < len(writer_ids) else "",
                 "first_name": first_name,
@@ -2736,14 +2743,6 @@ def formulario():
             **collect_form_context(),
             **collect_submitted_form_data()
         )
-
-        if abs(total_split - 100.0) >= 0.001:
-            flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
-            return render_template_string(
-                FORM_HTML,
-                **collect_form_context(),
-                **collect_submitted_form_data()
-            )
 
 
         for row in writer_rows:
@@ -2856,46 +2855,45 @@ def formulario():
                 if existing_name_writer:
                     warnings.append("Writer '" + row["full_name"] + "' already exists in the system without using an IPI match.")
 
-                normalized_title = normalize_title(work_title)
-                writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
+        writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
+        
+        possible_duplicates = []
 
-                possible_duplicates = []
+        if request.form.get("return_to_form"):
+            return render_template_string(
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
+            )
 
-                if request.form.get("return_to_form"):
-                    return render_template_string(
-                        FORM_HTML,
-                        **collect_form_context(),
-                        **collect_submitted_form_data()
-                    )
+        existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
+        for existing_work in existing_works:
+            existing_identities = sorted([
+                 build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
+            ])
+            if existing_identities == writer_identity_set:
+                batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
+                possible_duplicates.append({
+                    "title": existing_work.title,
+                    "camp_name": batch.session_name if batch else "",
+                    "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                    "work_id": existing_work.id,
+                    "batch_id": existing_work.batch_id,
+                })
 
-                existing_works = Work.query.filter_by(normalized_title=normalized_title).all()
-                for existing_work in existing_works:
-                    existing_identities = sorted([
-                        build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
-                    ])
-                    if existing_identities == writer_identity_set:
-                        batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
-                        possible_duplicates.append({
-                            "title": existing_work.title,
-                            "camp_name": batch.session_name if batch else "",
-                            "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
-                            "work_id": existing_work.id,
-                            "batch_id": existing_work.batch_id,
-                        })
+        force_create = request.form.get("force_create") == "1"
 
-                force_create = request.form.get("force_create") == "1"
+        if possible_duplicates and not force_create:
+            form_data = {}
+            for key in request.form.keys():
+                values = request.form.getlist(key)
+                form_data[key] = values if len(values) > 1 else values[0]
 
-                if possible_duplicates and not force_create:
-                    form_data = {}
-                    for key in request.form.keys():
-                        values = request.form.getlist(key)
-                        form_data[key] = values if len(values) > 1 else values[0]
-
-                    return render_template_string(
-                        DUPLICATE_WARNING_HTML,
-                        duplicates=possible_duplicates,
-                        form_data=form_data,
-                    )
+            return render_template_string(
+                DUPLICATE_WARNING_HTML,
+                duplicates=possible_duplicates,
+                form_data=form_data,
+            )
 
         for warning in warnings:
             flash(warning)
@@ -3642,7 +3640,6 @@ def work_edit(work_id):
         if abs(total_split - 100.0) >= 0.001:
             flash("Total writer split must equal 100%. Current total: " + str(round(total_split, 2)) + "%")
             return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
-        
 
         normalized_title = normalize_title(title)
 
@@ -3689,29 +3686,6 @@ def work_edit(work_id):
 
             ww.publisher = (publishers[i] or "").strip()
             ww.publisher_ipi = (publisher_ipis[i] or "").strip()
-
-        for i, ww_id in enumerate(work_writer_ids):
-            ww = WorkWriter.query.get(int(ww_id))
-            if not ww or ww.work_id != work.id:
-                continue
-
-            try:
-                ww.writer_percentage = float((writer_percentages[i] or "0").strip() or 0)
-            except ValueError:
-                flash("Invalid split value for one of the writers.")
-                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
-
-            ww.publisher = (publishers[i] or "").strip()
-            ww.publisher_ipi = (publisher_ipis[i] or "").strip()
-
-        if batch_id:
-            batch = GenerationBatch.query.get(int(batch_id))
-            if not batch:
-                flash("Selected session was not found.")
-                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
-            work.batch_id = batch.id
-        else:
-            work.batch_id = None
 
         db.session.commit()
         flash("Work updated successfully.")
