@@ -1485,7 +1485,10 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
             {% else %}--{% endif %}
           </td>
           <td style="color:var(--t3);font-size:12px">{{ work.created_at.strftime('%b %d, %Y') }}</td>
-          <td><a href="/works/{{ work.id }}" class="btn btn-sec btn-sm">View</a></td>
+          <td style="display:flex;gap:6px">
+            <a href="/works/{{ work.id }}" class="btn btn-sec btn-sm">View</a>
+            <a href="/works/{{ work.id }}/edit" class="btn btn-sec btn-sm">Edit</a>
+          </td>
         </tr>
         {% endfor %}
         {% if not works %}<tr class="empty"><td colspan="10">No works found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
@@ -1831,10 +1834,11 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
       <div class="ph-sub">{{ work.batch.session_name if work.batch and work.batch.session_name else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
     </div>
   </div>
-  <div class="ph-actions">
-    {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
-    <a href="/works" class="btn btn-sec btn-sm">Back</a>
-  </div>
+    <div class="ph-actions">
+      <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm">Edit Work</a>
+      {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
+      <a href="/works" class="btn btn-sec btn-sm">Back</a>
+    </div>
 </div>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">Work Info</span></div>
@@ -1936,6 +1940,84 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
 
 </body></html>"""
 
+# ================================================================
+# WORK EDIT
+# ================================================================
+
+WORK_EDIT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit {{ work.title }} - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("works_list") + """
+<main class="main">
+""" + _topbar("works") + """
+<div class="page">
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#9998;</div>
+    <div>
+      <div class="ph-title">Edit Work</div>
+      <div class="ph-sub">{{ work.title }}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/works/{{ work.id }}" class="btn btn-sec btn-sm">Back to Work</a>
+  </div>
+</div>
+
+<form method="post">
+  <div class="card">
+    <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Work Information</span></div>
+    <div class="card-body">
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Work Title</label>
+          <input class="inp" name="title" value="{{ work.title or '' }}" required>
+        </div>
+        <div class="field">
+          <label class="label">Contract Date</label>
+          <input class="inp" type="date" name="contract_date" value="{{ work.contract_date.isoformat() if work.contract_date else '' }}" required>
+        </div>
+      </div>
+
+      <div class="g g2">
+        <div class="field">
+          <label class="label">Session</label>
+          <select class="inp" name="batch_id">
+            <option value="">-- No Session --</option>
+            {% for batch in batches %}
+              <option value="{{ batch.id }}" {% if work.batch_id == batch.id %}selected{% endif %}>
+                Session #{{ batch.id }}{% if batch.session_name %} -- {{ batch.session_name }}{% endif %} -- {{ batch.contract_date.strftime('%Y-%m-%d') }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label class="label">Current Session</label>
+          <input class="inp" value="{% if work.batch and work.batch.session_name %}{{ work.batch.session_name }}{% elif work.batch_id %}Session #{{ work.batch_id }}{% else %}--{% endif %}" disabled>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ph-actions" style="justify-content:flex-end">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </div>
+</form>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+</body></html>"""
 
 # ================================================================
 # WRITER DIRECTORY
@@ -3442,6 +3524,71 @@ def writer_edit(writer_id):
         return redirect(url_for("writer_detail", writer_id=writer.id))
 
     return render_template_string(WRITER_EDIT_HTML, writer=writer)
+
+@app.route("/works/<int:work_id>/edit", methods=["GET", "POST"])
+def work_edit(work_id):
+    if auth_required():
+        return redirect(url_for("login"))
+
+    work = Work.query.get_or_404(work_id)
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()
+        contract_date_str = (request.form.get("contract_date") or "").strip()
+        batch_id = (request.form.get("batch_id") or "").strip()
+
+        if not title:
+            flash("Work title is required.")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        if not contract_date_str:
+            flash("Contract date is required.")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        try:
+            contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Please enter a valid contract date.")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        normalized_title = normalize_title(title)
+
+        writer_identity_set = sorted([
+            build_writer_identity_from_workwriter(ww) for ww in work.work_writers
+        ])
+
+        duplicate_query = Work.query.filter(
+            Work.id != work.id,
+            Work.normalized_title == normalized_title
+        ).all()
+
+        for existing_work in duplicate_query:
+            existing_identities = sorted([
+                build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
+            ])
+            if existing_identities == writer_identity_set:
+                flash("Another work with this same title and writer set already exists.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+
+        work.title = title
+        work.normalized_title = normalized_title
+        work.contract_date = contract_date
+
+        if batch_id:
+            batch = GenerationBatch.query.get(int(batch_id))
+            if not batch:
+                flash("Selected session was not found.")
+                return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
+            work.batch_id = batch.id
+        else:
+            work.batch_id = None
+
+        db.session.commit()
+        flash("Work updated successfully.")
+        return redirect(url_for("work_detail", work_id=work.id))
+
+    return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id):
