@@ -877,7 +877,16 @@ FORM_HTML = """<!DOCTYPE html>
 <div id="writerEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;">
   <div id="writerEditPanel" style="position:absolute;top:5%;left:50%;transform:translateX(-50%);width:92%;max-width:900px;height:88%;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);">
     <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);">
-      <span style="font-weight:600;">Edit Writer</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-weight:600;">Edit Writer</span>
+        <a id="writerModalProfileLink"
+           href="#"
+           target="_blank"
+           class="btn btn-sec btn-sm"
+           style="padding:4px 8px">
+           View Profile
+        </a>
+      </div>
       <button type="button" onclick="closeWriterModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
     </div>
     <div id="writerModalBody" style="padding:18px;overflow:auto;flex:1;">
@@ -1199,11 +1208,16 @@ if (submittedWriters && submittedWriters.length) {
 function openWriterModal(writerId) {
   var modal = document.getElementById('writerEditModal');
   var body = document.getElementById('writerModalBody');
-
+  var profileLink = document.getElementById('writerModalProfileLink');
+  
   modal.style.display = 'block';
   document.body.style.overflow = 'hidden';
   body.innerHTML = '<div style="color:white">Loading writer...</div>';
 
+  if (profileLink) {
+    profileLink.href = '/writers/' + writerId;
+  }
+  
   fetch('/writers/' + writerId + '/modal')
     .then(function(res) { return res.text(); })
     .then(function(html) {
@@ -1271,6 +1285,26 @@ function refreshWriterCards(writerId) {
   });
 }
 
+function syncModalPro(sel) {
+  var pro = sel.value || '';
+  var form = sel.closest('form');
+  if (!form) return;
+
+  var publisherMap = {
+    BMI:   { name: 'Songs of Afinarte',    ipi: '817874992' },
+    ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
+    SESAC: { name: 'Music of Afinarte',    ipi: '817094629' }
+  };
+
+  var p = publisherMap[pro];
+  if (!p) return;
+
+  var publisherInp = form.querySelector('input[name="default_publisher"]');
+  var publisherIpiInp = form.querySelector('input[name="default_publisher_ipi"]');
+
+  if (publisherInp) publisherInp.value = p.name;
+  if (publisherIpiInp) publisherIpiInp.value = p.ipi;
+}
 
 </script>
 </body></html>"""
@@ -2381,6 +2415,28 @@ document.addEventListener('click', function(e) {
     closeWriterModal();
   }
 });
+
+function syncModalPro(sel) {
+  var pro = sel.value || '';
+  var form = sel.closest('form');
+  if (!form) return;
+
+  var publisherMap = {
+    BMI:   { name: 'Songs of Afinarte',    ipi: '817874992' },
+    ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
+    SESAC: { name: 'Music of Afinarte',    ipi: '817094629' }
+  };
+
+  var p = publisherMap[pro];
+  if (!p) return;
+
+  var publisherInp = form.querySelector('input[name="default_publisher"]');
+  var publisherIpiInp = form.querySelector('input[name="default_publisher_ipi"]');
+
+  if (publisherInp) publisherInp.value = p.name;
+  if (publisherIpiInp) publisherIpiInp.value = p.ipi;
+}
+
 </script>
 </body></html>"""
 
@@ -2765,12 +2821,22 @@ WRITER_MODAL_HTML = """
     </div>
     <div class="field">
       <label class="label">PRO</label>
-      <select class="inp" name="pro">
+      <select class="inp" name="pro" onchange="syncModalPro(this)">
         <option value="">Select PRO</option>
         <option value="BMI" {% if writer.pro == 'BMI' %}selected{% endif %}>BMI</option>
         <option value="ASCAP" {% if writer.pro == 'ASCAP' %}selected{% endif %}>ASCAP</option>
         <option value="SESAC" {% if writer.pro == 'SESAC' %}selected{% endif %}>SESAC</option>
       </select>
+    </div>
+    <div class="g g2" style="margin-bottom:12px">
+      <div class="field">
+        <label class="label">Default Publisher</label>
+        <input class="inp" name="default_publisher" value="{{ default_publisher_for_pro(writer.pro) }}">
+      </div>
+      <div class="field">
+        <label class="label">Default Publisher IPI</label>
+        <input class="inp" name="default_publisher_ipi" value="{{ default_publisher_ipi_for_pro(writer.pro) }}">
+      </div>
     </div>
     <div class="field">
       <label class="label">Master Contract</label>
@@ -4160,6 +4226,8 @@ def writer_modal_save(writer_id):
     phone_number = (request.form.get("phone_number") or "").strip()
     ipi = (request.form.get("ipi") or "").strip()
     pro = (request.form.get("pro") or "").strip()
+    default_publisher = (request.form.get("default_publisher") or "").strip()
+    default_publisher_ipi = (request.form.get("default_publisher_ipi") or "").strip()
     address = (request.form.get("address") or "").strip()
     city = (request.form.get("city") or "").strip()
     state = (request.form.get("state") or "").strip()
