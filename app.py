@@ -706,7 +706,7 @@ def _sidebar(active):
     html = "<aside class='sb' id='mainSidebar'>"
     html += "<a class='sb-logo' href='/works'>"
     html += "<div class='sb-ico'>&#127925;</div>"
-    html += "<span class='sb-name'>LabelMind</span>"
+    html += "<span class='sb-name'>LabelMind.ai</span>"
     html += "<span class='sb-toggle' id='sbToggle' onclick='toggleSidebar(event)' title='Pin sidebar closed'>&lt;</span>"
     html += "</a>"
 
