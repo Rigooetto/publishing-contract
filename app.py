@@ -5620,20 +5620,6 @@ def import_catalog_confirm():
 def test():
     return "App is working"
 
-@app.route("/debug/works")
-def debug_works():
-    if auth_required():
-        return "auth required"
-    works = Work.query.order_by(Work.id.desc()).limit(20).all()
-    return jsonify([
-        {
-            "id": w.id,
-            "title": w.title,
-            "batch_id": w.batch_id,
-            "contract_date": str(w.contract_date) if w.contract_date else None
-        }
-        for w in works
-    ])
 
 
 
