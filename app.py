@@ -2716,6 +2716,20 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Default Publisher</label>
+          <input class="inp" name="default_publisher"
+                 value="{{ writer.default_publisher or default_publisher_for_pro(writer.pro) }}">
+        </div>
+
+        <div class="field">
+          <label class="label">Default Publisher IPI</label>
+          <input class="inp" name="default_publisher_ipi"
+                 value="{{ writer.default_publisher_ipi or default_publisher_ipi_for_pro(writer.pro) }}">
+        </div>
+      </div>
+
       <div class="g g4a">
         <div class="field">
           <label class="label">Street</label>
@@ -2750,7 +2764,30 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function syncWriterModalPro(sel) {
+  var pro = sel.value || '';
+  var form = sel.closest('form');
+  if (!form) return;
+
+  var publisherMap = {
+    BMI:   { name: 'Songs of Afinarte',    ipi: '817874992' },
+    ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
+    SESAC: { name: 'Music of Afinarte',    ipi: '817094629' }
+  };
+
+  var p = publisherMap[pro];
+  if (!p) return;
+
+  var publisherInp = form.querySelector('input[name="default_publisher"]');
+  var publisherIpiInp = form.querySelector('input[name="default_publisher_ipi"]');
+
+  if (publisherInp) publisherInp.value = p.name;
+  if (publisherIpiInp) publisherIpiInp.value = p.ipi;
+}
+</script>
 </body></html>"""
+
 
 # ================================================================
 # WRITER MODAL
@@ -3976,6 +4013,8 @@ def writer_edit(writer_id):
         phone_number = (request.form.get("phone_number") or "").strip()
         ipi = (request.form.get("ipi") or "").strip()
         pro = (request.form.get("pro") or "").strip()
+        default_publisher = (request.form.get("default_publisher") or "").strip()
+        default_publisher_ipi = (request.form.get("default_publisher_ipi") or "").strip()
         writer_aka = (request.form.get("writer_aka") or "").strip()
         address = (request.form.get("address") or "").strip()
         city = (request.form.get("city") or "").strip()
@@ -4028,6 +4067,8 @@ def writer_edit(writer_id):
         writer.phone_number = phone_number
         writer.ipi = ipi
         writer.pro = pro
+        writer.default_publisher = default_publisher
+        writer.default_publisher_ipi = default_publisher_ipi
         writer.address = address
         writer.city = city
         writer.state = state
@@ -4247,6 +4288,8 @@ def writer_modal_save(writer_id):
     writer.phone_number = phone_number
     writer.ipi = ipi
     writer.pro = pro
+    writer.default_publisher = default_publisher
+    writer.default_publisher_ipi = default_publisher_ipi
     writer.address = address
     writer.city = city
     writer.state = state
