@@ -1543,10 +1543,21 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
   <div class="card-body">
-    <form method="get" style="display:flex;gap:8px">
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
       <input class="inp" name="q" value="{{ q }}" placeholder="Search by work title, writer, or IPI..." style="max-width:340px">
-      <button class="btn btn-sec" type="submit">Search</button>
-      {% if q %}<a href="/works" class="btn btn-sec">Clear</a>{% endif %}
+
+      <select class="inp" name="sort" style="max-width:220px">
+        <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest First</option>
+        <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest First</option>
+        <option value="title_asc" {% if sort == "title_asc" %}selected{% endif %}>Title A-Z</option>
+        <option value="title_desc" {% if sort == "title_desc" %}selected{% endif %}>Title Z-A</option>
+      </select>
+
+      <button class="btn btn-sec" type="submit">Apply</button>
+
+      {% if q or sort != "newest" %}
+        <a href="/works" class="btn btn-sec">Clear</a>
+      {% endif %}
     </form>
   </div>
 </div>
@@ -3786,6 +3797,7 @@ def works_list():
         return redirect(url_for("login"))
 
     q = (request.args.get("q") or "").strip()
+    sort = (request.args.get("sort") or "newest").strip()
 
     query = Work.query
 
@@ -3806,9 +3818,23 @@ def works_list():
             .distinct()
         )
 
-    works = query.order_by(Work.created_at.desc()).all()
+    if sort == "oldest":
+        query = query.order_by(Work.created_at.asc())
+    elif sort == "title_asc":
+        query = query.order_by(func.lower(Work.title).asc())
+    elif sort == "title_desc":
+        query = query.order_by(func.lower(Work.title).desc())
+    else:
+        query = query.order_by(Work.created_at.desc())
 
-    return render_template_string(WORKS_LIST_HTML, works=works, q=q)
+    works = query.all()
+
+    return render_template_string(
+        WORKS_LIST_HTML,
+        works=works,
+        q=q,
+        sort=sort
+    )
 
 
 @app.route("/batches")
@@ -5321,6 +5347,7 @@ def import_catalog_confirm():
     )
 
     return redirect(url_for("admin_panel"))
+
 
 
 
