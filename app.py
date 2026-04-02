@@ -683,7 +683,6 @@ def _sidebar(active):
         ("formulario",   "New Work",  "<span class='ni ni-pencil-custom'></span>"),
         ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
         ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
-        
     ]
 
     html = "<aside class='sb' id='mainSidebar'>"
@@ -718,25 +717,13 @@ def _sidebar(active):
     html += "<a href='#' title='Settings'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
+    html += "<div class='sb-sec'>Admin</div>"
+    html += "<nav class='sb-nav'>"
+    html += "<a href='/admin'" + (" class='on'" if active == "admin" else "") + " title='Admin Panel'><span class='ni'>&#128295;</span><span class='nl'>Admin Panel</span></a>"
+    html += "</nav>"
+
     html += "<div class='sb-foot'><b>LabelMind</b>Music Publishing Contracts<br>2026 LabelMind.ai</div>"
     html += "</aside>"
-    return html
-
-def _topbar(pill=""):
-    works_on = " class='pill on'" if pill == "works" else " class='pill'"
-    sess_on = " class='pill on'" if pill == "sessions" else " class='pill'"
-    html = "<header class='topbar'>"
-    html += "<div class='tb-search'>Search works, sessions, writers...</div>"
-    html += "<div class='tb-right'>"
-    html += "<div class='pill-group'>"
-    html += "<a href='/works'" + works_on + ">Works</a>"
-    html += "<a href='/batches'" + sess_on + ">Sessions</a>"
-    html += "</div>"
-    html += "{% if team_auth_enabled and session.get('logged_in') %}"
-    html += "<a href='/logout' class='tb-ibtn' title='Log out'>&#128682;</a>"
-    html += "{% endif %}"
-    html += "<div class='avatar'>IS</div>"
-    html += "</div></header>"
     return html
 
 
@@ -2825,6 +2812,78 @@ function syncWriterModalPro(sel) {
 
 
 # ================================================================
+# ADMIN HTML
+# ================================================================
+
+ADMIN_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("admin") + """
+<main class="main">
+""" + _topbar("") + """
+<div class="page">
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128295;</div>
+    <div>
+      <div class="ph-title">Admin Panel</div>
+      <div class="ph-sub">Import catalog, manage data, and run admin tools.</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128228;</div>
+    <span class="card-title">Import Existing Catalog</span>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/admin/import-catalog" enctype="multipart/form-data">
+      <div class="field" style="margin-bottom:12px">
+        <label class="label">CSV File</label>
+        <input class="inp" type="file" name="catalog_file" accept=".csv" required>
+      </div>
+
+      <div style="color:var(--t2);font-size:12px;margin-bottom:14px">
+        Use one row per writer. Repeated work titles can be used for multi-writer works.
+      </div>
+
+      <button type="submit" class="btn btn-primary">Upload Catalog CSV</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#8505;</div>
+    <span class="card-title">Expected CSV Columns</span>
+  </div>
+  <div class="card-body">
+    <div style="font-family:var(--fm);font-size:12px;color:var(--t2);line-height:1.8">
+      work_title, contract_date, session_name, writer_full_name, first_name, middle_name, last_names, writer_aka, ipi, email, phone_number, pro, writer_percentage, publisher, publisher_ipi, address, city, state, zip_code
+    </div>
+  </div>
+</div>
+
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+</body></html>"""
+
+
+# ================================================================
 # WRITER MODAL
 # ================================================================
 
@@ -4390,6 +4449,11 @@ def writer_json(writer_id):
         "default_publisher_ipi": w.default_publisher_ipi or default_publisher_ipi_for_pro(w.pro),
     })
 
+@app.route("/admin")
+def admin_panel():
+    if auth_required():
+        return redirect(url_for("login"))
+    return render_template_string(ADMIN_HTML)
 
 @app.route("/works/<int:work_id>")
 def work_detail(work_id):
