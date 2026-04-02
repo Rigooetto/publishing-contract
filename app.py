@@ -5635,9 +5635,7 @@ def debug_works():
         for w in works
     ])
 
-@app.route("/test")
-def test():
-    return "App is working"
+
 
 @app.route("/debug/works")
 def debug_works():
