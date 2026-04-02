@@ -1544,7 +1544,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
   <div class="card-body">
     <form method="get" style="display:flex;gap:8px">
-      <input class="inp" name="q" value="{{ q }}" placeholder="placeholder="Search by work title, writer, or IPI..."" style="max-width:340px">
+      <input class="inp" name="q" value="{{ q }}" placeholder="Search by work title, writer, or IPI..." style="max-width:340px">
       <button class="btn btn-sec" type="submit">Search</button>
       {% if q %}<a href="/works" class="btn btn-sec">Clear</a>{% endif %}
     </form>
