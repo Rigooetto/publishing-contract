@@ -354,45 +354,53 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
   margin:0 auto;
 }
 
-.sb.collapsed .sb-toggle{
+.sb{
+  overflow:visible;
+}
+
+.sb-toggle{
   position:absolute;
-  top:84px;
+  top:58px;
   right:-12px;
   width:24px;
   height:40px;
-  margin-left:0;
-  border-radius:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0;
   background:var(--bg4);
   border:1px solid var(--b0);
+  border-radius:10px;
   box-shadow:0 4px 14px rgba(0,0,0,.35);
   z-index:80;
-
-  font-size:0;          /* hides the original < character */
-  color:transparent;    /* hides original text */
+  cursor:pointer;
+  user-select:none;
+  transition:background .14s,transform .14s;
+  
+  font-size:0;
+  color:transparent;
 }
 
-.sb.collapsed .sb-toggle::after{
-  content:'›';
+.sb-toggle:hover{
+  background:var(--bg5);
+}
+
+.sb-toggle::after{
   font-size:14px;
   line-height:1;
   color:var(--t2);
 }
 
-.sb.collapsed .sb-toggle:hover{
-  background:var(--bg5);
-}
-
-.sb.collapsed .sb-toggle:hover::after{
+.sb-toggle:hover::after{
   color:var(--t1);
 }
 
-.sb:not(.collapsed) .sb-toggle{
-  font-size:11px;
-  color:var(--t3);
+.sb:not(.collapsed) .sb-toggle::after{
+  content:'‹';
 }
 
-.sb:not(.collapsed) .sb-toggle::after{
-  content:'';
+.sb.collapsed .sb-toggle::after{
+  content:'›';
 }
 
 .sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
@@ -746,10 +754,22 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   width:var(--sb);
   box-shadow:16px 0 34px rgba(0,0,0,.34);
 }
-.sb.collapsed.hover-open .sb-logo{
-  justify-content:flex-start;
+.sb-logo{
+  display:flex;
+  align-items:center;
   gap:10px;
   padding:15px 13px 13px;
+  border-bottom:1px solid var(--b0);
+  margin-bottom:5px;
+  text-decoration:none;
+  white-space:nowrap;
+  overflow:hidden;
+}
+
+.sb.collapsed .sb-logo{
+  justify-content:center;
+  gap:0;
+  padding:15px 6px 13px;
 }
 .sb.collapsed.hover-open .sb-name{
   opacity:1;
