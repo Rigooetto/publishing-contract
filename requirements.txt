@@ -1,5 +1,6 @@
 Flask>=3.0.0
 Flask-SQLAlchemy>=3.1.1
+flask-migrate
 python-docx>=1.1.2
 Babel>=2.14.0
 gunicorn>=23.0.0
@@ -9,3 +10,4 @@ google-auth>=2.35.0
 docusign-esign>=4.0.0
 pyjwt>=2.8.0
 cryptography>=42.0.0
+SQLAlchemy
