@@ -5635,7 +5635,25 @@ def debug_works():
         for w in works
     ])
 
+@app.route("/test")
+def test():
+    return "App is working"
 
+@app.route("/debug/works")
+def debug_works():
+    try:
+        works = Work.query.order_by(Work.id.desc()).limit(10).all()
+        return jsonify([
+            {
+                "id": w.id,
+                "title": w.title,
+                "batch_id": w.batch_id,
+                "contract_date": str(w.contract_date) if w.contract_date else None
+            }
+            for w in works
+        ])
+    except Exception as e:
+        return "DEBUG ERROR: " + str(e), 500
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
