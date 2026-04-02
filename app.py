@@ -4490,6 +4490,342 @@ def work_detail(work_id):
     documents=documents
 )
 
+@app.route("/admin/import-catalog", methods=["POST"])
+def import_catalog():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    file = request.files.get("catalog_file")
+    if not file or not file.filename:
+        flash("Please choose a CSV file.")
+        return redirect(url_for("admin_panel"))
+
+    if not file.filename.lower().endswith(".csv"):
+        flash("Only CSV files are allowed.")
+        return redirect(url_for("admin_panel"))
+
+    try:
+        content = file.read().decode("utf-8-sig")
+    except Exception:
+        flash("Could not read the CSV file. Please save it as UTF-8 CSV.")
+        return redirect(url_for("admin_panel"))
+
+    reader = csv.DictReader(io.StringIO(content))
+
+    required_columns = [
+        "work_title",
+        "contract_date",
+        "session_name",
+        "writer_full_name",
+        "ipi",
+        "pro",
+        "writer_percentage",
+        "publisher",
+        "publisher_ipi",
+    ]
+
+    missing = [c for c in required_columns if c not in (reader.fieldnames or [])]
+    if missing:
+        flash("Missing required CSV columns: " + ", ".join(missing))
+        return redirect(url_for("admin_panel"))
+
+    writers_created = 0
+    writers_reused = 0
+    sessions_created = 0
+    sessions_reused = 0
+    works_created = 0
+    works_reused = 0
+    links_created = 0
+    rows_skipped = 0
+    errors = []
+
+    work_cache = {}
+    session_cache = {}
+    writer_cache = {}
+
+    for row_num, row in enumerate(reader, start=2):
+        try:
+            work_title = (row.get("work_title") or "").strip()
+            contract_date_str = (row.get("contract_date") or "").strip()
+            session_name = (row.get("session_name") or "").strip()
+            writer_full_name = (row.get("writer_full_name") or "").strip()
+            first_name = (row.get("first_name") or "").strip()
+            middle_name = (row.get("middle_name") or "").strip()
+            last_names = (row.get("last_names") or "").strip()
+            writer_aka = (row.get("writer_aka") or "").strip()
+            ipi = (row.get("ipi") or "").strip()
+            email = (row.get("email") or "").strip()
+            phone_number = (row.get("phone_number") or "").strip()
+            pro = (row.get("pro") or "").strip()
+            publisher = (row.get("publisher") or "").strip()
+            publisher_ipi = (row.get("publisher_ipi") or "").strip()
+            address = (row.get("address") or "").strip()
+            city = (row.get("city") or "").strip()
+            state = (row.get("state") or "").strip()
+            zip_code = (row.get("zip_code") or "").strip()
+
+            split_raw = (row.get("writer_percentage") or "").strip()
+
+            if not work_title or not contract_date_str or not writer_full_name:
+                rows_skipped += 1
+                errors.append(f"Row {row_num}: missing work_title, contract_date, or writer_full_name.")
+                continue
+
+            try:
+                contract_date = datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                rows_skipped += 1
+                errors.append(f"Row {row_num}: invalid contract_date '{contract_date_str}'. Use YYYY-MM-DD.")
+                continue
+
+            try:
+                writer_percentage = float(split_raw or 0)
+            except ValueError:
+                rows_skipped += 1
+                errors.append(f"Row {row_num}: invalid writer_percentage '{split_raw}'.")
+                continue
+
+            if not first_name and not last_names and writer_full_name:
+                name_parts = writer_full_name.split()
+                if len(name_parts) == 1:
+                    first_name = name_parts[0]
+                    last_names = ""
+                elif len(name_parts) >= 2:
+                    first_name = name_parts[0]
+                    last_names = " ".join(name_parts[1:])
+
+            full_name = build_full_name(first_name, middle_name, last_names) or writer_full_name
+
+            # FIND OR CREATE WRITER
+            writer = None
+            writer_key = ("ipi", ipi.lower()) if ipi else ("name", full_name.lower())
+
+            if writer_key in writer_cache:
+                writer = writer_cache[writer_key]
+                writers_reused += 1
+            else:
+                if ipi:
+                    writer = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
+
+                if not writer and full_name:
+                    writer = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
+
+                if writer:
+                    writers_reused += 1
+                else:
+                    writer = Writer(
+                        first_name=first_name,
+                        middle_name=middle_name,
+                        last_names=last_names,
+                        full_name=full_name,
+                        writer_aka=writer_aka,
+                        ipi=ipi or None,
+                        email=email,
+                        phone_number=phone_number,
+                        pro=pro,
+                        default_publisher=publisher,
+                        default_publisher_ipi=publisher_ipi,
+                        address=address,
+                        city=city,
+                        state=state,
+                        zip_code=zip_code,
+                        has_master_contract=False,
+                    )
+                    db.session.add(writer)
+                    db.session.flush()
+                    writers_created += 1
+
+                # keep data fresh if blanks exist
+                writer.first_name = writer.first_name or first_name
+                writer.middle_name = writer.middle_name or middle_name
+                writer.last_names = writer.last_names or last_names
+                writer.full_name = writer.full_name or full_name
+                writer.writer_aka = writer.writer_aka or writer_aka
+                writer.ipi = writer.ipi or (ipi or None)
+                writer.email = writer.email or email
+                writer.phone_number = writer.phone_number or phone_number
+                writer.pro = writer.pro or pro
+                writer.default_publisher = writer.default_publisher or publisher
+                writer.default_publisher_ipi = writer.default_publisher_ipi or publisher_ipi
+                writer.address = writer.address or address
+                writer.city = writer.city or city
+                writer.state = writer.state or state
+                writer.zip_code = writer.zip_code or zip_code
+
+                writer_cache[writer_key] = writer
+
+            # FIND OR CREATE SESSION
+            session_key = (session_name.lower(), contract_date.isoformat())
+
+            if session_key in session_cache:
+                batch = session_cache[session_key]
+                sessions_reused += 1
+            else:
+                batch = GenerationBatch.query.filter(
+                    func.lower(GenerationBatch.session_name) == session_name.lower(),
+                    GenerationBatch.contract_date == contract_date
+                ).first()
+
+                if batch:
+                    sessions_reused += 1
+                else:
+                    batch = GenerationBatch(
+                        session_name=session_name,
+                        contract_date=contract_date,
+                        created_by="CSV Import",
+                        status="imported",
+                    )
+                    db.session.add(batch)
+                    db.session.flush()
+                    sessions_created += 1
+
+                session_cache[session_key] = batch
+
+            # FIND OR CREATE WORK
+            normalized_title = normalize_title(work_title)
+            work_key = (normalized_title, batch.id)
+
+            if work_key in work_cache:
+                work = work_cache[work_key]
+                works_reused += 1
+            else:
+                work = Work.query.filter_by(
+                    normalized_title=normalized_title,
+                    batch_id=batch.id
+                ).first()
+
+                if work:
+                    works_reused += 1
+                else:
+                    work = Work(
+                        title=work_title,
+                        normalized_title=normalized_title,
+                        batch_id=batch.id,
+                        contract_date=contract_date,
+                    )
+                    db.session.add(work)
+                    db.session.flush()
+                    works_created += 1
+
+                work_cache[work_key] = work
+
+            # CREATE WORKWRITER LINK IF MISSING
+            existing_link = WorkWriter.query.filter_by(
+                work_id=work.id,
+                writer_id=writer.id
+            ).first()
+
+            if not existing_link:
+                link = WorkWriter(
+                    work_id=work.id,
+                    writer_id=writer.id,
+                    writer_percentage=writer_percentage,
+                    publisher=publisher,
+                    publisher_ipi=publisher_ipi,
+                    publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                    publisher_city=DEFAULT_PUBLISHER_CITY,
+                    publisher_state=DEFAULT_PUBLISHER_STATE,
+                    publisher_zip_code=DEFAULT_PUBLISHER_ZIP,
+                )
+                db.session.add(link)
+                links_created += 1
+            else:
+                existing_link.writer_percentage = writer_percentage
+                existing_link.publisher = publisher
+                existing_link.publisher_ipi = publisher_ipi
+
+        except Exception as e:
+            rows_skipped += 1
+            errors.append(f"Row {row_num}: {str(e)}")
+
+    db.session.commit()
+
+    flash(
+        "Import complete. "
+        f"Writers created: {writers_created}, reused: {writers_reused}. "
+        f"Sessions created: {sessions_created}, reused: {sessions_reused}. "
+        f"Works created: {works_created}, reused: {works_reused}. "
+        f"Links created: {links_created}. "
+        f"Rows skipped: {rows_skipped}."
+    )
+
+    if errors:
+        for err in errors[:10]:
+            flash(err)
+        if len(errors) > 10:
+            flash(f"...and {len(errors) - 10} more row errors.")
+
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/import-catalog", methods=["GET", "POST"])
+def admin_import_catalog():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        file = request.files.get("file")
+
+        if not file:
+            return "No file uploaded", 400
+
+        import csv, io
+
+        stream = io.StringIO(file.stream.read().decode("utf-8"))
+        reader = csv.DictReader(stream)
+
+        for row in reader:
+            # --- CREATE / FIND WORK ---
+            title = row["work_title"]
+            contract_date = datetime.datetime.strptime(row["contract_date"], "%Y-%m-%d").date()
+
+            work = Work.query.filter_by(title=title).first()
+            if not work:
+                work = Work(
+                    title=title,
+                    normalized_title=normalize_title(title),
+                    contract_date=contract_date
+                )
+                db.session.add(work)
+                db.session.flush()
+
+            # --- CREATE / FIND WRITER ---
+            writer = Writer.query.filter_by(ipi=row["ipi"]).first()
+            if not writer:
+                writer = Writer(
+                    first_name=row["first_name"],
+                    middle_name=row["middle_name"],
+                    last_names=row["last_names"],
+                    full_name=row["writer_full_name"],
+                    ipi=row["ipi"],
+                    pro=row["pro"],
+                    email=row["email"],
+                    default_publisher=row["publisher"],
+                    default_publisher_ipi=row["publisher_ipi"]
+                )
+                db.session.add(writer)
+                db.session.flush()
+
+            # --- CREATE WORK WRITER ---
+            ww = WorkWriter(
+                work_id=work.id,
+                writer_id=writer.id,
+                writer_percentage=float(row["writer_percentage"]),
+                publisher=row["publisher"],
+                publisher_ipi=row["publisher_ipi"]
+            )
+            db.session.add(ww)
+
+        db.session.commit()
+
+        return "Import successful ✅"
+
+    return """
+    <h2>Import Catalog CSV</h2>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".csv">
+        <button type="submit">Upload</button>
+    </form>
+    """
 
 
 if __name__ == "__main__":
