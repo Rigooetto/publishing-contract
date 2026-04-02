@@ -2376,12 +2376,47 @@ function saveWriterModal(e, writerId) {
     }
 
     closeWriterModal();
-    window.location.reload();
+    refreshWriterRow(writerId, data.writer);
   })
   .catch(function() {
     err.textContent = 'Failed to save writer.';
   });
 }
+
+function refreshWriterRow(writerId, writerData) {
+  document.querySelectorAll('#workWriterTableBody tr').forEach(function(row) {
+    var hiddenWriterId = row.querySelector('input[name="existing_writer_id"]');
+    if (!hiddenWriterId) return;
+    if (String(hiddenWriterId.value) !== String(writerId)) return;
+
+    var writerBtn = row.querySelector('td button');
+    if (writerBtn && writerData.full_name) {
+      writerBtn.textContent = writerData.full_name;
+    }
+
+    var cells = row.querySelectorAll('td');
+
+    if (cells[1]) {
+      cells[1].textContent = writerData.ipi || '--';
+    }
+
+    if (cells[2]) {
+      var pro = writerData.pro || '--';
+      cells[2].innerHTML = '<span class="tag tag-full">' + pro + '</span>';
+    }
+
+    var publisherInput = row.querySelector('input[name="publisher"]');
+    if (publisherInput) {
+      publisherInput.value = writerData.default_publisher || '';
+    }
+
+    var publisherIpiInput = row.querySelector('input[name="publisher_ipi"]');
+    if (publisherIpiInput) {
+      publisherIpiInput.value = writerData.default_publisher_ipi || '';
+    }
+  });
+}
+
 
 document.addEventListener('click', function(e) {
   var modal = document.getElementById('writerEditModal');
@@ -4294,9 +4329,6 @@ def writer_modal_save(writer_id):
     writer.state = state
     writer.zip_code = zip_code
     writer.has_master_contract = has_master_contract
-
-    writer.default_publisher = default_publisher
-    writer.default_publisher_ipi = default_publisher_ipi
     
     WorkWriter.query.filter(
     WorkWriter.writer_id == writer.id
@@ -4314,6 +4346,8 @@ def writer_modal_save(writer_id):
             "ipi": writer.ipi or "",
             "pro": writer.pro or "",
             "email": writer.email or ""
+            "default_publisher": writer.default_publisher or "",
+            "default_publisher_ipi": writer.default_publisher_ipi or ""
         }
     })
 
