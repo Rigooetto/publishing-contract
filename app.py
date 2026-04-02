@@ -1,4 +1,7 @@
 from flask import Flask, render_template_string, request, send_file, session, redirect, url_for, jsonify, flash
+from flask_migrate import Migrate
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 from docx import Document
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, or_
@@ -4341,15 +4344,6 @@ def work_detail(work_id):
 )
 
 
-
-try:
-    init_db()
-except Exception as e:
-    print("DB INIT ERROR:", e)
-
-with app.app_context():
-    print("Creating DB...")
-    db.create_all()
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
