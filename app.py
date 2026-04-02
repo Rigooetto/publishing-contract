@@ -4332,10 +4332,11 @@ def work_detail(work_id):
         .all()
     )
     return render_template_string(
-    WRITER_MODAL_HTML,
-    writer=writer,
-    default_publisher_for_pro=default_publisher_for_pro
+    WORK_DETAIL_HTML,
+    work=work,
+    documents=documents
 )
+
 
 
 try:
