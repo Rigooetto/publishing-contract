@@ -2885,7 +2885,7 @@ ADMIN_HTML = """<!DOCTYPE html>
     <span class="card-title">Import Existing Catalog</span>
   </div>
   <div class="card-body">
-    <form method="post" action="/admin/import-catalog" enctype="multipart/form-data">
+    <form method="post" action="/admin/import-catalog/preview" enctype="multipart/form-data">
       <div class="field" style="margin-bottom:12px">
         <label class="label">CSV File</label>
         <input class="inp" type="file" name="catalog_file" accept=".csv" required>
@@ -2918,6 +2918,118 @@ ADMIN_HTML = """<!DOCTYPE html>
 """ + _SB_JS + """
 </body></html>"""
 
+# ================================================================
+# IMPORT PREVIEW HTML
+# ================================================================
+
+IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Import Preview - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("admin") + """
+<main class="main">
+""" + _topbar("") + """
+<div class="page">
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128065;</div>
+    <div>
+      <div class="ph-title">Import Preview</div>
+      <div class="ph-sub">Review rows before importing them into the catalog.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/admin" class="btn btn-sec btn-sm">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128202;</div>
+    <span class="card-title">Preview Summary</span>
+  </div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item"><label>Total Rows</label><span>{{ rows|length }}</span></div>
+      <div class="info-item"><label>Valid Rows</label><span>{{ valid_count }}</span></div>
+      <div class="info-item"><label>Error Rows</label><span>{{ error_count }}</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128203;</div>
+    <span class="card-title">Rows</span>
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl" style="min-width:1200px">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Status</th>
+          <th>Work</th>
+          <th>Contract Date</th>
+          <th>Session</th>
+          <th>Writer</th>
+          <th>IPI</th>
+          <th>PRO</th>
+          <th>Split %</th>
+          <th>Publisher</th>
+          <th>Publisher IPI</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.row_num }}</td>
+          <td>
+            {% if row.error %}
+              <span class="status s-delivered"><span class="status-dot"></span>Error</span>
+            {% else %}
+              <span class="status s-completed"><span class="status-dot"></span>Ready</span>
+            {% endif %}
+          </td>
+          <td>{{ row.work_title }}</td>
+          <td>{{ row.contract_date }}</td>
+          <td>{{ row.session_name }}</td>
+          <td>{{ row.writer_full_name }}</td>
+          <td>{{ row.ipi or '--' }}</td>
+          <td>{{ row.pro or '--' }}</td>
+          <td>{{ row.writer_percentage or '--' }}</td>
+          <td>{{ row.publisher or '--' }}</td>
+          <td>{{ row.publisher_ipi or '--' }}</td>
+          <td style="color:#ff8a8a">{{ row.error or '--' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" action="/admin/import-catalog/confirm">
+  <input type="hidden" name="payload_json" value='{{ payload_json | safe }}'>
+  <div class="ph-actions" style="justify-content:flex-end">
+    <button type="submit" class="btn btn-primary" {% if error_count > 0 %}disabled{% endif %}>Confirm Import</button>
+  </div>
+</form>
+
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+</body></html>"""
 
 # ================================================================
 # WRITER MODAL
@@ -4867,6 +4979,331 @@ def work_delete(work_id):
 
     flash(f'Work "{work_title}" deleted successfully.')
     return redirect(url_for("works_list"))
+
+@app.route("/admin/import-catalog/preview", methods=["POST"])
+def import_catalog_preview():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    file = request.files.get("catalog_file")
+    if not file or not file.filename:
+        flash("Please choose a CSV file.")
+        return redirect(url_for("admin_panel"))
+
+    if not file.filename.lower().endswith(".csv"):
+        flash("Only CSV files are allowed.")
+        return redirect(url_for("admin_panel"))
+
+    try:
+        content = file.read().decode("utf-8-sig")
+    except Exception:
+        flash("Could not read the CSV file. Please save it as UTF-8 CSV.")
+        return redirect(url_for("admin_panel"))
+
+    reader = csv.DictReader(io.StringIO(content))
+
+    required_columns = [
+        "work_title",
+        "contract_date",
+        "session_name",
+        "writer_full_name",
+        "ipi",
+        "pro",
+        "writer_percentage",
+        "publisher",
+        "publisher_ipi",
+    ]
+
+    missing = [c for c in required_columns if c not in (reader.fieldnames or [])]
+    if missing:
+        flash("Missing required CSV columns: " + ", ".join(missing))
+        return redirect(url_for("admin_panel"))
+
+    preview_rows = []
+
+    for row_num, row in enumerate(reader, start=2):
+        work_title = (row.get("work_title") or "").strip()
+        contract_date_str = (row.get("contract_date") or "").strip()
+        session_name = (row.get("session_name") or "").strip()
+        writer_full_name = (row.get("writer_full_name") or "").strip()
+        first_name = (row.get("first_name") or "").strip()
+        middle_name = (row.get("middle_name") or "").strip()
+        last_names = (row.get("last_names") or "").strip()
+        writer_aka = (row.get("writer_aka") or "").strip()
+        ipi = (row.get("ipi") or "").strip()
+        email = (row.get("email") or "").strip()
+        phone_number = (row.get("phone_number") or "").strip()
+        pro = (row.get("pro") or "").strip()
+        writer_percentage = (row.get("writer_percentage") or "").strip()
+        publisher = (row.get("publisher") or "").strip()
+        publisher_ipi = (row.get("publisher_ipi") or "").strip()
+        address = (row.get("address") or "").strip()
+        city = (row.get("city") or "").strip()
+        state = (row.get("state") or "").strip()
+        zip_code = (row.get("zip_code") or "").strip()
+
+        error = ""
+
+        if not work_title or not contract_date_str or not writer_full_name:
+            error = "Missing work_title, contract_date, or writer_full_name."
+
+        if not error:
+            try:
+                datetime.datetime.strptime(contract_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                error = "Invalid contract_date. Use YYYY-MM-DD."
+
+        if not error:
+            try:
+                float(writer_percentage or 0)
+            except ValueError:
+                error = "Invalid writer_percentage."
+
+        preview_rows.append({
+            "row_num": row_num,
+            "work_title": work_title,
+            "contract_date": contract_date_str,
+            "session_name": session_name,
+            "writer_full_name": writer_full_name,
+            "first_name": first_name,
+            "middle_name": middle_name,
+            "last_names": last_names,
+            "writer_aka": writer_aka,
+            "ipi": ipi,
+            "email": email,
+            "phone_number": phone_number,
+            "pro": pro,
+            "writer_percentage": writer_percentage,
+            "publisher": publisher,
+            "publisher_ipi": publisher_ipi,
+            "address": address,
+            "city": city,
+            "state": state,
+            "zip_code": zip_code,
+            "error": error,
+        })
+
+    valid_count = len([r for r in preview_rows if not r["error"]])
+    error_count = len([r for r in preview_rows if r["error"]])
+
+    payload_json = json.dumps(preview_rows).replace("&", "&amp;").replace("'", "&#39;")
+
+    return render_template_string(
+        IMPORT_PREVIEW_HTML,
+        rows=preview_rows,
+        valid_count=valid_count,
+        error_count=error_count,
+        payload_json=payload_json
+    )
+
+@app.route("/admin/import-catalog/confirm", methods=["POST"])
+def import_catalog_confirm():
+    if auth_required():
+        return redirect(url_for("login"))
+
+    payload_json = request.form.get("payload_json") or "[]"
+
+    try:
+        rows = json.loads(payload_json)
+    except Exception:
+        flash("Invalid import payload.")
+        return redirect(url_for("admin_panel"))
+
+    writers_created = 0
+    writers_reused = 0
+    sessions_created = 0
+    sessions_reused = 0
+    works_created = 0
+    works_reused = 0
+    links_created = 0
+    rows_skipped = 0
+
+    work_cache = {}
+    session_cache = {}
+    writer_cache = {}
+
+    for row in rows:
+        if row.get("error"):
+            rows_skipped += 1
+            continue
+
+        work_title = row["work_title"]
+        contract_date = datetime.datetime.strptime(row["contract_date"], "%Y-%m-%d").date()
+        session_name = row["session_name"]
+        writer_full_name = row["writer_full_name"]
+        first_name = row["first_name"]
+        middle_name = row["middle_name"]
+        last_names = row["last_names"]
+        writer_aka = row["writer_aka"]
+        ipi = row["ipi"]
+        email = row["email"]
+        phone_number = row["phone_number"]
+        pro = row["pro"]
+        writer_percentage = float(row["writer_percentage"] or 0)
+        publisher = row["publisher"]
+        publisher_ipi = row["publisher_ipi"]
+        address = row["address"]
+        city = row["city"]
+        state = row["state"]
+        zip_code = row["zip_code"]
+
+        if not first_name and not last_names and writer_full_name:
+            name_parts = writer_full_name.split()
+            if len(name_parts) == 1:
+                first_name = name_parts[0]
+                last_names = ""
+            elif len(name_parts) >= 2:
+                first_name = name_parts[0]
+                last_names = " ".join(name_parts[1:])
+
+        full_name = build_full_name(first_name, middle_name, last_names) or writer_full_name
+
+        writer_key = ("ipi", ipi.lower()) if ipi else ("name", full_name.lower())
+
+        if writer_key in writer_cache:
+            writer = writer_cache[writer_key]
+            writers_reused += 1
+        else:
+            writer = None
+            if ipi:
+                writer = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
+            if not writer and full_name:
+                writer = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
+
+            if writer:
+                writers_reused += 1
+            else:
+                writer = Writer(
+                    first_name=first_name,
+                    middle_name=middle_name,
+                    last_names=last_names,
+                    full_name=full_name,
+                    writer_aka=writer_aka,
+                    ipi=ipi or None,
+                    email=email,
+                    phone_number=phone_number,
+                    pro=pro,
+                    default_publisher=publisher,
+                    default_publisher_ipi=publisher_ipi,
+                    address=address,
+                    city=city,
+                    state=state,
+                    zip_code=zip_code,
+                    has_master_contract=False,
+                )
+                db.session.add(writer)
+                db.session.flush()
+                writers_created += 1
+
+            writer.first_name = writer.first_name or first_name
+            writer.middle_name = writer.middle_name or middle_name
+            writer.last_names = writer.last_names or last_names
+            writer.full_name = writer.full_name or full_name
+            writer.writer_aka = writer.writer_aka or writer_aka
+            writer.ipi = writer.ipi or (ipi or None)
+            writer.email = writer.email or email
+            writer.phone_number = writer.phone_number or phone_number
+            writer.pro = writer.pro or pro
+            writer.default_publisher = writer.default_publisher or publisher
+            writer.default_publisher_ipi = writer.default_publisher_ipi or publisher_ipi
+            writer.address = writer.address or address
+            writer.city = writer.city or city
+            writer.state = writer.state or state
+            writer.zip_code = writer.zip_code or zip_code
+
+            writer_cache[writer_key] = writer
+
+        session_key = (session_name.lower(), contract_date.isoformat())
+
+        if session_key in session_cache:
+            batch = session_cache[session_key]
+            sessions_reused += 1
+        else:
+            batch = GenerationBatch.query.filter(
+                func.lower(GenerationBatch.session_name) == session_name.lower(),
+                GenerationBatch.contract_date == contract_date
+            ).first()
+
+            if batch:
+                sessions_reused += 1
+            else:
+                batch = GenerationBatch(
+                    session_name=session_name,
+                    contract_date=contract_date,
+                    created_by="CSV Import",
+                    status="imported",
+                )
+                db.session.add(batch)
+                db.session.flush()
+                sessions_created += 1
+
+            session_cache[session_key] = batch
+
+        normalized_title = normalize_title(work_title)
+        work_key = (normalized_title, batch.id)
+
+        if work_key in work_cache:
+            work = work_cache[work_key]
+            works_reused += 1
+        else:
+            work = Work.query.filter_by(
+                normalized_title=normalized_title,
+                batch_id=batch.id
+            ).first()
+
+            if work:
+                works_reused += 1
+            else:
+                work = Work(
+                    title=work_title,
+                    normalized_title=normalized_title,
+                    batch_id=batch.id,
+                    contract_date=contract_date,
+                )
+                db.session.add(work)
+                db.session.flush()
+                works_created += 1
+
+            work_cache[work_key] = work
+
+        existing_link = WorkWriter.query.filter_by(
+            work_id=work.id,
+            writer_id=writer.id
+        ).first()
+
+        if not existing_link:
+            link = WorkWriter(
+                work_id=work.id,
+                writer_id=writer.id,
+                writer_percentage=writer_percentage,
+                publisher=publisher,
+                publisher_ipi=publisher_ipi,
+                publisher_address=DEFAULT_PUBLISHER_ADDRESS,
+                publisher_city=DEFAULT_PUBLISHER_CITY,
+                publisher_state=DEFAULT_PUBLISHER_STATE,
+                publisher_zip_code=DEFAULT_PUBLISHER_ZIP,
+            )
+            db.session.add(link)
+            links_created += 1
+        else:
+            existing_link.writer_percentage = writer_percentage
+            existing_link.publisher = publisher
+            existing_link.publisher_ipi = publisher_ipi
+
+    db.session.commit()
+
+    flash(
+        "Import complete. "
+        f"Writers created: {writers_created}, reused: {writers_reused}. "
+        f"Sessions created: {sessions_created}, reused: {sessions_reused}. "
+        f"Works created: {works_created}, reused: {works_reused}. "
+        f"Links created: {links_created}. "
+        f"Rows skipped: {rows_skipped}."
+    )
+
+    return redirect(url_for("admin_panel"))
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
