@@ -281,6 +281,24 @@ class ContractDocument(db.Model):
 def inject_globals():
     return {"team_auth_enabled": bool(TEAM_USERNAME and TEAM_PASSWORD)}
 
+def _topbar(pill=""):
+    works_on = " class='pill on'" if pill == "works" else " class='pill'"
+    sess_on = " class='pill on'" if pill == "sessions" else " class='pill'"
+
+    html = "<header class='topbar'>"
+    html += "<div class='tb-search'>Search works, sessions, writers...</div>"
+    html += "<div class='tb-right'>"
+    html += "<div class='pill-group'>"
+    html += "<a href='/works'" + works_on + ">Works</a>"
+    html += "<a href='/batches'" + sess_on + ">Sessions</a>"
+    html += "</div>"
+    html += "{% if team_auth_enabled and session.get('logged_in') %}"
+    html += "<a href='/logout' class='tb-ibtn' title='Log out'>&#128682;</a>"
+    html += "{% endif %}"
+    html += "<div class='avatar'>IS</div>"
+    html += "</div></header>"
+
+    return html
 
 # ================================================================
 # CSS
