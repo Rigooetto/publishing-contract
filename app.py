@@ -336,7 +336,28 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .sb.collapsed .sb-name{opacity:0;pointer-events:none}
 .sb-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--bg4);border:1px solid var(--b0);border-radius:6px;cursor:pointer;color:var(--t3);font-size:11px;margin-left:auto;flex-shrink:0;transition:color .14s,background .14s;user-select:none}
 .sb-toggle:hover{color:var(--t1);background:var(--bg5)}
-.sb.collapsed .sb-toggle{margin-left:0}
+.sb.collapsed .sb-logo{
+  justify-content:center;
+  gap:0;
+  padding:42px 6px 13px;
+  position:relative;
+}
+
+.sb.collapsed .sb-toggle{
+  position:absolute;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  margin-left:0;
+  width:24px;
+  height:24px;
+  font-size:10px;
+  z-index:5;
+}
+
+.sb.collapsed .sb-ico{
+  margin:0 auto;
+}
 .sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb.collapsed .sb-sec{opacity:0;height:0;padding:0;pointer-events:none}
 .sb-nav a{display:flex;align-items:center;gap:9px;padding:8px 13px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative;white-space:nowrap;overflow:hidden}
