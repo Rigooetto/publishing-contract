@@ -360,7 +360,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 
 .sb-toggle{
   position:absolute;
-  top:52px;
+  top:48px;
   right:-12px;
   width:24px;
   height:40px;
