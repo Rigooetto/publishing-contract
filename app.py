@@ -344,11 +344,6 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
   overflow:visible;
 }
 
-.sb.collapsed .sb-logo{
-  justify-content:center;
-  gap:0;
-  padding:15px 6px 13px;
-}
 
 .sb.collapsed .sb-ico{
   margin:0 auto;
@@ -718,10 +713,23 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   left:var(--sb-collapsed);
 }
 
+.sb-logo{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:15px 13px 13px;
+  border-bottom:1px solid var(--b0);
+  margin-bottom:5px;
+  text-decoration:none;
+  white-space:nowrap;
+  overflow:hidden;
+}
+
+/* KEEP SAME ALIGNMENT WHEN COLLAPSED */
 .sb.collapsed .sb-logo{
-  justify-content:center;
-  gap:0;
-  padding:15px 6px 13px;
+  justify-content:flex-start; /* ← key fix */
+  gap:10px;                   /* keep spacing consistent */
+  padding:15px 13px 13px;     /* same padding */
 }
 .sb.collapsed .sb-name{
   opacity:0;
@@ -766,11 +774,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   overflow:hidden;
 }
 
-.sb.collapsed .sb-logo{
-  justify-content:center;
-  gap:0;
-  padding:15px 6px 13px;
-}
+
 .sb.collapsed.hover-open .sb-name{
   opacity:1;
   width:auto;
