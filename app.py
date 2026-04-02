@@ -503,6 +503,57 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 /* ===== Dynamic sidebar overrides ===== */
 .sb,
 .main,
+.mobile-nav{
+  display:none;
+}
+
+@media (max-width: 768px){
+
+  .sb{
+    display:none !important;
+  }
+
+  .main{
+    margin-left:0 !important;
+  }
+
+  .mobile-nav{
+    display:flex;
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    height:60px;
+    background:#111827;
+    border-top:1px solid rgba(255,255,255,.08);
+    justify-content:space-around;
+    align-items:center;
+    z-index:9999;
+  }
+
+  .mnav-item{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    color:#9ca3af;
+    font-size:11px;
+    text-decoration:none;
+  }
+
+  .mnav-item span{
+    font-size:18px;
+    margin-bottom:2px;
+  }
+
+  .mnav-item:hover{
+    color:#fff;
+  }
+
+  .page{
+    padding-bottom:80px; /* prevents overlap */
+  }
+}
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
 .sb-toggle{
@@ -1295,6 +1346,24 @@ function syncModalPro(sel) {
 }
 
 </script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -1515,6 +1584,24 @@ document.addEventListener('click', function(e) {
   }
 });
 </script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -1631,6 +1718,24 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -1682,6 +1787,24 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -1939,6 +2062,24 @@ document.addEventListener('DOMContentLoaded', function() {
   setInterval(poll, 5000);
 });
 </script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -2079,6 +2220,24 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
   });
 });
 </script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -2481,6 +2640,24 @@ function syncModalPro(sel) {
 }
 
 </script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -2577,6 +2754,24 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 
@@ -2680,6 +2875,24 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -2855,6 +3068,24 @@ function syncWriterModalPro(sel) {
   if (publisherIpiInp) publisherIpiInp.value = p.ipi;
 }
 </script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 
@@ -2927,6 +3158,24 @@ ADMIN_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
@@ -3040,6 +3289,24 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item">
+    <span>🎵</span>
+    <small>Works</small>
+  </a>
+  <a href="/" class="mnav-item">
+    <span>➕</span>
+    <small>New</small>
+  </a>
+  <a href="/batches" class="mnav-item">
+    <span>📦</span>
+    <small>Sessions</small>
+  </a>
+  <a href="/writers" class="mnav-item">
+    <span>👥</span>
+    <small>Writers</small>
+  </a>
+</div>
 </body></html>"""
 
 # ================================================================
