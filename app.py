@@ -8,13 +8,13 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from sqlalchemy import func, or_
-import csv
-import io
 import io
 import os
 import re
 import json
 import zipfile
+import csv
+import io
 import datetime
 import base64
 import xml.etree.ElementTree as ET
@@ -490,6 +490,14 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .login-h{font-size:17px;font-weight:700;margin-bottom:4px}
 .login-sub{font-size:12.5px;color:var(--t2);margin-bottom:22px}
 .login-field{margin-bottom:14px}
+.btn-danger{
+  background:#7f1d1d;
+  color:#fff;
+  border:1px solid rgba(255,255,255,.08);
+}
+.btn-danger:hover{
+  background:#991b1b;
+}
 @media(max-width:860px){.g3{grid-template-columns:1fr 1fr}.g5,.g52{grid-template-columns:1fr 1fr}.g4,.g4a{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.sb{display:none}.main{margin-left:0!important}.page{padding:16px 13px 90px}.g3,.g2,.g4,.g4a,.g5,.g52{grid-template-columns:1fr}.topbar{padding:0 13px}.tb-search{display:none}.action-bar{left:0!important;padding:11px 14px}}
 /* ===== Dynamic sidebar overrides ===== */
@@ -1949,6 +1957,14 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
   <div class="ph-actions">
     <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm">Edit Work</a>
     {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
+
+    <form method="post"
+          action="/works/{{ work.id }}/delete"
+          style="display:inline"
+          onsubmit="return confirm('Delete this work? This will remove its writer links and generated documents.');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete Work</button>
+    </form>
+
     <a href="/works" class="btn btn-sec btn-sm">Back</a>
   </div>
 </div>
@@ -4828,7 +4844,29 @@ def admin_import_catalog():
         <button type="submit">Upload</button>
     </form>
     """
+@app.route("/works/<int:work_id>/delete", methods=["POST"])
+def work_delete(work_id):
+    if auth_required():
+        return redirect(url_for("login"))
 
+    work = Work.query.get_or_404(work_id)
+
+    # delete related documents first
+    ContractDocument.query.filter(
+        ContractDocument.work_id == work.id
+    ).delete()
+
+    # delete related writer links
+    WorkWriter.query.filter(
+        WorkWriter.work_id == work.id
+    ).delete()
+
+    work_title = work.title
+    db.session.delete(work)
+    db.session.commit()
+
+    flash(f'Work "{work_title}" deleted successfully.')
+    return redirect(url_for("works_list"))
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
