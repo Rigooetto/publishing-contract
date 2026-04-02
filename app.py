@@ -1544,7 +1544,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
   <div class="card-body">
     <form method="get" style="display:flex;gap:8px">
-      <input class="inp" name="q" value="{{ q }}" placeholder="Search work title..." style="max-width:340px">
+      <input class="inp" name="q" value="{{ q }}" placeholder="placeholder="Search by work title, writer, or IPI..."" style="max-width:340px">
       <button class="btn btn-sec" type="submit">Search</button>
       {% if q %}<a href="/works" class="btn btn-sec">Clear</a>{% endif %}
     </form>
@@ -3784,11 +3784,30 @@ def search_writers():
 def works_list():
     if auth_required():
         return redirect(url_for("login"))
+
     q = (request.args.get("q") or "").strip()
+
     query = Work.query
+
     if q:
-        query = query.filter(func.lower(Work.title).like("%" + q.lower() + "%"))
+        like_q = "%" + q.lower() + "%"
+
+        query = (
+            query
+            .outerjoin(WorkWriter, WorkWriter.work_id == Work.id)
+            .outerjoin(Writer, Writer.id == WorkWriter.writer_id)
+            .filter(
+                or_(
+                    func.lower(Work.title).like(like_q),
+                    func.lower(Writer.full_name).like(like_q),
+                    func.lower(Writer.ipi).like(like_q)
+                )
+            )
+            .distinct()
+        )
+
     works = query.order_by(Work.created_at.desc()).all()
+
     return render_template_string(WORKS_LIST_HTML, works=works, q=q)
 
 
