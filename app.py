@@ -4237,6 +4237,9 @@ def writer_modal_save(writer_id):
     ).first()
     if existing_name:
         return jsonify({"ok": False, "error": "That full name already exists for another writer."})
+    
+    old_default_publisher = writer.default_publisher
+    old_default_publisher_ipi = writer.default_publisher_ipi
 
     writer.first_name = first_name
     writer.middle_name = middle_name
