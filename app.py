@@ -336,57 +336,64 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .sb.collapsed .sb-name{opacity:0;pointer-events:none}
 .sb-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--bg4);border:1px solid var(--b0);border-radius:6px;cursor:pointer;color:var(--t3);font-size:11px;margin-left:auto;flex-shrink:0;transition:color .14s,background .14s;user-select:none}
 .sb-toggle:hover{color:var(--t1);background:var(--bg5)}
+
+
+/* ===== Collapsed sidebar toggle as edge handle ===== */
+
+.sb{
+  overflow:visible;
+}
+
 .sb.collapsed .sb-logo{
   justify-content:center;
   gap:0;
-  padding:42px 6px 13px;
-  position:relative;
-}
-
-/* ===== Collapsed sidebar toggle as edge handle ===== */
-.sb.collapsed .sb-toggle{
-  position:absolute;
-  top:16px;
-  right:-14px; /* pushes it outside the sidebar */
-  width:28px;
-  height:28px;
-  border-radius:8px;
-  background:var(--bg4);
-  border:1px solid var(--b0);
-  box-shadow:0 4px 14px rgba(0,0,0,.35);
-  z-index:60;
-}
-
-/* subtle hover */
-.sb.collapsed .sb-toggle:hover{
-  background:var(--bg5);
-  transform:translateX(2px);
+  padding:15px 6px 13px;
 }
 
 .sb.collapsed .sb-ico{
   margin:0 auto;
 }
 
-.sb{
-  overflow:visible;
-}
-
 .sb.collapsed .sb-toggle{
+  position:absolute;
+  top:84px;
+  right:-12px;
+  width:24px;
+  height:40px;
+  margin-left:0;
   border-radius:10px;
-  font-size:10px;
-  opacity:.9;
+  background:var(--bg4);
+  border:1px solid var(--b0);
+  box-shadow:0 4px 14px rgba(0,0,0,.35);
+  z-index:80;
+
+  font-size:0;          /* hides the original < character */
+  color:transparent;    /* hides original text */
 }
 
 .sb.collapsed .sb-toggle::after{
   content:'›';
   font-size:14px;
   line-height:1;
+  color:var(--t2);
+}
+
+.sb.collapsed .sb-toggle:hover{
+  background:var(--bg5);
+}
+
+.sb.collapsed .sb-toggle:hover::after{
+  color:var(--t1);
+}
+
+.sb:not(.collapsed) .sb-toggle{
+  font-size:11px;
+  color:var(--t3);
 }
 
 .sb:not(.collapsed) .sb-toggle::after{
-  content:'‹';
+  content:'';
 }
-
 
 .sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb.collapsed .sb-sec{opacity:0;height:0;padding:0;pointer-events:none}
@@ -733,12 +740,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   width:0;
   pointer-events:none;
 }
-.sb.collapsed .sb-toggle{
-  position:absolute;
-  right:8px;
-  top:14px;
-  margin-left:0;
-}
+
 
 .sb.collapsed.hover-open{
   width:var(--sb);
