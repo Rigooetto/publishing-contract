@@ -4345,9 +4345,9 @@ def writer_modal_save(writer_id):
             "full_name": writer.full_name,
             "ipi": writer.ipi or "",
             "pro": writer.pro or "",
-            "email": writer.email or ""
+            "email": writer.email or "",
             "default_publisher": writer.default_publisher or "",
-            "default_publisher_ipi": writer.default_publisher_ipi or ""
+            "default_publisher_ipi": writer.default_publisher_ipi or "",
         }
     })
 
