@@ -2048,7 +2048,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
 </body></html>"""
 
 # ================================================================
-# WORK EDIT
+# WORK EDIT HTML
 # ================================================================
 
 WORK_EDIT_HTML = """<!DOCTYPE html>
@@ -4276,8 +4276,7 @@ def writer_modal_save(writer_id):
     if existing_name:
         return jsonify({"ok": False, "error": "That full name already exists for another writer."})
     
-    old_default_publisher = writer.default_publisher
-    old_default_publisher_ipi = writer.default_publisher_ipi
+  
 
     writer.first_name = first_name
     writer.middle_name = middle_name
@@ -4300,16 +4299,11 @@ def writer_modal_save(writer_id):
     writer.default_publisher_ipi = default_publisher_ipi
     
     WorkWriter.query.filter(
-        WorkWriter.writer_id == writer.id,
-        or_(
-            WorkWriter.publisher == None,
-            WorkWriter.publisher == "",
-            WorkWriter.publisher == old_default_publisher
-        )
-    ).update({
-        WorkWriter.publisher: default_publisher,
-        WorkWriter.publisher_ipi: default_publisher_ipi
-    })
+    WorkWriter.writer_id == writer.id
+).update({
+    WorkWriter.publisher: default_publisher,
+    WorkWriter.publisher_ipi: default_publisher_ipi
+})
     db.session.commit()
 
     return jsonify({
