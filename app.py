@@ -330,8 +330,18 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .sb{width:var(--sb);min-height:100vh;background:var(--bg1);border-right:1px solid var(--b0);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50;transition:width .22s ease;overflow:hidden}
 .sb.collapsed{width:var(--sb-collapsed)}
 .app.sb-collapsed .main{margin-left:var(--sb-collapsed)}
-.sb-logo{display:flex;align-items:center;gap:10px;padding:15px 13px 13px;border-bottom:1px solid var(--b0);margin-bottom:5px;text-decoration:none;white-space:nowrap;overflow:hidden}
-.sb-ico{width:28px;height:28px;background:linear-gradient(135deg,var(--a),var(--ae));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.sb-logo{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start; /* ← ADD THIS */
+  gap:10px;
+  padding:15px 13px 13px;
+  border-bottom:1px solid var(--b0);
+  margin-bottom:5px;
+  text-decoration:none;
+  white-space:nowrap;
+  overflow:hidden;
+}.sb-ico{width:28px;height:28px;background:linear-gradient(135deg,var(--a),var(--ae));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .sb-name{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.02em;transition:opacity .18s}
 .sb.collapsed .sb-name{opacity:0;pointer-events:none}
 .sb-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--bg4);border:1px solid var(--b0);border-radius:6px;cursor:pointer;color:var(--t3);font-size:11px;margin-left:auto;flex-shrink:0;transition:color .14s,background .14s;user-select:none}
@@ -340,62 +350,57 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 
 /* ===== Collapsed sidebar toggle as edge handle ===== */
 
-.sb{
-  overflow:visible;
+.sb-logo{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  padding:15px 13px 13px;
+  border-bottom:1px solid var(--b0);
+  margin-bottom:5px;
+  text-decoration:none;
+  white-space:nowrap;
+  overflow:hidden;
+  position:relative;
 }
 
-
-.sb.collapsed .sb-ico{
-  margin:0 auto;
-}
-
-.sb{
-  overflow:visible;
-}
-
-.sb-toggle{
-  position:absolute;
-  top:48px;
-  right:-12px;
-  width:24px;
-  height:40px;
+.sb-ico{
+  width:28px;
+  height:28px;
+  background:linear-gradient(135deg,var(--a),var(--ae));
+  border-radius:7px;
   display:flex;
   align-items:center;
   justify-content:center;
+  font-size:13px;
+  flex-shrink:0;
   margin:0;
-  background:var(--bg4);
-  border:1px solid var(--b0);
-  border-radius:10px;
-  box-shadow:0 4px 14px rgba(0,0,0,.35);
-  z-index:80;
-  cursor:pointer;
-  user-select:none;
-  transition:background .14s,transform .14s;
-  
-  font-size:0;
-  color:transparent;
 }
 
-.sb-toggle:hover{
-  background:var(--bg5);
-}
-
-.sb-toggle::after{
+.sb-name{
   font-size:14px;
-  line-height:1;
-  color:var(--t2);
-}
-
-.sb-toggle:hover::after{
+  font-weight:700;
   color:var(--t1);
+  letter-spacing:-.02em;
+  transition:opacity .18s ease, width .18s ease;
+  white-space:nowrap;
 }
 
-.sb:not(.collapsed) .sb-toggle::after{
-  content:'‹';
+.sb.collapsed .sb-logo{
+  justify-content:flex-start;
+  gap:10px;
+  padding:15px 13px 13px;
 }
 
-.sb.collapsed .sb-toggle::after{
-  content:'›';
+.sb.collapsed .sb-ico{
+  margin:0;
+}
+
+.sb.collapsed .sb-name{
+  opacity:0;
+  pointer-events:none;
+  width:0;
+  overflow:hidden;
 }
 
 .sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
@@ -713,24 +718,9 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   left:var(--sb-collapsed);
 }
 
-.sb-logo{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:15px 13px 13px;
-  border-bottom:1px solid var(--b0);
-  margin-bottom:5px;
-  text-decoration:none;
-  white-space:nowrap;
-  overflow:hidden;
-}
 
 /* KEEP SAME ALIGNMENT WHEN COLLAPSED */
-.sb.collapsed .sb-logo{
-  justify-content:flex-start; /* ← key fix */
-  gap:10px;                   /* keep spacing consistent */
-  padding:15px 13px 13px;     /* same padding */
-}
+
 .sb.collapsed .sb-name{
   opacity:0;
   width:0;
@@ -762,17 +752,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   width:var(--sb);
   box-shadow:16px 0 34px rgba(0,0,0,.34);
 }
-.sb-logo{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:15px 13px 13px;
-  border-bottom:1px solid var(--b0);
-  margin-bottom:5px;
-  text-decoration:none;
-  white-space:nowrap;
-  overflow:hidden;
-}
+
 
 
 .sb.collapsed.hover-open .sb-name{
