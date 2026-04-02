@@ -1,9 +1,7 @@
 from flask import Flask, render_template_string, request, send_file, session, redirect, url_for, jsonify, flash
 from flask_migrate import Migrate
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-from docx import Document
 from flask_sqlalchemy import SQLAlchemy
+from docx import Document
 from sqlalchemy import func, or_
 from babel.dates import format_date
 from google.oauth2 import service_account
@@ -44,6 +42,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 BASE_TEMPLATE_DIR = os.getenv("TEMPLATE_DIR", "template")
 FULL_CONTRACT_TEMPLATE = os.getenv(
