@@ -277,11 +277,6 @@ class ContractDocument(db.Model):
     certificate_drive_web_view_link = db.Column(db.String(500), nullable=True)
 
 
-def init_db():
-    with app.app_context():
-        db.create_all()
-
-
 @app.context_processor
 def inject_globals():
     return {"team_auth_enabled": bool(TEAM_USERNAME and TEAM_PASSWORD)}
