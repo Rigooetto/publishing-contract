@@ -1975,24 +1975,68 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
   </div>
   <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
 </div>
+<style>
+.sess-row{cursor:pointer;transition:background .15s}
+.sess-row:hover td{background:rgba(255,255,255,.04)!important}
+.sess-row.open td{background:rgba(99,133,255,.06)!important}
+.sess-detail-row{display:none}
+.sess-detail-row.open{display:table-row}
+.sess-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
+.sess-detail-inner{padding:16px 20px;background:rgba(99,133,255,.03)}
+.sd-works-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sd-works-tbl th{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 8px;text-align:left;border-bottom:1px solid var(--b1)}
+.sd-works-tbl td{padding:5px 8px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,.04)}
+.sd-works-tbl tr:last-child td{border-bottom:none}
+</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128230;</div><span class="card-title">All Sessions</span></div>
   <div class="tbl-wrap">
-    <table class="tbl tbl-sessions">
-      <thead><tr><th>Session</th><th>Name</th><th>Contract Date</th><th>Status</th><th>Works</th><th>Created</th><th></th></tr></thead>
+    <table class="tbl" style="table-layout:auto">
+      <thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Works</th></tr></thead>
       <tbody>
         {% for batch in batches %}
-        <tr>
-          <td style="font-weight:600">Session #{{ batch.id }}</td>
-          <td style="color:var(--t2)">{{ batch.session_name or '--' }}</td>
-          <td style="color:var(--t2);font-size:12px">{{ batch.contract_date.strftime('%b %d, %Y') }}</td>
+        <tr class="sess-row" data-batch="{{ batch.id }}" onclick="toggleSession({{ batch.id }})">
+          <td>
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ batch.session_name or 'Session #' ~ batch.id }}</span>
+            <div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">Session #{{ batch.id }}</div>
+          </td>
+          <td style="font-size:12px;color:var(--t2);white-space:nowrap">{{ batch.contract_date.strftime('%b %d, %Y') }}</td>
           <td><span class="status s-{{ batch.status }}"><span class="status-dot"></span>{{ batch.status | replace('_',' ') | title }}</span></td>
           <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ work_counts.get(batch.id, 0) }}</span></td>
-          <td style="color:var(--t3);font-size:12px">{{ batch.created_at.strftime('%b %d, %Y') }}</td>
-          <td><a href="/batches/{{ batch.id }}" class="btn btn-sec btn-sm">View</a></td>
+        </tr>
+        <tr class="sess-detail-row" id="sdetail-{{ batch.id }}">
+          <td colspan="4">
+            <div class="sess-detail-inner">
+              <div style="margin-bottom:12px">
+                <div class="wd-label">Works in this session</div>
+                {% set batch_works = session_works.get(batch.id, []) %}
+                {% if batch_works %}
+                <table class="sd-works-tbl">
+                  <thead><tr><th>Work Title</th><th>Writers</th><th>Contract Date</th></tr></thead>
+                  <tbody>
+                    {% for w in batch_works %}
+                    <tr>
+                      <td style="font-weight:600">{{ w.title }}</td>
+                      <td style="color:var(--t2)">{{ w.work_writers|length }} writer{{ 's' if w.work_writers|length != 1 else '' }}</td>
+                      <td style="color:var(--t3)">{{ w.contract_date.strftime('%b %d, %Y') if w.contract_date else '--' }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% else %}
+                <span style="font-size:12px;color:var(--t3)">No works yet.</span>
+                {% endif %}
+              </div>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <a href="/batches/{{ batch.id }}" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">View Session</a>
+                <a href="/?batch_id={{ batch.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">+ Add Work</a>
+              </div>
+            </div>
+          </td>
         </tr>
         {% endfor %}
-        {% if not batches %}<tr class="empty"><td colspan="7">No sessions yet. Create a work to get started.</td></tr>{% endif %}
+        {% if not batches %}<tr class="empty"><td colspan="4">No sessions yet. Create a work to get started.</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
@@ -2010,6 +2054,20 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function toggleSession(id) {
+  var row = document.getElementById('sdetail-' + id);
+  var header = document.querySelector('[data-batch="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.sess-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.sess-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    header.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+</script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
     <span>🎵</span>
@@ -2920,54 +2978,74 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<style>
+.wr-row{cursor:pointer;transition:background .15s}
+.wr-row:hover td{background:rgba(255,255,255,.04)!important}
+.wr-row.open td{background:rgba(99,133,255,.06)!important}
+.wr-detail-row{display:none}
+.wr-detail-row.open{display:table-row}
+.wr-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
+.wr-detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:rgba(99,133,255,.03)}
+@media(max-width:768px){.wr-detail-inner{grid-template-columns:1fr}}
+</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Writers</span></div>
   <div class="tbl-wrap">
-    <table class="tbl tbl-writers">
+    <table class="tbl" style="table-layout:auto">
       <thead>
         <tr>
-          <th>Writer</th>
-          <th>AKA</th>
+          <th style="width:35%">Writer</th>
           <th>IPI</th>
-          <th>Email</th>
-          <th>Phone</th>
           <th>PRO</th>
           <th>Works</th>
-          <th>Publishing Contract</th>
-          <th>Created</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for item in writers %}
-        <tr>
-          <td style="font-weight:600">{{ item.writer.full_name }}</td>
-          <td style="color:var(--t2)">{{ item.writer.writer_aka or '--' }}</td>
+        <tr class="wr-row" data-writer="{{ item.writer.id }}" onclick="toggleWriter({{ item.writer.id }})">
+          <td>
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ item.writer.full_name }}</span>
+            {% if item.writer.writer_aka %}<div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">aka {{ item.writer.writer_aka }}</div>{% endif %}
+          </td>
           <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ item.writer.ipi or '--' }}</td>
-          <td style="color:var(--t2)">{{ item.writer.email or '--' }}</td>
-          <td style="color:var(--t2)">{{ item.writer.phone_number or '--' }}</td>
           <td><span class="tag tag-full">{{ item.writer.pro or '--' }}</span></td>
-          <td>
-            <span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">
-              {{ item.work_count }}
-            </span>
-          </td>
-          <td>
-            {% if item.writer.has_master_contract %}
-              <span class="tag tag-s1">Yes</span>
-            {% else %}
-              <span style="color:var(--t3)">No</span>
-            {% endif %}
-          </td>
-          <td style="color:var(--t3);font-size:12px">{{ item.writer.created_at.strftime('%b %d, %Y') if item.writer.created_at else '--' }}</td>
-          <td style="display:flex;gap:6px">
-            <a href="/writers/{{ item.writer.id }}" class="btn btn-sec btn-sm">View</a>
-            <a href="/writers/{{ item.writer.id }}/edit" class="btn btn-sec btn-sm">Edit</a>
+          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ item.work_count }}</span></td>
+        </tr>
+        <tr class="wr-detail-row" id="wdetail-{{ item.writer.id }}">
+          <td colspan="4">
+            <div class="wr-detail-inner">
+              <div class="wd-section">
+                <div class="wd-label">Contact</div>
+                <div style="font-size:13px;display:flex;flex-direction:column;gap:4px">
+                  {% if item.writer.email %}<span>&#9993; {{ item.writer.email }}</span>{% endif %}
+                  {% if item.writer.phone_number %}<span>&#128222; {{ item.writer.phone_number }}</span>{% endif %}
+                  {% if item.writer.address %}
+                  <span style="color:var(--t3);font-size:12px">{{ item.writer.address }}{% if item.writer.city %}, {{ item.writer.city }}{% endif %}{% if item.writer.state %}, {{ item.writer.state }}{% endif %}{% if item.writer.zip_code %} {{ item.writer.zip_code }}{% endif %}</span>
+                  {% endif %}
+                  {% if not item.writer.email and not item.writer.phone_number %}<span style="color:var(--t3)">No contact info</span>{% endif %}
+                </div>
+                <div class="wd-label" style="margin-top:12px">Publishing Contract</div>
+                {% if item.writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}<span style="color:var(--t3);font-size:13px">No</span>{% endif %}
+              </div>
+              <div class="wd-section">
+                <div class="wd-label">Details</div>
+                <div style="font-size:13px;display:flex;flex-direction:column;gap:4px;color:var(--t2)">
+                  {% if item.writer.ipi %}<span>IPI: <span style="font-family:var(--fm)">{{ item.writer.ipi }}</span></span>{% endif %}
+                  {% if item.writer.pro %}<span>PRO: {{ item.writer.pro }}</span>{% endif %}
+                  <span style="color:var(--t3);font-size:11px">Added {{ item.writer.created_at.strftime('%b %d, %Y') if item.writer.created_at else '--' }}</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <a href="/writers/{{ item.writer.id }}/edit" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Edit</a>
+                  <a href="/writers/{{ item.writer.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
+                </div>
+              </div>
+            </div>
           </td>
         </tr>
         {% endfor %}
         {% if not writers %}
-          <tr class="empty"><td colspan="10">No writers found{% if q %} for "{{ q }}"{% endif %}.</td></tr>
+          <tr class="empty"><td colspan="4">No writers found{% if q %} for "{{ q }}"{% endif %}.</td></tr>
         {% endif %}
       </tbody>
     </table>
@@ -2986,6 +3064,20 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function toggleWriter(id) {
+  var row = document.getElementById('wdetail-' + id);
+  var header = document.querySelector('[data-writer="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.wr-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.wr-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    header.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+</script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
     <span>🎵</span>
@@ -4363,7 +4455,17 @@ def batches_list():
         .group_by(Work.batch_id)
         .all()
     ) if batch_ids else {}
-    return render_template_string(BATCHES_LIST_HTML, batches=pagination.items, pagination=pagination, work_counts=work_counts)
+    raw_works = (
+        Work.query
+        .options(joinedload(Work.work_writers))
+        .filter(Work.batch_id.in_(batch_ids))
+        .order_by(Work.title.asc())
+        .all()
+    ) if batch_ids else []
+    session_works = {}
+    for w in raw_works:
+        session_works.setdefault(w.batch_id, []).append(w)
+    return render_template_string(BATCHES_LIST_HTML, batches=pagination.items, pagination=pagination, work_counts=work_counts, session_works=session_works)
 
 
 @app.route("/batches/<int:batch_id>")
