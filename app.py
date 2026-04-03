@@ -237,6 +237,7 @@ class Work(db.Model):
     batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
     contract_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    batch = db.relationship("GenerationBatch", foreign_keys=[batch_id], lazy="select")
     work_writers = db.relationship("WorkWriter", backref="work", lazy=True, cascade="all, delete-orphan")
     contract_documents = db.relationship("ContractDocument", backref="work", lazy=True, cascade="all, delete-orphan")
 
