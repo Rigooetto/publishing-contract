@@ -651,6 +651,34 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .page{
     padding-bottom:160px;
   }
+
+  /* Works list: hide Session(2), Contract Date(3), Writers(4), Signed PDF(6), Signed(8), Created(9) */
+  .tbl-works th:nth-child(2),.tbl-works td:nth-child(2),
+  .tbl-works th:nth-child(3),.tbl-works td:nth-child(3),
+  .tbl-works th:nth-child(4),.tbl-works td:nth-child(4),
+  .tbl-works th:nth-child(6),.tbl-works td:nth-child(6),
+  .tbl-works th:nth-child(8),.tbl-works td:nth-child(8),
+  .tbl-works th:nth-child(9),.tbl-works td:nth-child(9){display:none}
+
+  /* Writers list: hide AKA(2), IPI(3), Email(4), Phone(5), Publishing Contract(8), Created(9) */
+  .tbl-writers th:nth-child(2),.tbl-writers td:nth-child(2),
+  .tbl-writers th:nth-child(3),.tbl-writers td:nth-child(3),
+  .tbl-writers th:nth-child(4),.tbl-writers td:nth-child(4),
+  .tbl-writers th:nth-child(5),.tbl-writers td:nth-child(5),
+  .tbl-writers th:nth-child(8),.tbl-writers td:nth-child(8),
+  .tbl-writers th:nth-child(9),.tbl-writers td:nth-child(9){display:none}
+
+  /* Sessions list: hide Contract Date(3), Works(5), Created(6) */
+  .tbl-sessions th:nth-child(3),.tbl-sessions td:nth-child(3),
+  .tbl-sessions th:nth-child(5),.tbl-sessions td:nth-child(5),
+  .tbl-sessions th:nth-child(6),.tbl-sessions td:nth-child(6){display:none}
+
+  /* Documents table: hide File(3), Generated(4), DocuSign(5), Certificate(7), Signed PDF(9) */
+  .tbl-docs th:nth-child(3),.tbl-docs td:nth-child(3),
+  .tbl-docs th:nth-child(4),.tbl-docs td:nth-child(4),
+  .tbl-docs th:nth-child(5),.tbl-docs td:nth-child(5),
+  .tbl-docs th:nth-child(7),.tbl-docs td:nth-child(7),
+  .tbl-docs th:nth-child(9),.tbl-docs td:nth-child(9){display:none}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
@@ -1740,7 +1768,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Works</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="min-width:960px">
+    <table class="tbl tbl-works">
       <thead>
         <tr>
           <th>Work Title</th><th>Session</th><th>Contract Date</th><th>Writers</th>
@@ -1853,7 +1881,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128230;</div><span class="card-title">All Sessions</span></div>
   <div class="tbl-wrap">
-    <table class="tbl">
+    <table class="tbl tbl-sessions">
       <thead><tr><th>Session</th><th>Name</th><th>Contract Date</th><th>Status</th><th>Works</th><th>Created</th><th></th></tr></thead>
       <tbody>
         {% for batch in batches %}
@@ -1987,7 +2015,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128196;</div><span class="card-title">Generated Documents</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="min-width:860px">
+    <table class="tbl tbl-docs">
       <thead>
         <tr>
           <th>Writer</th><th>Type</th><th>File</th><th>Generated</th>
@@ -2789,7 +2817,7 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Writers</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="min-width:980px">
+    <table class="tbl tbl-writers">
       <thead>
         <tr>
           <th>Writer</th>
