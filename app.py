@@ -1777,68 +1777,126 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
     </form>
   </div>
 </div>
+<style>
+.work-row{cursor:pointer;transition:background .15s}
+.work-row:hover td{background:rgba(255,255,255,.04)!important}
+.work-row.open td{background:rgba(99,133,255,.06)!important}
+.work-detail-row{display:none}
+.work-detail-row.open{display:table-row}
+.work-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
+.work-detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:rgba(99,133,255,.03)}
+@media(max-width:768px){.work-detail-inner{grid-template-columns:1fr}}
+.wd-section{display:flex;flex-direction:column;gap:8px}
+.wd-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:2px}
+.wd-writers-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.wd-writers-tbl th{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 8px;text-align:left;border-bottom:1px solid var(--b1)}
+.wd-writers-tbl td{padding:5px 8px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,.04)}
+.wd-writers-tbl tr:last-child td{border-bottom:none}
+.writer-preview{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.writer-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--b0);border-radius:6px;padding:3px 8px;font-size:11px}
+.writer-pill .wp-name{font-weight:600;color:var(--t1)}
+.writer-pill .wp-meta{color:var(--t3)}
+.writer-pill .wp-split{color:var(--a);font-weight:700}
+.expand-chevron{display:inline-block;transition:transform .2s;color:var(--t3);font-size:10px;margin-right:6px}
+.work-row.open .expand-chevron{transform:rotate(90deg)}
+</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Works</span></div>
   <div class="tbl-wrap">
-    <table class="tbl tbl-works">
+    <table class="tbl" style="table-layout:auto">
       <thead>
         <tr>
-          <th>Work Title</th><th>Session</th><th>Contract Date</th><th>Writers</th>
-          <th>Contract</th><th>Signed PDF</th><th>DS Status</th><th>Signed</th>
-          <th>Created</th><th></th>
+          <th style="width:30%">Work Title</th>
+          <th>Writers</th>
+          <th style="white-space:nowrap">Date</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for work in works %}
         {% set docs = work.contract_documents %}
-        {% set first_doc = docs[0] if docs else none %}
-        <tr>
-          <td style="font-weight:600">{{ work.title }}</td>
-          <td style="color:var(--t2)">
-            {% if work.batch_id %}
-              <a href="/batches/{{ work.batch_id }}" style="color:var(--a)">
-                {% if work.batch and work.batch.session_name %}{{ work.batch.session_name }}{% else %}Session #{{ work.batch_id }}{% endif %}
-              </a>
-            {% else %}--{% endif %}
-          </td>
-          <td style="color:var(--t2);font-size:12px">{{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</td>
-          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ work.work_writers|length }}</span></td>
+        {% set ns = namespace(ds_st=none,any_signed=false) %}
+        {% for d in docs %}
+          {% if d.docusign_status and not ns.ds_st %}{% set ns.ds_st = d.docusign_status %}{% endif %}
+          {% if d.status in ['signed','signed_uploaded','signed_complete'] %}{% set ns.any_signed = true %}{% endif %}
+        {% endfor %}
+        {% set signed_docs = docs | selectattr('signed_pdf_drive_web_view_link') | list %}
+        <tr class="work-row" data-work="{{ work.id }}" onclick="toggleWork({{ work.id }})">
           <td>
-            {% if docs|length == 1 and first_doc.drive_web_view_link %}
-              <a href="{{ first_doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ first_doc.file_name }}">&#128196; {{ first_doc.file_name | truncate(26,true,'...') }}</a>
-            {% elif docs|length > 1 %}
-              <a href="/works/{{ work.id }}" class="btn btn-cyan btn-xs">&#128196; {{ docs|length }} docs</a>
-            {% else %}--{% endif %}
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ work.title }}</span>
+            {% if work.contract_date %}<div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">{{ work.contract_date.strftime('%b %d, %Y') }}</div>{% endif %}
           </td>
           <td>
-            {% set signed_docs = [] %}
-            {% for d in docs %}{% if d.signed_pdf_drive_web_view_link %}{% set _ = signed_docs.append(d) %}{% endif %}{% endfor %}
-            {% if signed_docs|length == 1 %}
-              <a href="{{ signed_docs[0].signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">&#128209; Signed PDF</a>
-            {% elif signed_docs|length > 1 %}
-              <a href="/works/{{ work.id }}" class="btn btn-success btn-xs">&#128209; {{ signed_docs|length }}</a>
-            {% else %}--{% endif %}
+            <div class="writer-preview">
+              {% for ww in work.work_writers[:2] %}
+              <span class="writer-pill">
+                <span class="wp-name">{{ ww.writer.full_name }}</span>
+                {% if ww.writer.ipi %}<span class="wp-meta">{{ ww.writer.ipi }}</span>{% endif %}
+                {% if ww.writer.pro %}<span class="wp-meta">{{ ww.writer.pro }}</span>{% endif %}
+                <span class="wp-split">{{ "%.0f"|format(ww.writer_percentage) }}%</span>
+              </span>
+              {% endfor %}
+              {% if work.work_writers|length > 2 %}
+              <span style="font-size:11px;color:var(--t3)">+{{ work.work_writers|length - 2 }} more</span>
+              {% endif %}
+            </div>
           </td>
+          <td style="white-space:nowrap;font-size:12px;color:var(--t2)">{{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</td>
           <td>
-            {% set ns = namespace(ds_st=none) %}
-            {% for d in docs %}{% if d.docusign_status and not ns.ds_st %}{% set ns.ds_st = d.docusign_status %}{% endif %}{% endfor %}
-            {% if ns.ds_st %}<span class="status s-{{ ns.ds_st }}"><span class="status-dot"></span>{{ ns.ds_st | title }}</span>{% else %}--{% endif %}
-          </td>
-          <td>
-            {% set ns2 = namespace(any_signed=false) %}
-            {% for d in docs %}{% if d.status in ['signed','signed_uploaded','signed_complete'] %}{% set ns2.any_signed = true %}{% endif %}{% endfor %}
-            {% if ns2.any_signed %}<span class="tag tag-s1">Signed</span>
+            {% if ns.any_signed %}<span class="tag tag-s1">Signed</span>
+            {% elif ns.ds_st %}<span class="status s-{{ ns.ds_st }}"><span class="status-dot"></span>{{ ns.ds_st | title }}</span>
             {% elif docs %}<span style="color:var(--t3);font-size:11px">Pending</span>
-            {% else %}--{% endif %}
+            {% else %}<span style="color:var(--t3);font-size:11px">--</span>{% endif %}
           </td>
-          <td style="color:var(--t3);font-size:12px">{{ work.created_at.strftime('%b %d, %Y') }}</td>
-          <td style="display:flex;gap:6px">
-            <a href="/works/{{ work.id }}" class="btn btn-sec btn-sm">View</a>
-            <a href="/works/{{ work.id }}/edit" class="btn btn-sec btn-sm">Edit</a>
+        </tr>
+        <tr class="work-detail-row" id="detail-{{ work.id }}">
+          <td colspan="4">
+            <div class="work-detail-inner">
+              <div class="wd-section">
+                <div class="wd-label">Writers &amp; Splits</div>
+                <table class="wd-writers-tbl">
+                  <thead><tr><th>Writer</th><th>IPI</th><th>PRO</th><th>Split</th></tr></thead>
+                  <tbody>
+                    {% for ww in work.work_writers %}
+                    <tr>
+                      <td style="font-weight:600">{{ ww.writer.full_name }}</td>
+                      <td style="font-family:var(--fm)">{{ ww.writer.ipi or '--' }}</td>
+                      <td>{{ ww.writer.pro or '--' }}</td>
+                      <td style="color:var(--a);font-weight:700">{{ "%.2f"|format(ww.writer_percentage) }}%</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="wd-section">
+                <div class="wd-label">Session</div>
+                <div style="font-size:13px;color:var(--t2)">
+                  {% if work.batch %}
+                    <a href="/batches/{{ work.batch_id }}" style="color:var(--a)">{{ work.batch.session_name or 'Session #' ~ work.batch_id }}</a>
+                  {% else %}--{% endif %}
+                </div>
+                <div class="wd-label" style="margin-top:12px">Documents</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  {% if docs|length == 1 and docs[0].drive_web_view_link %}
+                    <a href="{{ docs[0].drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">&#128196; Contract</a>
+                  {% elif docs|length > 1 %}
+                    {% for d in docs %}{% if d.drive_web_view_link %}<a href="{{ d.drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">&#128196; {{ d.writer_name_snapshot.split()[0] }}</a>{% endif %}{% endfor %}
+                  {% else %}<span style="font-size:12px;color:var(--t3)">None generated</span>{% endif %}
+                  {% for d in signed_docs %}
+                    <a href="{{ d.signed_pdf_drive_web_view_link }}" target="_blank" class="btn btn-success btn-xs">&#128209; Signed</a>
+                  {% endfor %}
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Edit</a>
+                  <a href="/works/{{ work.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
+                </div>
+              </div>
+            </div>
           </td>
         </tr>
         {% endfor %}
-        {% if not works %}<tr class="empty"><td colspan="10">No works found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
+        {% if not works %}<tr class="empty"><td colspan="4">No works found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
@@ -1860,6 +1918,20 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function toggleWork(id) {
+  var row = document.getElementById('detail-' + id);
+  var header = document.querySelector('[data-work="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.work-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.work-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    header.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+</script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
     <span>🎵</span>
