@@ -1002,9 +1002,9 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 
 def _sidebar(active):
     pages = [
-        ("formulario",   "New Work",  "<span class='ni ni-pencil-custom'></span>"),
-        ("works_list",   "Works",     "<span class='ni'>&#127925;</span>"),
-        ("batches_list", "Sessions",  "<span class='ni'>&#128230;</span>"),
+        ("formulario",   "New Work",  "<span class='ni'>&#128395;</span>"),
+        ("works_list",   "Works",     "<span class='ni'>&#127932;</span>"),
+        ("batches_list", "Sessions",  "<span class='ni'>&#128210;</span>"),
     ]
 
     html = "<aside class='sb' id='mainSidebar'>"
@@ -1103,7 +1103,7 @@ FORM_HTML = """<!DOCTYPE html>
 {% endif %}{% endwith %}
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#9999;</div>
+    <div class="ph-icon">&#128395;</div>
     <div>
       <div class="ph-title">New Work</div>
       <div class="ph-sub">Create a work, add writers, and save into a session for contract generation.</div>
@@ -1129,7 +1129,7 @@ FORM_HTML = """<!DOCTYPE html>
   <div class="field">
     <label class="label">Add to Existing Session</label>
     <div class="inp-wrap">
-      <span class="inp-ico">&#128230;</span>
+      <span class="inp-ico">&#128210;</span>
       <select class="inp" name="existing_batch_id">
         <option value="">-- Create new session</option>
         {% for batch in batches %}
@@ -1149,7 +1149,7 @@ FORM_HTML = """<!DOCTYPE html>
         <div class="field">
           <label class="label">Work Title</label>
           <div class="inp-wrap">
-            <span class="inp-ico">&#127925;</span>
+            <span class="inp-ico">&#127932;</span>
             <input class="inp" name="work_title" required placeholder="e.g. La Serenata" value="{{ work_title_value or '' }}">
           </div>
         </div>
@@ -1593,7 +1593,7 @@ function syncModalPro(sel) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -1601,7 +1601,7 @@ function syncModalPro(sel) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -1831,7 +1831,7 @@ document.addEventListener('click', function(e) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -1839,7 +1839,7 @@ document.addEventListener('click', function(e) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -1867,7 +1867,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127925;</div>
+    <div class="ph-icon">&#127932;</div>
     <div><div class="ph-title">Works</div><div class="ph-sub">All registered musical works</div></div>
   </div>
   <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
@@ -2050,7 +2050,7 @@ function toggleWork(id) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -2058,7 +2058,7 @@ function toggleWork(id) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -2086,7 +2086,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#128230;</div>
+    <div class="ph-icon">&#128210;</div>
     <div><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready for contract generation</div></div>
   </div>
   <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
@@ -2105,7 +2105,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 .sd-works-tbl tr:last-child td{border-bottom:none}
 </style>
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#128230;</div><span class="card-title">All Sessions</span></div>
+  <div class="card-hd"><div class="card-ico">&#128210;</div><span class="card-title">All Sessions</span></div>
   <div class="tbl-wrap">
     <table class="tbl" style="table-layout:auto">
       <thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Works</th></tr></thead>
@@ -2186,7 +2186,7 @@ function toggleSession(id) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -2194,7 +2194,7 @@ function toggleSession(id) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -2225,7 +2225,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 {% endif %}{% endwith %}
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#128230;</div>
+    <div class="ph-icon">&#128210;</div>
     <div>
       <div class="ph-title">Session #{{ batch.id }}</div>
       <div class="ph-sub">{{ batch.session_name or 'No name' }} - {{ batch.contract_date.strftime('%b %d, %Y') }}</div>
@@ -2253,7 +2253,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
   </div>
 </div>
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Works in Session</span></div>
+  <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works in Session</span></div>
   <div class="tbl-wrap">
     <table class="tbl">
       <thead><tr><th>Work Title</th><th>Writers</th><th>Created</th><th></th></tr></thead>
@@ -2461,7 +2461,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -2469,7 +2469,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -2497,7 +2497,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127925;</div>
+    <div class="ph-icon">&#127932;</div>
     <div>
       <div class="ph-title">{{ work.title }}</div>
       <div class="ph-sub">{{ work.batch.session_name if work.batch and work.batch.session_name else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
@@ -2619,7 +2619,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -2627,7 +2627,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -2673,7 +2673,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 
 <form method="post" id="workEditForm">
   <div class="card">
-    <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Work Information</span></div>
+    <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
       <div class="g g2" style="margin-bottom:12px">
         <div class="field">
@@ -3039,7 +3039,7 @@ function syncModalPro(sel) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -3047,7 +3047,7 @@ function syncModalPro(sel) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -3196,7 +3196,7 @@ function toggleWriter(id) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -3204,7 +3204,7 @@ function toggleWriter(id) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -3270,7 +3270,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Works</span></div>
+  <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works</span></div>
   <div class="tbl-wrap">
     <table class="tbl" style="min-width:920px">
       <thead>
@@ -3317,7 +3317,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 """ + _SB_JS + """
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -3325,7 +3325,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -3510,7 +3510,7 @@ function syncWriterModalPro(sel) {
 </script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -3518,7 +3518,7 @@ function syncWriterModalPro(sel) {
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -3600,7 +3600,7 @@ ADMIN_HTML = """<!DOCTYPE html>
 """ + _SB_JS + """
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -3608,7 +3608,7 @@ ADMIN_HTML = """<!DOCTYPE html>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
@@ -3731,7 +3731,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 """ + _SB_JS + """
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
-    <span>🎵</span>
+    <span>🎼</span>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
@@ -3739,7 +3739,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
-    <span>📦</span>
+    <span>🗒️</span>
     <small>Sessions</small>
   </a>
   <a href="/writers" class="mnav-item">
