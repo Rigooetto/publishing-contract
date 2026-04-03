@@ -927,12 +927,16 @@ function applyTheme(theme) {
   var root = document.documentElement;
   if (theme === 'light') {
     root.setAttribute('data-theme', 'light');
+    document.body.style.background = '#f0f2f7';
   } else if (theme === 'dark') {
     root.setAttribute('data-theme', 'dark');
+    document.body.style.background = '';
   } else {
     // auto: dark 8pm-8am, light otherwise
     var h = new Date().getHours();
-    root.setAttribute('data-theme', (h >= 20 || h < 8) ? 'dark' : 'light');
+    var autoTheme = (h >= 20 || h < 8) ? 'dark' : 'light';
+    root.setAttribute('data-theme', autoTheme);
+    document.body.style.background = autoTheme === 'light' ? '#f0f2f7' : '';
   }
   document.querySelectorAll('.theme-btn').forEach(function(b){ b.classList.remove('active'); });
   var map = {light:'themeLight', dark:'themeDark', auto:'themeAuto'};
@@ -965,9 +969,10 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 <!-- ===== LIGHT THEME OVERRIDES ===== -->
 <style>
 [data-theme="light"]{
+  --bg0:#f0f2f7;
   --bg1:#f5f6fa;
   --bg2:#ffffff;
-  --bg3:#f0f1f5;
+  --bg3:#eceef3;
   --bg4:#e8e9ef;
   --t1:#0f1117;
   --t2:#4b5563;
@@ -976,8 +981,9 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
   --b1:#f0f1f5;
   --a:#4f6ef7;
 }
+[data-theme="light"] html,[data-theme="light"] body{background:#f0f2f7}
 [data-theme="light"] .sb{background:#fff;border-right-color:#e5e7eb}
-[data-theme="light"] .topbar{background:rgba(255,255,255,.95);border-bottom-color:#e5e7eb}
+[data-theme="light"] .topbar{background:rgba(240,242,247,.95);border-bottom-color:#e5e7eb}
 [data-theme="light"] .card{background:#fff;border-color:#e5e7eb}
 [data-theme="light"] .mobile-nav{background:#fff;border-top-color:#e5e7eb}
 [data-theme="light"] .inp{background:#f5f6fa;border-color:#d1d5db;color:#0f1117}
