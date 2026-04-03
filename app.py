@@ -880,7 +880,115 @@ _SB_JS = """
     });
   });
 })();
-</script>"""
+</script>
+
+<!-- ===== SETTINGS MODAL ===== -->
+<style>
+#settingsModal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);align-items:center;justify-content:center}
+#settingsModal.open{display:flex}
+.settings-panel{background:var(--bg2);border:1px solid var(--b0);border-radius:14px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.settings-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--b0)}
+.settings-hd span{font-weight:700;font-size:15px}
+.settings-hd button{background:none;border:none;color:var(--t2);font-size:18px;cursor:pointer;line-height:1}
+.settings-body{padding:20px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--b1)}
+.settings-row:last-child{border-bottom:none}
+.settings-row label{font-size:13px;color:var(--t1);font-weight:500}
+.settings-row .s-desc{font-size:11px;color:var(--t3);margin-top:2px}
+.theme-btns{display:flex;gap:6px}
+.theme-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--b0);background:var(--bg3);color:var(--t2);font-size:12px;cursor:pointer;transition:all .15s}
+.theme-btn.active{border-color:var(--a);color:var(--a);background:rgba(99,133,255,.12)}
+</style>
+<div id="settingsModal">
+  <div class="settings-panel">
+    <div class="settings-hd">
+      <span>&#9881; Settings</span>
+      <button onclick="closeSettings()">&#10005;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-row">
+        <div>
+          <div label>Appearance</div>
+          <div class="s-desc">Choose light, dark, or follow system/time</div>
+        </div>
+        <div class="theme-btns">
+          <button class="theme-btn" id="themeLight" onclick="setTheme('light')">&#9788; Light</button>
+          <button class="theme-btn" id="themeDark" onclick="setTheme('dark')">&#9790; Dark</button>
+          <button class="theme-btn" id="themeAuto" onclick="setTheme('auto')">&#9680; Auto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Theme logic ----
+function applyTheme(theme) {
+  var root = document.documentElement;
+  if (theme === 'light') {
+    root.setAttribute('data-theme', 'light');
+  } else if (theme === 'dark') {
+    root.setAttribute('data-theme', 'dark');
+  } else {
+    // auto: dark 8pm-8am, light otherwise
+    var h = new Date().getHours();
+    root.setAttribute('data-theme', (h >= 20 || h < 8) ? 'dark' : 'light');
+  }
+  document.querySelectorAll('.theme-btn').forEach(function(b){ b.classList.remove('active'); });
+  var map = {light:'themeLight', dark:'themeDark', auto:'themeAuto'};
+  var el = document.getElementById(map[theme]);
+  if (el) el.classList.add('active');
+}
+function setTheme(theme) {
+  localStorage.setItem('app_theme', theme);
+  applyTheme(theme);
+}
+(function(){
+  var saved = localStorage.getItem('app_theme') || 'dark';
+  applyTheme(saved);
+})();
+
+// ---- Modal ----
+window.openSettings = function() {
+  var saved = localStorage.getItem('app_theme') || 'dark';
+  applyTheme(saved);
+  document.getElementById('settingsModal').classList.add('open');
+};
+window.closeSettings = function() {
+  document.getElementById('settingsModal').classList.remove('open');
+};
+document.getElementById('settingsModal').addEventListener('click', function(e){
+  if (e.target === this) closeSettings();
+});
+</script>
+
+<!-- ===== LIGHT THEME OVERRIDES ===== -->
+<style>
+[data-theme="light"]{
+  --bg1:#f5f6fa;
+  --bg2:#ffffff;
+  --bg3:#f0f1f5;
+  --bg4:#e8e9ef;
+  --t1:#0f1117;
+  --t2:#4b5563;
+  --t3:#9ca3af;
+  --b0:#e5e7eb;
+  --b1:#f0f1f5;
+  --a:#4f6ef7;
+}
+[data-theme="light"] .sb{background:#fff;border-right-color:#e5e7eb}
+[data-theme="light"] .topbar{background:rgba(255,255,255,.95);border-bottom-color:#e5e7eb}
+[data-theme="light"] .card{background:#fff;border-color:#e5e7eb}
+[data-theme="light"] .mobile-nav{background:#fff;border-top-color:#e5e7eb}
+[data-theme="light"] .inp{background:#f5f6fa;border-color:#d1d5db;color:#0f1117}
+[data-theme="light"] .inp:focus{border-color:var(--a)}
+[data-theme="light"] .btn-sec{background:#f0f1f5;border-color:#d1d5db;color:#374151}
+[data-theme="light"] .tag{background:#e8e9ef;color:#374151}
+[data-theme="light"] .settings-panel{background:#fff}
+[data-theme="light"] .theme-btn{background:#f0f1f5;border-color:#d1d5db;color:#374151}
+[data-theme="light"] .work-detail-inner,[data-theme="light"] .sess-detail-inner,[data-theme="light"] .wr-detail-inner{background:rgba(79,110,247,.04)}
+[data-theme="light"] .work-row.open td,[data-theme="light"] .sess-row.open td,[data-theme="light"] .wr-row.open td{background:rgba(79,110,247,.06)!important}
+</style>"""
 
 # ================================================================
 # SHARED SIDEBAR HTML
@@ -922,7 +1030,7 @@ def _sidebar(active):
     html += "<div class='sb-sec'>Resources</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/writers'" + (" class='on'" if active == "writers_list" else "") + " title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
-    html += "<a href='#' title='Settings'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
+    html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Admin</div>"
@@ -1181,13 +1289,15 @@ function writerTpl(i, data) {
   h += '</div>';
 
   h += '<div class="wc-sec">Publisher Details</div>';
-  h += '<div class="g g52" style="gap:10px">';
+  h += '<div class="g g2" style="gap:10px">';
   h += '<div class="field"><label class="label">Publisher</label>';
   h += '<input class="inp wpub" name="writer_publisher" placeholder="Publisher Name" value="' + (data.publisher || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Publisher IPI</label>';
-  h += '<input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI" value="' + (data.publisher_ipi || '') + '"></div>';
+  h += '<input class="inp wpipi" name="publisher_ipi" placeholder="Publisher IPI" value="' + (data.publisher_ipi || '') + '" style="max-width:160px"></div>';
+  h += '</div>';
 
+  h += '<div class="g g4a" style="gap:10px;margin-top:10px">';
   h += '<div class="field"><label class="label">Address</label>';
   h += '<input class="inp wpaddr" name="publisher_address" value="' + (data.publisher_address || defAddr) + '" placeholder="Address"></div>';
 
@@ -1796,7 +1906,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 .writer-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--b0);border-radius:6px;padding:3px 8px;font-size:11px}
 .writer-pill .wp-name{font-weight:600;color:var(--t1)}
 .writer-pill .wp-meta{color:var(--t3)}
-.writer-pill .wp-split{color:var(--a);font-weight:700}
+.writer-pill .wp-split{color:var(--a);font-weight:700;font-family:inherit}
 .expand-chevron{display:inline-block;transition:transform .2s;color:var(--t3);font-size:10px;margin-right:6px}
 .work-row.open .expand-chevron{transform:rotate(90deg)}
 </style>
@@ -2426,7 +2536,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
           <td style="color:var(--t2)">{{ ww.writer.writer_aka or '--' }}</td>
           <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ ww.writer.ipi or '--' }}</td>
           <td><span class="tag tag-full">{{ ww.writer.pro or '--' }}</span></td>
-          <td><span style="font-family:var(--fm);font-size:13px;font-weight:600;color:var(--a)">{{ "%.2f"|format(ww.writer_percentage) }}%</span></td>
+          <td><span style="font-size:13px;font-weight:700;color:var(--a)">{{ "%.2f"|format(ww.writer_percentage) }}%</span></td>
           <td style="color:var(--t2)">{{ ww.publisher or '--' }}</td>
           <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ ww.publisher_ipi or '--' }}</td>
           <td>{% if ww.writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}<span style="color:var(--t3)">No</span>{% endif %}</td>
