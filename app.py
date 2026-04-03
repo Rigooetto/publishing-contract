@@ -503,7 +503,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .split-info{flex:1;min-width:0}
 .split-lr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .split-lbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t2)}
-.split-pct{font-family:var(--fm);font-size:12px;font-weight:600;color:var(--t1)}
+.split-pct{font-size:12px;font-weight:700;color:var(--t1)}
 .split-track{height:5px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden}
 .split-fill{height:100%;border-radius:99px;transition:width .35s ease,background .35s ease;width:0;background:linear-gradient(90deg,var(--a),var(--ae))}
 .split-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;transition:all .3s}
