@@ -679,6 +679,16 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-docs th:nth-child(5),.tbl-docs td:nth-child(5),
   .tbl-docs th:nth-child(7),.tbl-docs td:nth-child(7),
   .tbl-docs th:nth-child(9),.tbl-docs td:nth-child(9){display:none}
+
+  /* View Work - writers: hide AKA(2), IPI(3), Publisher(6), Pub IPI(7) */
+  .tbl-work-writers th:nth-child(2),.tbl-work-writers td:nth-child(2),
+  .tbl-work-writers th:nth-child(3),.tbl-work-writers td:nth-child(3),
+  .tbl-work-writers th:nth-child(6),.tbl-work-writers td:nth-child(6),
+  .tbl-work-writers th:nth-child(7),.tbl-work-writers td:nth-child(7){display:none}
+
+  /* Edit Work - writers: hide IPI(2), Publisher IPI(6) */
+  .tbl-edit-writers th:nth-child(2),.tbl-edit-writers td:nth-child(2),
+  .tbl-edit-writers th:nth-child(6),.tbl-edit-writers td:nth-child(6){display:none}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
@@ -2253,7 +2263,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writers &amp; Splits</span></div>
   <div class="tbl-wrap">
-    <table class="tbl">
+    <table class="tbl tbl-work-writers">
       <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Split %</th><th>Publisher</th><th>Pub IPI</th><th>Publishing</th></tr></thead>
       <tbody>
         {% for ww in work.work_writers %}
@@ -2276,7 +2286,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128196;</div><span class="card-title">Generated Documents</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="min-width:860px">
+    <table class="tbl tbl-docs">
       <thead>
         <tr>
           <th>Writer</th><th>Type</th><th>File</th><th>Generated At</th>
@@ -2436,7 +2446,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
     </div>
     <div class="card-body">
       <div class="tbl-wrap">
-        <table class="tbl" style="min-width:1100px">
+        <table class="tbl tbl-edit-writers">
           <thead>
             <tr>
               <th>Writer</th>
