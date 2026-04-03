@@ -12,6 +12,7 @@ import io
 import os
 import re
 import json
+import uuid
 import zipfile
 import csv
 import datetime
@@ -31,6 +32,9 @@ DOCUSIGN_PRIVATE_KEY = os.getenv("DOCUSIGN_PRIVATE_KEY", "")
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
+
+# Temporary server-side store for catalog import previews (keyed by UUID token)
+_import_preview_store: dict = {}
 
 raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
 if raw_db_url.startswith("postgres://"):
@@ -3406,7 +3410,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 </div>
 
 <form method="post" action="/admin/import-catalog/confirm">
-  <input type="hidden" name="payload_json" value='{{ payload_json | safe }}'>
+  <input type="hidden" name="import_token" value="{{ import_token }}">
   <div class="ph-actions" style="justify-content:flex-end">
     <button type="submit" class="btn btn-primary" {% if error_count > 0 %}disabled{% endif %}>Confirm Import</button>
   </div>
@@ -5259,14 +5263,15 @@ def import_catalog_preview():
     valid_count = len([r for r in preview_rows if not r["error"]])
     error_count = len([r for r in preview_rows if r["error"]])
 
-    payload_json = json.dumps(preview_rows).replace("&", "&amp;").replace("'", "&#39;")
+    import_token = str(uuid.uuid4())
+    _import_preview_store[import_token] = preview_rows
 
     return render_template_string(
         IMPORT_PREVIEW_HTML,
         rows=preview_rows,
         valid_count=valid_count,
         error_count=error_count,
-        payload_json=payload_json
+        import_token=import_token
     )
 
 @app.route("/admin/import-catalog/confirm", methods=["POST"])
@@ -5274,12 +5279,11 @@ def import_catalog_confirm():
     if auth_required():
         return redirect(url_for("login"))
 
-    payload_json = request.form.get("payload_json") or "[]"
+    import_token = request.form.get("import_token") or ""
+    rows = _import_preview_store.pop(import_token, None)
 
-    try:
-        rows = json.loads(payload_json)
-    except Exception:
-        flash("Invalid import payload.")
+    if rows is None:
+        flash("Import session expired or invalid. Please re-upload your CSV.")
         return redirect(url_for("admin_panel"))
 
     writers_created = 0
