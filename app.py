@@ -30,6 +30,7 @@ DOCUSIGN_USER_ID = os.getenv("DOCUSIGN_USER_ID", "")
 DOCUSIGN_PRIVATE_KEY = os.getenv("DOCUSIGN_PRIVATE_KEY", "")
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
 
 raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
