@@ -3,6 +3,7 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from docx import Document
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 from babel.dates import format_date
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -1840,6 +1841,19 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
       </tbody>
     </table>
   </div>
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}
+        <a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>
+      {% endif %}
+      {% if pagination.has_next %}
+        <a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 </div>
 </main>
@@ -1900,7 +1914,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
           <td style="color:var(--t2)">{{ batch.session_name or '--' }}</td>
           <td style="color:var(--t2);font-size:12px">{{ batch.contract_date.strftime('%b %d, %Y') }}</td>
           <td><span class="status s-{{ batch.status }}"><span class="status-dot"></span>{{ batch.status | replace('_',' ') | title }}</span></td>
-          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ batch.works|length }}</span></td>
+          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ work_counts.get(batch.id, 0) }}</span></td>
           <td style="color:var(--t3);font-size:12px">{{ batch.created_at.strftime('%b %d, %Y') }}</td>
           <td><a href="/batches/{{ batch.id }}" class="btn btn-sec btn-sm">View</a></td>
         </tr>
@@ -1909,6 +1923,15 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
       </tbody>
     </table>
   </div>
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} sessions &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 </div>
 </main>
@@ -2876,6 +2899,15 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
       </tbody>
     </table>
   </div>
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} writers &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 </div>
 </main>
@@ -3686,7 +3718,7 @@ def get_batch_writer_summary(batch_id):
     summary.sort(key=lambda x: x["writer"].full_name.lower())
     return summary
 
-def get_writer_directory_rows(q=""):
+def get_writer_directory_rows(q="", page=1, per_page=50):
     query = Writer.query
 
     if q:
@@ -3704,16 +3736,19 @@ def get_writer_directory_rows(q=""):
             )
         )
 
-    writers = query.order_by(Writer.full_name.asc()).all()
+    pagination = query.order_by(Writer.full_name.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    writers = pagination.items
 
-    rows = []
-    for writer in writers:
-        work_count = WorkWriter.query.filter_by(writer_id=writer.id).count()
-        rows.append({
-            "writer": writer,
-            "work_count": work_count,
-        })
-    return rows
+    writer_ids = [w.id for w in writers]
+    work_count_map = dict(
+        db.session.query(WorkWriter.writer_id, func.count(WorkWriter.id))
+        .filter(WorkWriter.writer_id.in_(writer_ids))
+        .group_by(WorkWriter.writer_id)
+        .all()
+    ) if writer_ids else {}
+
+    rows = [{"writer": w, "work_count": work_count_map.get(w.id, 0)} for w in writers]
+    return rows, pagination
 
 
 # ================================================================
@@ -4192,12 +4227,17 @@ def works_list():
 
     q = (request.args.get("q") or "").strip()
     sort = (request.args.get("sort") or "newest").strip()
+    page = max(1, int(request.args.get("page") or 1))
+    per_page = 50
 
-    query = Work.query
+    query = Work.query.options(
+        joinedload(Work.work_writers).joinedload(WorkWriter.writer),
+        joinedload(Work.contract_documents),
+        joinedload(Work.batch),
+    )
 
     if q:
         like_q = "%" + q.lower() + "%"
-
         query = (
             query
             .outerjoin(WorkWriter, WorkWriter.work_id == Work.id)
@@ -4221,13 +4261,14 @@ def works_list():
     else:
         query = query.order_by(Work.created_at.desc())
 
-    works = query.all()
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return render_template_string(
         WORKS_LIST_HTML,
-        works=works,
+        works=pagination.items,
         q=q,
-        sort=sort
+        sort=sort,
+        pagination=pagination,
     )
 
 
@@ -4235,8 +4276,21 @@ def works_list():
 def batches_list():
     if auth_required():
         return redirect(url_for("login"))
-    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
-    return render_template_string(BATCHES_LIST_HTML, batches=batches)
+    page = max(1, int(request.args.get("page") or 1))
+    per_page = 50
+    pagination = (
+        GenerationBatch.query
+        .order_by(GenerationBatch.created_at.desc())
+        .paginate(page=page, per_page=per_page, error_out=False)
+    )
+    batch_ids = [b.id for b in pagination.items]
+    work_counts = dict(
+        db.session.query(Work.batch_id, func.count(Work.id))
+        .filter(Work.batch_id.in_(batch_ids))
+        .group_by(Work.batch_id)
+        .all()
+    ) if batch_ids else {}
+    return render_template_string(BATCHES_LIST_HTML, batches=pagination.items, pagination=pagination, work_counts=work_counts)
 
 
 @app.route("/batches/<int:batch_id>")
@@ -4650,11 +4704,13 @@ def writers_list():
         return redirect(url_for("login"))
 
     q = (request.args.get("q") or "").strip()
-    writers = get_writer_directory_rows(q)
+    page = max(1, int(request.args.get("page") or 1))
+    writers, pagination = get_writer_directory_rows(q, page=page)
     return render_template_string(
         WRITERS_LIST_HTML,
         writers=writers,
         q=q,
+        pagination=pagination,
     )
 
 
