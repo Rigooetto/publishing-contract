@@ -652,48 +652,6 @@ select.inp option{background:var(--bg2);color:var(--t1)}
     padding-bottom:160px;
   }
 }
-
-  .main{
-    margin-left:0 !important;
-  }
-
-  .mobile-nav{
-    display:flex;
-    position:fixed;
-    bottom:0;
-    left:0;
-    right:0;
-    height:60px;
-    background:#111827;
-    border-top:1px solid rgba(255,255,255,.08);
-    justify-content:space-around;
-    align-items:center;
-    z-index:9999;
-  }
-
-  .mnav-item{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    color:#9ca3af;
-    font-size:11px;
-    text-decoration:none;
-  }
-
-  .mnav-item span{
-    font-size:18px;
-    margin-bottom:2px;
-  }
-
-  .mnav-item:hover{
-    color:#fff;
-  }
-
-  .page{
-    padding-bottom:80px; /* prevents overlap */
-  }
-}
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
 .sb-toggle{
