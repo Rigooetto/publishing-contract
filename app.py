@@ -6301,56 +6301,109 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
 <script>
 var trackCount = {{ tracks|length if tracks else 0 }};
 
+function makeField(labelText, inputAttrs) {
+  var d = document.createElement('div'); d.className = 'field';
+  var l = document.createElement('label'); l.className = 'label'; l.textContent = labelText;
+  var inp = document.createElement('input'); inp.className = 'inp';
+  for (var k in inputAttrs) inp[k] = inputAttrs[k];
+  d.appendChild(l); d.appendChild(inp);
+  return d;
+}
+function makeGrid(fields) {
+  var g = document.createElement('div'); g.className = 'g4';
+  fields.forEach(function(f){ g.appendChild(f); });
+  return g;
+}
+
 function addTrack() {
   trackCount++;
   var idx = trackCount;
   var noMsg = document.getElementById('noTracksMsg');
   if (noMsg) noMsg.remove();
   var container = document.getElementById('tracksContainer');
+
   var block = document.createElement('div');
   block.className = 'track-block';
-  block.innerHTML = `
-    <input type="hidden" name="track_id[]" value="">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="font-weight:600;font-size:13px;color:var(--a)">Track ${idx}</div>
-      <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="removeTrack(this)">Remove</button>
-    </div>
-    <div class="g4">
-      <div class="field"><label class="label">Track #</label><input class="inp" name="track_number[]" type="number" placeholder="#" value="${idx}"></div>
-      <div class="field"><label class="label">Primary Title *</label><input class="inp" name="primary_title[]" required placeholder="Track title"></div>
-      <div class="field"><label class="label">Duration</label><input class="inp" name="duration[]" placeholder="3:45"></div>
-      <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">(assign later)</span></label><input class="inp" name="isrc[]" placeholder="Leave blank"></div>
-    </div>
-    <div class="g4" style="margin-top:10px">
-      <div class="field"><label class="label">Recording Title</label><input class="inp" name="recording_title[]" placeholder="If different from primary"></div>
-      <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" placeholder="Alternate title"></div>
-      <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" placeholder="AT, TT..."></div>
-      <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" placeholder="Genre"></div>
-    </div>
-    <div class="g4" style="margin-top:10px">
-      <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" placeholder="Label name"></div>
-      <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" placeholder="(P) 2024 Label Name"></div>
-      <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]"></div>
-      <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" placeholder="Producer name"></div>
-    </div>
-    <div class="g4" style="margin-top:10px">
-      <div class="field"><label class="label">Recording Engineer</label><input class="inp" name="recording_engineer[]" placeholder="Engineer name"></div>
-      <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" placeholder="Exec producer"></div>
-    </div>
-    <div style="margin-top:12px">
-      <div class="label" style="margin-bottom:6px;color:var(--t2)">Track Artists</div>
-      <div class="g4">
-        ${[...Array(8)].map(function(_,i){ return '<div class="field"><label class="label" style="color:var(--t3)">Artist '+(i+1)+'</label><input class="inp" name="track_artist_new_'+idx+'[]" placeholder="Artist name"></div>'; }).join('')}
-      </div>
-    </div>
-    <div style="margin-top:12px">
-      <div class="label" style="margin-bottom:6px;color:var(--a)">Linked Works (Compositions)</div>
-      <div class="linked-works" id="linked-works-new-${idx}"></div>
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <input class="inp work-search-inp" style="flex:1" placeholder="Search works to link..." data-track-new="${idx}" oninput="searchWorks(this)">
-      </div>
-      <div class="work-suggestions" id="work-sugg-new-${idx}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
-    </div>`;
+
+  // hidden id
+  var hiddenId = document.createElement('input');
+  hiddenId.type = 'hidden'; hiddenId.name = 'track_id[]'; hiddenId.value = '';
+  block.appendChild(hiddenId);
+
+  // header row
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-weight:600;font-size:13px;color:var(--a)';
+  title.textContent = 'Track ' + idx;
+  var rmBtn = document.createElement('button');
+  rmBtn.type = 'button'; rmBtn.className = 'btn btn-xs';
+  rmBtn.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
+  rmBtn.textContent = 'Remove';
+  rmBtn.onclick = function(){ removeTrack(this); };
+  hdr.appendChild(title); hdr.appendChild(rmBtn);
+  block.appendChild(hdr);
+
+  // row 1
+  block.appendChild(makeGrid([
+    makeField('Track #', {name:'track_number[]', type:'number', placeholder:'#', value:idx}),
+    makeField('Primary Title', {name:'primary_title[]', placeholder:'Track title', required:true}),
+    makeField('Duration', {name:'duration[]', placeholder:'3:45'}),
+    makeField('ISRC (assign later)', {name:'isrc[]', placeholder:'Leave blank'})
+  ]));
+
+  // row 2
+  var r2 = makeGrid([
+    makeField('Recording Title', {name:'recording_title[]', placeholder:'If different from primary'}),
+    makeField('AKA Title', {name:'aka_title[]', placeholder:'Alternate title'}),
+    makeField('AKA Type Code', {name:'aka_type_code[]', placeholder:'AT, TT...'}),
+    makeField('Genre', {name:'genre[]', placeholder:'Genre'})
+  ]); r2.style.marginTop = '10px'; block.appendChild(r2);
+
+  // row 3
+  var r3 = makeGrid([
+    makeField('Track Label', {name:'track_label[]', placeholder:'Label name'}),
+    makeField('Track P Line', {name:'track_p_line[]', placeholder:'(P) 2024 Label Name'}),
+    makeField('Recording Date', {name:'recording_date[]', type:'date'}),
+    makeField('Producer', {name:'producer[]', placeholder:'Producer name'})
+  ]); r3.style.marginTop = '10px'; block.appendChild(r3);
+
+  // row 4
+  var r4 = makeGrid([
+    makeField('Recording Engineer', {name:'recording_engineer[]', placeholder:'Engineer name'}),
+    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'})
+  ]); r4.style.marginTop = '10px'; block.appendChild(r4);
+
+  // track artists
+  var artistSec = document.createElement('div'); artistSec.style.marginTop = '12px';
+  var artistLbl = document.createElement('div'); artistLbl.className = 'label';
+  artistLbl.style.cssText = 'margin-bottom:6px;color:var(--t2)'; artistLbl.textContent = 'Track Artists';
+  var artistGrid = document.createElement('div'); artistGrid.className = 'g4';
+  for (var a = 0; a < 8; a++) {
+    artistGrid.appendChild(makeField('Artist ' + (a+1), {name:'track_artist_new_'+idx+'[]', placeholder:'Artist name'}));
+  }
+  artistSec.appendChild(artistLbl); artistSec.appendChild(artistGrid);
+  block.appendChild(artistSec);
+
+  // linked works
+  var workSec = document.createElement('div'); workSec.style.marginTop = '12px';
+  var workLbl = document.createElement('div'); workLbl.className = 'label';
+  workLbl.style.cssText = 'margin-bottom:6px;color:var(--a)'; workLbl.textContent = 'Linked Works (Compositions)';
+  var linkedDiv = document.createElement('div');
+  linkedDiv.className = 'linked-works'; linkedDiv.id = 'linked-works-new-' + idx;
+  var searchWrap = document.createElement('div'); searchWrap.style.cssText = 'display:flex;gap:8px;margin-top:6px';
+  var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp';
+  searchInp.style.flex = '1'; searchInp.placeholder = 'Search works to link...';
+  searchInp.setAttribute('data-track-new', idx);
+  searchInp.setAttribute('oninput', 'searchWorks(this)');
+  searchWrap.appendChild(searchInp);
+  var suggDiv = document.createElement('div');
+  suggDiv.id = 'work-sugg-new-' + idx;
+  suggDiv.style.cssText = 'display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px';
+  workSec.appendChild(workLbl); workSec.appendChild(linkedDiv);
+  workSec.appendChild(searchWrap); workSec.appendChild(suggDiv);
+  block.appendChild(workSec);
+
   var hr = document.createElement('hr');
   hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
   container.appendChild(block);
