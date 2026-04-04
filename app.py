@@ -6201,14 +6201,23 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         </select>
       </div>
     </div>
-    <div class="wc-sec" style="margin-top:18px">Album Artists</div>
-    <div class="g g4">
-      {% for i in range(8) %}
-      <div class="field">
-        <label class="label">Artist {{ i+1 }}{% if i == 0 %} *{% endif %}</label>
-        <input class="inp" name="artist_{{ i+1 }}" value="{{ artists[i] if artists and i < artists|length else '' }}" placeholder="{% if i == 0 %}Primary artist{% else %}Additional artist{% endif %}">
-      </div>
-      {% endfor %}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
+      <div class="wc-sec" style="margin:0">Album Artists</div>
+      <button type="button" class="btn btn-sec btn-xs" onclick="addArtist('albumArtistList')">+ Add Artist</button>
+    </div>
+    <div id="albumArtistList" style="margin-top:8px">
+      {% if artists %}
+        {% for a in artists %}
+        <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+          <input class="inp" name="artist_{{ loop.index }}" value="{{ a }}" placeholder="{% if loop.first %}Primary artist *{% else %}Additional artist{% endif %}" style="flex:1">
+          {% if not loop.first %}<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.artist-row').remove()">X</button>{% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+          <input class="inp" name="artist_1" placeholder="Primary artist *" style="flex:1">
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -6255,13 +6264,24 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
         <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" value="{{ t.track_p_line or '' }}" placeholder="(P) 2024 Label Name"></div>
       </div>
-      <div class="wc-sec" style="margin-top:14px">Track Artists</div>
-      <div class="g g4">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+        <div class="wc-sec" style="margin:0">Track Artists</div>
+        <button type="button" class="btn btn-sec btn-xs" onclick="addArtist('tartist-{{ t.id }}')">+ Add Artist</button>
+      </div>
+      <div id="tartist-{{ t.id }}" style="margin-top:8px">
         {% set tartists = t.artists_list %}
-        {% for i in range(8) %}
-        <div class="field"><label class="label">Artist {{ i+1 }}</label>
-        <input class="inp" name="track_artist_{{ loop.index0 }}_{{ loop.index0 }}[]" value="{{ tartists[i] if i < tartists|length else '' }}" placeholder="Artist name"></div>
-        {% endfor %}
+        {% if tartists %}
+          {% for a in tartists %}
+          <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+            <input class="inp" name="track_artist_0_0[]" value="{{ a }}" placeholder="{% if loop.first %}Primary artist{% else %}Additional artist{% endif %}" style="flex:1">
+            {% if not loop.first %}<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.artist-row').remove()">X</button>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+            <input class="inp" name="track_artist_0_0[]" placeholder="Primary artist" style="flex:1">
+          </div>
+        {% endif %}
       </div>
       <div class="wc-sec" style="margin-top:14px;color:var(--a)">Linked Works (Compositions)</div>
       <div class="linked-works" id="linked-works-{{ t.id }}">
@@ -6306,6 +6326,24 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
 """ + _SB_JS + """
 <script>
 var trackCount = {{ tracks|length if tracks else 0 }};
+
+function addArtist(containerId) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var existing = container.querySelectorAll('.artist-row input');
+  var name = existing.length > 0 ? existing[0].name : 'artist_1';
+  var row = document.createElement('div');
+  row.className = 'artist-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  var inp = document.createElement('input'); inp.className = 'inp';
+  inp.name = name; inp.placeholder = 'Additional artist'; inp.style.flex = '1';
+  var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-xs';
+  btn.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
+  btn.textContent = 'X';
+  btn.onclick = function(){ this.closest('.artist-row').remove(); };
+  row.appendChild(inp); row.appendChild(btn);
+  container.appendChild(row);
+}
 
 function makeField(labelText, inputAttrs) {
   var d = document.createElement('div'); d.className = 'field';
@@ -6382,12 +6420,25 @@ function addTrack() {
   block.appendChild(r3);
 
   // Track Artists section
-  var as2 = makeSection('Track Artists'); as2.style.marginTop = '14px'; block.appendChild(as2);
-  var artistGrid = document.createElement('div'); artistGrid.className = 'g g4';
-  for (var a = 0; a < 8; a++) {
-    artistGrid.appendChild(makeField('Artist ' + (a+1), {name:'track_artist_new_'+idx+'[]', placeholder:'Artist name'}));
-  }
-  block.appendChild(artistGrid);
+  var asHdr = document.createElement('div');
+  asHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-top:14px';
+  var asLbl = makeSection('Track Artists'); asLbl.style.margin = '0';
+  var asBtn = document.createElement('button'); asBtn.type = 'button'; asBtn.className = 'btn btn-sec btn-xs';
+  asBtn.textContent = '+ Add Artist';
+  var artistListId = 'tartist-new-' + idx;
+  asBtn.setAttribute('onclick', 'addArtist("' + artistListId + '")');
+  asHdr.appendChild(asLbl); asHdr.appendChild(asBtn);
+  block.appendChild(asHdr);
+  var artistList = document.createElement('div'); artistList.id = artistListId; artistList.style.marginTop = '8px';
+  var firstArtistRow = document.createElement('div');
+  firstArtistRow.className = 'artist-row';
+  firstArtistRow.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  var firstArtistInp = document.createElement('input'); firstArtistInp.className = 'inp';
+  firstArtistInp.name = 'track_artist_new_' + idx + '[]';
+  firstArtistInp.placeholder = 'Primary artist'; firstArtistInp.style.flex = '1';
+  firstArtistRow.appendChild(firstArtistInp);
+  artistList.appendChild(firstArtistRow);
+  block.appendChild(artistList);
 
   // Linked Works section
   var ws2 = makeSection('Linked Works (Compositions)'); ws2.style.cssText = 'margin-top:14px;color:var(--a)'; block.appendChild(ws2);
@@ -6597,6 +6648,11 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 # ================================================================
 
 def _parse_artists(form, prefix, count=8):
+    # Try getlist first (dynamic rows all share same name e.g. artist_1)
+    vals = form.getlist(f"{prefix}_1")
+    if vals:
+        return [v.strip() for v in vals if v.strip()]
+    # Fallback: numbered fields artist_1..artist_N
     return [form.get(f"{prefix}_{i+1}", "").strip() for i in range(count) if form.get(f"{prefix}_{i+1}", "").strip()]
 
 import json as _json
