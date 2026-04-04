@@ -3153,7 +3153,7 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
                   <span style="color:var(--t3);font-size:11px">Added {{ item.writer.created_at.strftime('%b %d, %Y') if item.writer.created_at else '--' }}</span>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:16px">
-                  <a href="/writers/{{ item.writer.id }}/edit" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Edit</a>
+                  <a href="/writers/{{ item.writer.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Edit</a>
                   <a href="/writers/{{ item.writer.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
                 </div>
               </div>
