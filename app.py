@@ -2154,9 +2154,9 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
                 <span style="font-size:12px;color:var(--t3)">No works yet.</span>
                 {% endif %}
               </div>
-              <div style="display:flex;gap:8px;margin-top:4px">
-                <a href="/batches/{{ batch.id }}" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">View Session</a>
-                <a href="/?batch_id={{ batch.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">+ Add Work</a>
+              <div style="display:flex;gap:8px;margin-top:4px;align-items:flex-start;width:fit-content">
+                <a href="/batches/{{ batch.id }}" class="btn btn-primary btn-xs" style="color:#fff" onclick="event.stopPropagation()">View Session</a>
+                <a href="/?batch_id={{ batch.id }}" class="btn btn-sec btn-xs" onclick="event.stopPropagation()">+ Add Work</a>
               </div>
             </div>
           </td>
