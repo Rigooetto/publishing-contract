@@ -971,9 +971,10 @@ function applyTheme(theme) {
     root.setAttribute('data-theme', 'dark');
     document.body.style.background = '';
   } else {
-    // auto: dark 8pm-8am, light otherwise
-    var h = new Date().getHours();
-    var autoTheme = (h >= 20 || h < 8) ? 'dark' : 'light';
+    // auto: dark 7:45pm-7:45am, light otherwise
+    var now = new Date();
+    var mins = now.getHours() * 60 + now.getMinutes();
+    var autoTheme = (mins >= 19*60+45 || mins < 7*60+45) ? 'dark' : 'light';
     root.setAttribute('data-theme', autoTheme);
     document.body.style.background = autoTheme === 'light' ? '#f0f2f7' : '';
   }
@@ -994,7 +995,11 @@ function setTheme(theme) {
 // ---- Modal ----
 window.openSettings = function() {
   var saved = localStorage.getItem('app_theme') || 'dark';
-  applyTheme(saved);
+  // re-apply to ensure buttons get .active now that modal is visible
+  document.querySelectorAll('.theme-btn').forEach(function(b){ b.classList.remove('active'); });
+  var map = {light:'themeLight', dark:'themeDark', auto:'themeAuto'};
+  var el = document.getElementById(map[saved]);
+  if (el) el.classList.add('active');
   document.getElementById('settingsModal').classList.add('open');
 };
 window.closeSettings = function() {
@@ -1031,6 +1036,7 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 [data-theme="light"] .tag{background:#e8e9ef;color:#374151}
 [data-theme="light"] .settings-panel{background:#fff}
 [data-theme="light"] .theme-btn{background:#f0f1f5;border-color:#d1d5db;color:#374151}
+[data-theme="light"] .theme-btn.active{border-color:var(--a);color:var(--a);background:rgba(79,110,247,.12)}
 [data-theme="light"] .work-detail-inner,[data-theme="light"] .sess-detail-inner,[data-theme="light"] .wr-detail-inner{background:rgba(79,110,247,.04)}
 [data-theme="light"] .work-row.open td,[data-theme="light"] .sess-row.open td,[data-theme="light"] .wr-row.open td{background:rgba(79,110,247,.06)!important}
 [data-theme="light"] .btn-primary{color:#fff!important}
