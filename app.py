@@ -442,7 +442,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .flash-item{padding:10px 14px;border-radius:var(--rs);font-size:12.5px;margin-bottom:6px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.22);color:var(--am)}
 .card{background:var(--bg2);border:1px solid var(--b0);border-radius:var(--rl);margin-bottom:12px;box-shadow:var(--sh);overflow:hidden}
 .card-hd{display:flex;align-items:center;gap:9px;padding:13px 17px;border-bottom:1px solid var(--b0)}
-.card-ico{width:25px;height:25px;background:rgba(99,133,255,.1);border:1px solid rgba(99,133,255,.14);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.card-ico{width:25px;height:25px;background:rgba(99,133,255,.1);border:1px solid rgba(99,133,255,.14);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
 .card-title{font-size:13px;font-weight:600}
 .card-actions{margin-left:auto;display:flex;gap:6px}
 .card-body{padding:17px}
@@ -902,7 +902,7 @@ _SB_JS = """
 <div id="settingsModal">
   <div class="settings-panel">
     <div class="settings-hd">
-      <span>&#9881; Settings</span>
+      <span>&#127899; Settings</span>
       <button onclick="closeSettings()">&#10005;</button>
     </div>
     <div class="settings-body">
@@ -1036,12 +1036,12 @@ def _sidebar(active):
     html += "<div class='sb-sec'>Resources</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/writers'" + (" class='on'" if active == "writers_list" else "") + " title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
-    html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#9881;</span><span class='nl'>Settings</span></a>"
+    html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#127899;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Admin</div>"
     html += "<nav class='sb-nav'>"
-    html += "<a href='/admin'" + (" class='on'" if active == "admin" else "") + " title='Admin Panel'><span class='ni'>&#128295;</span><span class='nl'>Admin Panel</span></a>"
+    html += "<a href='/admin'" + (" class='on'" if active == "admin" else "") + " title='Admin Panel'><span class='ni'>&#128736;</span><span class='nl'>Admin Panel</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-foot'><b>LabelMind</b>Music Publishing Contracts<br>2026 LabelMind.ai</div>"
@@ -3246,21 +3246,27 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Writer Info</span></div>
+  <div class="card-hd"><div class="card-ico">&#9997;</div><span class="card-title">Writer Info</span></div>
   <div class="card-body">
-    <div class="info-grid">
+    <div class="g g4" style="gap:8px 22px;margin-bottom:10px">
       <div class="info-item"><label>First Name</label><span>{{ writer.first_name or '--' }}</span></div>
       <div class="info-item"><label>Middle Name</label><span>{{ writer.middle_name or '--' }}</span></div>
       <div class="info-item"><label>Last Name(s)</label><span>{{ writer.last_names or '--' }}</span></div>
       <div class="info-item"><label>AKA / Stage</label><span>{{ writer.writer_aka or '--' }}</span></div>
-      <div class="info-item"><label>IPI</label><span>{{ writer.ipi or '--' }}</span></div>
-      <div class="info-item"><label>PRO</label><span>{{ writer.pro or '--' }}</span></div>
-      <div class="info-item"><label>Email</label><span>{{ writer.email or '--' }}</span></div>
-      <div class="info-item"><label>Phone</label><span>{{ writer.phone_number or '--' }}</span></div>
-      <div class="info-item"><label>Street</label><span>{{ writer.address or '--' }}</span></div>
+    </div>
+    <div class="g g4" style="gap:8px 22px;margin-bottom:10px">
+      <div class="info-item"><label>Address</label><span>{{ writer.address or '--' }}</span></div>
       <div class="info-item"><label>City</label><span>{{ writer.city or '--' }}</span></div>
       <div class="info-item"><label>State</label><span>{{ writer.state or '--' }}</span></div>
       <div class="info-item"><label>Zip</label><span>{{ writer.zip_code or '--' }}</span></div>
+    </div>
+    <div class="g g4" style="gap:8px 22px;margin-bottom:10px">
+      <div class="info-item"><label>Email</label><span>{{ writer.email or '--' }}</span></div>
+      <div class="info-item"><label>Phone</label><span>{{ writer.phone_number or '--' }}</span></div>
+      <div class="info-item"><label>IPI</label><span>{{ writer.ipi or '--' }}</span></div>
+      <div class="info-item"><label>PRO</label><span>{{ writer.pro or '--' }}</span></div>
+    </div>
+    <div class="g g2" style="gap:8px 22px">
       <div class="info-item"><label>Publishing Contract</label>
         <span>{% if writer.has_master_contract %}<span class="tag tag-s1">Yes</span>{% else %}No{% endif %}</span>
       </div>
@@ -3269,43 +3275,82 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<style>
+.wk-row{cursor:pointer;transition:background .15s}
+.wk-row:hover td{background:rgba(255,255,255,.04)!important}
+.wk-row.open td{background:rgba(99,133,255,.06)!important}
+.wk-detail-row{display:none}
+.wk-detail-row.open{display:table-row}
+.wk-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
+.wk-detail-inner{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;background:rgba(99,133,255,.03)}
+@media(max-width:768px){
+  .wk-detail-inner{grid-template-columns:1fr}
+  .tbl-writer-works th:nth-child(3),.tbl-writer-works td:nth-child(3),
+  .tbl-writer-works th:nth-child(4),.tbl-writer-works td:nth-child(4),
+  .tbl-writer-works th:nth-child(5),.tbl-writer-works td:nth-child(5){display:none}
+}
+</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="min-width:920px">
+    <table class="tbl tbl-writer-works" style="table-layout:auto">
       <thead>
         <tr>
           <th>Work Title</th>
           <th>Split %</th>
           <th>Publisher</th>
-          <th>Publisher IPI</th>
           <th>Session</th>
-          <th>Contract Date</th>
-          <th></th>
+          <th>Date</th>
         </tr>
       </thead>
       <tbody>
         {% for ww in work_writers %}
-        <tr>
-          <td style="font-weight:600">{{ ww.work.title if ww.work else '--' }}</td>
-          <td style="font-family:var(--fm);font-size:13px;color:var(--a)">{{ "%.2f"|format(ww.writer_percentage or 0) }}%</td>
+        <tr class="wk-row" data-wk="{{ ww.id }}" onclick="toggleWk({{ ww.id }})">
+          <td>
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ ww.work.title if ww.work else '--' }}</span>
+          </td>
+          <td><span style="font-size:13px;font-weight:700;color:var(--a)">{{ "%.2f"|format(ww.writer_percentage or 0) }}%</span></td>
           <td style="color:var(--t2)">{{ ww.publisher or '--' }}</td>
-          <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ ww.publisher_ipi or '--' }}</td>
           <td style="color:var(--t2)">
             {% if ww.work and ww.work.batch_id %}
-              <a href="/batches/{{ ww.work.batch_id }}" style="color:var(--a)">
+              <a href="/batches/{{ ww.work.batch_id }}" style="color:var(--a)" onclick="event.stopPropagation()">
                 {% if ww.work.batch and ww.work.batch.session_name %}{{ ww.work.batch.session_name }}{% else %}Session #{{ ww.work.batch_id }}{% endif %}
               </a>
-            {% else %}
-              --
-            {% endif %}
+            {% else %}--{% endif %}
           </td>
-          <td style="color:var(--t2);font-size:12px">{{ ww.work.contract_date.strftime('%b %d, %Y') if ww.work and ww.work.contract_date else '--' }}</td>
-          <td>{% if ww.work %}<a href="/works/{{ ww.work.id }}" class="btn btn-sec btn-sm">View Work</a>{% else %}--{% endif %}</td>
+          <td style="color:var(--t2);font-size:12px;white-space:nowrap">{{ ww.work.contract_date.strftime('%b %d, %Y') if ww.work and ww.work.contract_date else '--' }}</td>
+        </tr>
+        <tr class="wk-detail-row" id="wkdetail-{{ ww.id }}">
+          <td colspan="5">
+            <div class="wk-detail-inner">
+              <div class="wd-section">
+                <div class="wd-label">Publisher</div>
+                <div style="font-size:13px;color:var(--t2)">{{ ww.publisher or '--' }}</div>
+                {% if ww.publisher_ipi %}
+                <div style="font-size:12px;color:var(--t3);font-family:var(--fm)">IPI: {{ ww.publisher_ipi }}</div>
+                {% endif %}
+              </div>
+              <div class="wd-section">
+                <div class="wd-label">Session</div>
+                <div style="font-size:13px;color:var(--t2)">
+                  {% if ww.work and ww.work.batch_id %}
+                    <a href="/batches/{{ ww.work.batch_id }}" style="color:var(--a)">{{ ww.work.batch.session_name if ww.work.batch and ww.work.batch.session_name else 'Session #' ~ ww.work.batch_id }}</a>
+                  {% else %}--{% endif %}
+                </div>
+                <div style="margin-top:14px">
+                  {% if ww.work %}
+                  <a href="/works/{{ ww.work.id }}/edit" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Edit Work</a>
+                  <a href="/works/{{ ww.work.id }}" class="btn btn-sec btn-sm" style="margin-left:6px" onclick="event.stopPropagation()">Full View</a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </td>
         </tr>
         {% endfor %}
         {% if not work_writers %}
-          <tr class="empty"><td colspan="7">No works found for this writer.</td></tr>
+          <tr class="empty"><td colspan="5">No works found for this writer.</td></tr>
         {% endif %}
       </tbody>
     </table>
@@ -3315,6 +3360,20 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function toggleWk(id) {
+  var row = document.getElementById('wkdetail-' + id);
+  var header = document.querySelector('[data-wk="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.wk-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.wk-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    header.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+</script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item">
     <span>🎼</span>
@@ -3553,7 +3612,7 @@ ADMIN_HTML = """<!DOCTYPE html>
 
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#128295;</div>
+    <div class="ph-icon">&#128736;</div>
     <div>
       <div class="ph-title">Admin Panel</div>
       <div class="ph-sub">Import catalog, manage data, and run admin tools.</div>
