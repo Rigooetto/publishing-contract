@@ -670,10 +670,10 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-writers th:nth-child(8),.tbl-writers td:nth-child(8),
   .tbl-writers th:nth-child(9),.tbl-writers td:nth-child(9){display:none}
 
-  /* Sessions list: hide Contract Date(3), Works(5), Created(6) */
-  .tbl-sessions th:nth-child(3),.tbl-sessions td:nth-child(3),
-  .tbl-sessions th:nth-child(5),.tbl-sessions td:nth-child(5),
-  .tbl-sessions th:nth-child(6),.tbl-sessions td:nth-child(6){display:none}
+  /* Sessions list: hide Date on mobile */
+  .tbl-sessions th:nth-child(2),.tbl-sessions td:nth-child(2){display:none}
+
+
 
   /* Documents table: hide File(3), Generated(4), DocuSign(5), Certificate(7), Signed PDF(9) */
   .tbl-docs th:nth-child(3),.tbl-docs td:nth-child(3),
@@ -994,6 +994,7 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 [data-theme="light"] .theme-btn{background:#f0f1f5;border-color:#d1d5db;color:#374151}
 [data-theme="light"] .work-detail-inner,[data-theme="light"] .sess-detail-inner,[data-theme="light"] .wr-detail-inner{background:rgba(79,110,247,.04)}
 [data-theme="light"] .work-row.open td,[data-theme="light"] .sess-row.open td,[data-theme="light"] .wr-row.open td{background:rgba(79,110,247,.06)!important}
+[data-theme="light"] .btn-primary{color:#fff!important}
 </style>"""
 
 # ================================================================
@@ -2004,7 +2005,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
                   {% endfor %}
                 </div>
                 <div style="display:flex;gap:8px;margin-top:16px">
-                  <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Edit</a>
+                  <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Edit</a>
                   <a href="/works/{{ work.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
                 </div>
               </div>
@@ -2145,7 +2146,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
                 {% endif %}
               </div>
               <div style="display:flex;gap:8px;margin-top:4px">
-                <a href="/batches/{{ batch.id }}" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">View Session</a>
+                <a href="/batches/{{ batch.id }}" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">View Session</a>
                 <a href="/?batch_id={{ batch.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">+ Add Work</a>
               </div>
             </div>
@@ -3340,7 +3341,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
                 </div>
                 <div style="margin-top:14px">
                   {% if ww.work %}
-                  <a href="/works/{{ ww.work.id }}/edit" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Edit Work</a>
+                  <a href="/works/{{ ww.work.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Edit Work</a>
                   <a href="/works/{{ ww.work.id }}" class="btn btn-sec btn-sm" style="margin-left:6px" onclick="event.stopPropagation()">Full View</a>
                   {% endif %}
                 </div>
