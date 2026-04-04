@@ -6340,7 +6340,7 @@ function addTrack() {
     <div style="margin-top:12px">
       <div class="label" style="margin-bottom:6px;color:var(--t2)">Track Artists</div>
       <div class="g4">
-        ${[...Array(8)].map((_,i) => `<div class="field"><label class="label" style="color:var(--t3)">Artist ${i+1}</label><input class="inp" name="track_artist_new_${idx}[]" placeholder="Artist name"></div>`).join('')}
+        ${[...Array(8)].map(function(_,i){ return '<div class="field"><label class="label" style="color:var(--t3)">Artist '+(i+1)+'</label><input class="inp" name="track_artist_new_'+idx+'[]" placeholder="Artist name"></div>'; }).join('')}
       </div>
     </div>
     <div style="margin-top:12px">
