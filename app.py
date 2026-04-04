@@ -6375,10 +6375,12 @@ function searchWorks(inp) {
     .then(function(data){
       if (!data.length) { sugg.style.display = 'none'; return; }
       sugg.innerHTML = data.map(function(w){
-        return '<div class="sugg-item" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px" onclick="linkWork(this,\'' + trackId + '\',' + w.id + ',\'' + w.title.replace(/'/g,"\\'") + '\')">'
-          + '<span style="font-weight:600">' + w.title + '</span>'
-          + '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + (w.writers || '') + '</span>'
-          + '</div>';
+        var safeTitle = w.title.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var html = '<div class="sugg-item" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px" onclick="linkWork(this,\'' + trackId + '\',' + w.id + ',\'' + safeTitle + '\')">';
+        html += '<span style="font-weight:600">' + w.title + '</span>';
+        html += '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + (w.writers || '') + '</span>';
+        html += '</div>';
+        return html;
       }).join('');
       sugg.style.display = 'block';
     });
