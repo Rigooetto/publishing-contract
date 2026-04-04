@@ -6389,23 +6389,32 @@ function linkWork(el, trackId, workId, workTitle) {
   sugg.style.display = 'none';
   var container = document.getElementById('linked-works-' + trackId);
   if (!container) return;
-  // prevent duplicate
   var existing = container.querySelectorAll('input[type=hidden]');
   for (var i=0; i<existing.length; i++) { if (existing[i].value == workId) return; }
-  var nameKey = trackId.toString().startsWith('new') ? 'linked_work_ids_new_' + trackId.replace('new-','') + '[]' : 'linked_work_ids_' + trackId + '[]';
-  var notesKey = trackId.toString().startsWith('new') ? 'linked_work_notes_new_' + trackId.replace('new-','') + '[]' : 'linked_work_notes_' + trackId + '[]';
+  var isNew = trackId.toString().indexOf('new') === 0;
+  var cleanId = isNew ? trackId.replace('new-','') : trackId;
+  var nameKey = isNew ? ('linked_work_ids_new_' + cleanId + '[]') : ('linked_work_ids_' + cleanId + '[]');
+  var notesKey = isNew ? ('linked_work_notes_new_' + cleanId + '[]') : ('linked_work_notes_' + cleanId + '[]');
   var row = document.createElement('div');
   row.className = 'linked-work-row';
   row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
-  row.innerHTML = '<input type="hidden" name="' + nameKey + '" value="' + workId + '">'
-    + '<span class="tag tag-s1" style="flex:1">' + workTitle + '</span>'
-    + '<input class="inp" style="width:140px;font-size:12px" name="' + notesKey + '" placeholder="Notes (optional)">'
-    + '<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest(\'.linked-work-row\').remove()">✕</button>';
+  var inp1 = document.createElement('input');
+  inp1.type = 'hidden'; inp1.name = nameKey; inp1.value = workId;
+  var lbl = document.createElement('span');
+  lbl.className = 'tag tag-s1'; lbl.style.flex = '1'; lbl.textContent = workTitle;
+  var inp2 = document.createElement('input');
+  inp2.className = 'inp'; inp2.style.cssText = 'width:140px;font-size:12px';
+  inp2.name = notesKey; inp2.placeholder = 'Notes (optional)';
+  var btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'btn btn-xs';
+  btn.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
+  btn.textContent = 'X';
+  btn.onclick = function(){ this.closest('.linked-work-row').remove(); };
+  row.appendChild(inp1); row.appendChild(lbl); row.appendChild(inp2); row.appendChild(btn);
   container.appendChild(row);
-  // clear search
-  var inp = sugg.previousElementSibling ? sugg.previousElementSibling.querySelector('.work-search-inp') : null;
-  var allInps = document.querySelectorAll('.work-search-inp');
-  allInps.forEach(function(i){ if (i.dataset.trackId == trackId || i.dataset.trackNew == trackId.replace('new-','')) i.value = ''; });
+  document.querySelectorAll('.work-search-inp').forEach(function(inp){
+    if (inp.dataset.trackId == trackId || inp.dataset.trackNew == cleanId) inp.value = '';
+  });
 }
 
 document.addEventListener('click', function(e){
