@@ -6427,14 +6427,21 @@ function searchWorks(inp) {
     .then(function(r){ return r.json(); })
     .then(function(data){
       if (!data.length) { sugg.style.display = 'none'; return; }
-      sugg.innerHTML = data.map(function(w){
-        var safeTitle = w.title.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var html = '<div class="sugg-item" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px" onclick="linkWork(this,\'' + trackId + '\',' + w.id + ',\'' + safeTitle + '\')">';
-        html += '<span style="font-weight:600">' + w.title + '</span>';
-        html += '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + (w.writers || '') + '</span>';
-        html += '</div>';
-        return html;
-      }).join('');
+      sugg.innerHTML = '';
+      data.forEach(function(w){
+        var item = document.createElement('div');
+        item.className = 'sugg-item';
+        item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px';
+        item.setAttribute('data-work-id', w.id);
+        item.setAttribute('data-work-title', w.title);
+        item.setAttribute('data-track-id', trackId);
+        item.innerHTML = '<span style="font-weight:600">' + w.title + '</span>'
+          + '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + (w.writers || '') + '</span>';
+        item.addEventListener('click', function(){
+          linkWork(this, this.getAttribute('data-track-id'), this.getAttribute('data-work-id'), this.getAttribute('data-work-title'));
+        });
+        sugg.appendChild(item);
+      });
       sugg.style.display = 'block';
     });
 }
