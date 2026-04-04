@@ -294,7 +294,7 @@ def _topbar(pill=""):
     sess_on = " class='pill on'" if pill == "sessions" else " class='pill'"
 
     html = "<header class='topbar'>"
-    html += "<div class='tb-search'>Search works, sessions, writers...</div>"
+    html += "<div class='tb-brand'><img src='/static/logo.png' class='tb-logo' alt='AfinArte Music'><span class='tb-brand-name'>AfinArte Music</span></div>"
     html += "<div class='tb-right'>"
     html += "<div class='pill-group'>"
     html += "<a href='/works'" + works_on + ">Works</a>"
@@ -422,7 +422,9 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .sb-foot b{color:var(--t2);font-size:11.5px;display:block;margin-bottom:2px}
 .sb.collapsed .sb-foot{opacity:0;pointer-events:none}
 .topbar{position:sticky;top:0;z-index:40;background:rgba(7,11,18,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--b0);height:var(--tb);display:flex;align-items:center;padding:0 22px;gap:12px}
-.tb-search{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);padding:6px 11px;width:220px;color:var(--t3);font-size:12px}
+.tb-brand{display:flex;align-items:center;gap:9px;text-decoration:none}
+.tb-logo{height:30px;width:auto;object-fit:contain}
+.tb-brand-name{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--t1);white-space:nowrap}
 .tb-kbd{margin-left:auto;font-size:10px;font-family:var(--fm);opacity:.45}
 .tb-right{display:flex;align-items:center;gap:7px;margin-left:auto}
 .pill-group{display:flex;gap:3px}
@@ -582,7 +584,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .page{padding:16px 13px 160px}
   .g3,.g2,.g4,.g4a,.g5,.g52{grid-template-columns:1fr}
   .topbar{padding:0 13px}
-  .tb-search{display:none}
+  .tb-brand-name{display:none}
 
   .action-bar{
     left:0!important;
@@ -5962,3 +5964,4 @@ def debug_works():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
+ 
