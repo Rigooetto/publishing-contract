@@ -415,7 +415,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .sb-nav a:hover{color:var(--t1);background:rgba(255,255,255,.03)}
 .sb-nav a.on{color:var(--a);background:rgba(99,133,255,.08)}
 .sb-nav a.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--a);border-radius:0 2px 2px 0}
-.sb-nav .ni{font-size:13px;flex-shrink:0;opacity:.85;min-width:18px;text-align:center}
+.sb-nav .ni{font-size:13px;width:26px;height:26px;min-width:26px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:7px}
 .sb-nav .nl{transition:opacity .18s}
 .sb.collapsed .sb-nav .nl{opacity:0}
 .sb-foot{margin-top:auto;padding:13px 14px;border-top:1px solid var(--b0);font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;transition:opacity .18s}
@@ -691,6 +691,11 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   /* Edit Work - writers: hide IPI(2), Publisher IPI(6) */
   .tbl-edit-writers th:nth-child(2),.tbl-edit-writers td:nth-child(2),
   .tbl-edit-writers th:nth-child(6),.tbl-edit-writers td:nth-child(6){display:none}
+
+  /* Writer profile works: hide Publisher(3), Session(4), Date(5) */
+  .tbl-writer-works th:nth-child(3),.tbl-writer-works td:nth-child(3),
+  .tbl-writer-works th:nth-child(4),.tbl-writer-works td:nth-child(4),
+  .tbl-writer-works th:nth-child(5),.tbl-writer-works td:nth-child(5){display:none}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
@@ -784,10 +789,17 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 }
 
 .sb-nav .ni{
-  font-size:14px;
-  min-width:18px;
-  text-align:center;
+  font-size:13px;
+  width:26px;
+  height:26px;
+  min-width:26px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   flex-shrink:0;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:7px;
 }
 .sb-nav .ni-pencil{
   color:var(--am);
@@ -812,6 +824,33 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   font-size:11px;
   filter:saturate(1.2);
 }
+/* ===== Expandable rows (works, sessions, writers) ===== */
+.work-row,.sess-row,.wr-row,.wk-row{cursor:pointer;transition:background .15s}
+.work-row:hover td,.sess-row:hover td,.wr-row:hover td,.wk-row:hover td{background:rgba(255,255,255,.04)!important}
+.work-row.open td,.sess-row.open td,.wr-row.open td,.wk-row.open td{background:rgba(99,133,255,.06)!important}
+.work-detail-row,.sess-detail-row,.wr-detail-row,.wk-detail-row{display:none}
+.work-detail-row.open,.sess-detail-row.open,.wr-detail-row.open,.wk-detail-row.open{display:table-row}
+.work-detail-row td,.sess-detail-row td,.wr-detail-row td,.wk-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
+.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:rgba(99,133,255,.03)}
+@media(max-width:768px){.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner{grid-template-columns:1fr}}
+.wd-section{display:flex;flex-direction:column;gap:8px}
+.wd-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:2px}
+.wd-writers-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.wd-writers-tbl th{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 8px;text-align:left;border-bottom:1px solid var(--b1)}
+.wd-writers-tbl td{padding:5px 8px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,.04)}
+.wd-writers-tbl tr:last-child td{border-bottom:none}
+.writer-preview{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.writer-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--b0);border-radius:6px;padding:3px 8px;font-size:11px}
+.writer-pill .wp-name{font-weight:600;color:var(--t1)}
+.writer-pill .wp-meta{color:var(--t3)}
+.writer-pill .wp-split{color:var(--a);font-weight:700;font-family:inherit}
+.expand-chevron{display:inline-block;transition:transform .2s;color:var(--t3);font-size:10px;margin-right:6px}
+.work-row.open .expand-chevron,.sess-row.open .expand-chevron,.wr-row.open .expand-chevron,.wk-row.open .expand-chevron{transform:rotate(90deg)}
+/* ===== Session detail expandable rows ===== */
+.sd-works-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sd-works-tbl th{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 8px;text-align:left;border-bottom:1px solid var(--b1)}
+.sd-works-tbl td{padding:5px 8px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,.04)}
+.sd-works-tbl tr:last-child td{border-bottom:none}
 </style>"""
 
 # ================================================================
@@ -1005,7 +1044,7 @@ def _sidebar(active):
     pages = [
         ("formulario",   "New Work",  "<span class='ni'>&#128395;</span>"),
         ("works_list",   "Works",     "<span class='ni'>&#127932;</span>"),
-        ("batches_list", "Sessions",  "<span class='ni'>&#128210;</span>"),
+        ("batches_list", "Sessions",  "<span class='ni'>&#128466;</span>"),
     ]
 
     html = "<aside class='sb' id='mainSidebar'>"
@@ -1130,7 +1169,7 @@ FORM_HTML = """<!DOCTYPE html>
   <div class="field">
     <label class="label">Add to Existing Session</label>
     <div class="inp-wrap">
-      <span class="inp-ico">&#128210;</span>
+      <span class="inp-ico">&#128466;</span>
       <select class="inp" name="existing_batch_id">
         <option value="">-- Create new session</option>
         {% for batch in batches %}
@@ -1598,7 +1637,7 @@ function syncModalPro(sel) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -1836,7 +1875,7 @@ document.addEventListener('click', function(e) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -1894,29 +1933,6 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
     </form>
   </div>
 </div>
-<style>
-.work-row{cursor:pointer;transition:background .15s}
-.work-row:hover td{background:rgba(255,255,255,.04)!important}
-.work-row.open td{background:rgba(99,133,255,.06)!important}
-.work-detail-row{display:none}
-.work-detail-row.open{display:table-row}
-.work-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
-.work-detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:rgba(99,133,255,.03)}
-@media(max-width:768px){.work-detail-inner{grid-template-columns:1fr}}
-.wd-section{display:flex;flex-direction:column;gap:8px}
-.wd-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:2px}
-.wd-writers-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.wd-writers-tbl th{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 8px;text-align:left;border-bottom:1px solid var(--b1)}
-.wd-writers-tbl td{padding:5px 8px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,.04)}
-.wd-writers-tbl tr:last-child td{border-bottom:none}
-.writer-preview{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.writer-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--b0);border-radius:6px;padding:3px 8px;font-size:11px}
-.writer-pill .wp-name{font-weight:600;color:var(--t1)}
-.writer-pill .wp-meta{color:var(--t3)}
-.writer-pill .wp-split{color:var(--a);font-weight:700;font-family:inherit}
-.expand-chevron{display:inline-block;transition:transform .2s;color:var(--t3);font-size:10px;margin-right:6px}
-.work-row.open .expand-chevron{transform:rotate(90deg)}
-</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Works</span></div>
   <div class="tbl-wrap">
@@ -2055,7 +2071,7 @@ function toggleWork(id) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -2087,26 +2103,13 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#128210;</div>
+    <div class="ph-icon">&#128466;</div>
     <div><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready for contract generation</div></div>
   </div>
   <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
 </div>
-<style>
-.sess-row{cursor:pointer;transition:background .15s}
-.sess-row:hover td{background:rgba(255,255,255,.04)!important}
-.sess-row.open td{background:rgba(99,133,255,.06)!important}
-.sess-detail-row{display:none}
-.sess-detail-row.open{display:table-row}
-.sess-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
-.sess-detail-inner{padding:16px 20px;background:rgba(99,133,255,.03)}
-.sd-works-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.sd-works-tbl th{color:var(--t3);font-size:10px;font-weight:700;text-transform:uppercase;padding:4px 8px;text-align:left;border-bottom:1px solid var(--b1)}
-.sd-works-tbl td{padding:5px 8px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,.04)}
-.sd-works-tbl tr:last-child td{border-bottom:none}
-</style>
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#128210;</div><span class="card-title">All Sessions</span></div>
+  <div class="card-hd"><div class="card-ico">&#128466;</div><span class="card-title">All Sessions</span></div>
   <div class="tbl-wrap">
     <table class="tbl" style="table-layout:auto">
       <thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Works</th></tr></thead>
@@ -2191,7 +2194,7 @@ function toggleSession(id) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -2226,7 +2229,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 {% endif %}{% endwith %}
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#128210;</div>
+    <div class="ph-icon">&#128466;</div>
     <div>
       <div class="ph-title">Session #{{ batch.id }}</div>
       <div class="ph-sub">{{ batch.session_name or 'No name' }} - {{ batch.contract_date.strftime('%b %d, %Y') }}</div>
@@ -2256,18 +2259,62 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works in Session</span></div>
   <div class="tbl-wrap">
-    <table class="tbl">
-      <thead><tr><th>Work Title</th><th>Writers</th><th>Created</th><th></th></tr></thead>
+    <table class="tbl" style="table-layout:auto">
+      <thead><tr><th>Work Title</th><th>Writers</th><th>Date</th></tr></thead>
       <tbody>
         {% for work in works %}
-        <tr>
-          <td style="font-weight:600">{{ work.title }}</td>
-          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ work.work_writers|length }}</span></td>
-          <td style="color:var(--t3);font-size:12px">{{ work.created_at.strftime('%b %d, %Y') }}</td>
-          <td><a href="/works/{{ work.id }}" class="btn btn-sec btn-sm">View</a></td>
+        <tr class="work-row" data-work="{{ work.id }}" onclick="toggleWork({{ work.id }})">
+          <td>
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ work.title }}</span>
+          </td>
+          <td>
+            <div class="writer-preview">
+              {% for ww in work.work_writers[:2] %}
+              <span class="writer-pill">
+                <span class="wp-name">{{ ww.writer.full_name }}</span>
+                <span class="wp-split">{{ "%.0f"|format(ww.writer_percentage) }}%</span>
+              </span>
+              {% endfor %}
+              {% if work.work_writers|length > 2 %}
+              <span style="font-size:11px;color:var(--t3)">+{{ work.work_writers|length - 2 }} more</span>
+              {% endif %}
+            </div>
+          </td>
+          <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ work.created_at.strftime('%b %d, %Y') }}</td>
+        </tr>
+        <tr class="work-detail-row" id="detail-{{ work.id }}">
+          <td colspan="3">
+            <div class="work-detail-inner">
+              <div class="wd-section">
+                <div class="wd-label">Writers &amp; Splits</div>
+                <table class="wd-writers-tbl">
+                  <thead><tr><th>Writer</th><th>IPI</th><th>PRO</th><th>Split</th></tr></thead>
+                  <tbody>
+                    {% for ww in work.work_writers %}
+                    <tr>
+                      <td style="font-weight:600">{{ ww.writer.full_name }}</td>
+                      <td style="font-family:var(--fm)">{{ ww.writer.ipi or '--' }}</td>
+                      <td>{{ ww.writer.pro or '--' }}</td>
+                      <td style="color:var(--a);font-weight:700">{{ "%.2f"|format(ww.writer_percentage) }}%</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="wd-section">
+                <div class="wd-label">Contract Date</div>
+                <div style="font-size:13px;color:var(--t2);margin-bottom:14px">{{ work.contract_date.strftime('%B %d, %Y') if work.contract_date else '--' }}</div>
+                <div style="display:flex;gap:8px">
+                  <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Edit Work</a>
+                  <a href="/works/{{ work.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
+                </div>
+              </div>
+            </div>
+          </td>
         </tr>
         {% endfor %}
-        {% if not works %}<tr class="empty"><td colspan="4">No works in this session.</td></tr>{% endif %}
+        {% if not works %}<tr class="empty"><td colspan="3">No works in this session.</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
@@ -2351,6 +2398,18 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 """ + _SB_JS + """
 <script>
+function toggleWork(id) {
+  var row = document.getElementById('detail-' + id);
+  var header = document.querySelector('[data-work="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.work-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.work-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    header.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
 var batchId = {{ batch.id }};
 
 function esc(v) {
@@ -2377,7 +2436,7 @@ function renderDsBtn(doc) {
 function renderStatus(val, cls) {
   if (!val) return '--';
   var c = cls + val.replace(/[ _]/g, '_');
-  var l = val.replace(/_/g, ' ').replace(/\b\w/g, function(x) { return x.toUpperCase(); });
+  var l = val.replace(/_/g, ' ').replace(/(^| )[a-z]/g, function(x) { return x.toUpperCase(); });
   return '<span class="status ' + c + '"><span class="status-dot"></span>' + l + '</span>';
 }
 
@@ -2466,7 +2525,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -2624,7 +2683,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -3044,7 +3103,7 @@ function syncModalPro(sel) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -3095,16 +3154,6 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<style>
-.wr-row{cursor:pointer;transition:background .15s}
-.wr-row:hover td{background:rgba(255,255,255,.04)!important}
-.wr-row.open td{background:rgba(99,133,255,.06)!important}
-.wr-detail-row{display:none}
-.wr-detail-row.open{display:table-row}
-.wr-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
-.wr-detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:rgba(99,133,255,.03)}
-@media(max-width:768px){.wr-detail-inner{grid-template-columns:1fr}}
-</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Writers</span></div>
   <div class="tbl-wrap">
@@ -3201,7 +3250,7 @@ function toggleWriter(id) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -3276,21 +3325,6 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<style>
-.wk-row{cursor:pointer;transition:background .15s}
-.wk-row:hover td{background:rgba(255,255,255,.04)!important}
-.wk-row.open td{background:rgba(99,133,255,.06)!important}
-.wk-detail-row{display:none}
-.wk-detail-row.open{display:table-row}
-.wk-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
-.wk-detail-inner{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;background:rgba(99,133,255,.03)}
-@media(max-width:768px){
-  .wk-detail-inner{grid-template-columns:1fr}
-  .tbl-writer-works th:nth-child(3),.tbl-writer-works td:nth-child(3),
-  .tbl-writer-works th:nth-child(4),.tbl-writer-works td:nth-child(4),
-  .tbl-writer-works th:nth-child(5),.tbl-writer-works td:nth-child(5){display:none}
-}
-</style>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works</span></div>
   <div class="tbl-wrap">
@@ -3381,7 +3415,7 @@ function toggleWk(id) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -3574,7 +3608,7 @@ function syncWriterModalPro(sel) {
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -3664,7 +3698,7 @@ ADMIN_HTML = """<!DOCTYPE html>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
@@ -3795,7 +3829,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
     <small>Works</small>
   </a>
   <a href="/" class="mnav-item">
-    <span>➕</span>
+    <span>🖋️</span>
     <small>New</small>
   </a>
   <a href="/batches" class="mnav-item">
