@@ -6329,7 +6329,7 @@ function addTrack() {
     </div>
     <div class="g4" style="margin-top:10px">
       <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" placeholder="Label name"></div>
-      <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" placeholder="℗ 2024 Label Name"></div>
+      <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" placeholder="(P) 2024 Label Name"></div>
       <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]"></div>
       <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" placeholder="Producer name"></div>
     </div>
