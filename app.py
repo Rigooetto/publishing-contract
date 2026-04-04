@@ -285,6 +285,55 @@ class ContractDocument(db.Model):
     certificate_drive_web_view_link = db.Column(db.String(500), nullable=True)
 
 
+# ================================================================
+# PHASE 2 — CATALOG MODELS
+# ================================================================
+
+class Release(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    release_type = db.Column(db.String(20), nullable=False)  # Album, EP, Single
+    title = db.Column(db.String(255), nullable=False)
+    upc = db.Column(db.String(50), nullable=True)
+    artists = db.Column(db.Text, default="")          # JSON list of up to 8
+    num_tracks = db.Column(db.Integer, nullable=True)
+    release_date = db.Column(db.Date, nullable=True)
+    distributor = db.Column(db.String(255), default="")
+    status = db.Column(db.String(30), default="draft")  # draft, ready, delivered
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    tracks = db.relationship("Track", backref="release", lazy=True, cascade="all, delete-orphan", order_by="Track.track_number")
+
+
+class Track(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    release_id = db.Column(db.Integer, db.ForeignKey("release.id"), nullable=False)
+    track_number = db.Column(db.Integer, nullable=True)
+    primary_title = db.Column(db.String(255), nullable=False)
+    recording_title = db.Column(db.String(255), default="")
+    aka_title = db.Column(db.String(255), default="")
+    aka_type_code = db.Column(db.String(50), default="")
+    duration = db.Column(db.String(10), default="")        # mm:ss
+    isrc = db.Column(db.String(20), nullable=True)
+    track_label = db.Column(db.String(255), default="")
+    track_p_line = db.Column(db.String(255), default="")
+    artists = db.Column(db.Text, default="")               # JSON list of up to 8
+    genre = db.Column(db.String(100), default="")
+    recording_date = db.Column(db.Date, nullable=True)
+    recording_engineer = db.Column(db.String(255), default="")
+    producer = db.Column(db.String(255), default="")
+    executive_producer = db.Column(db.String(255), default="")
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    track_works = db.relationship("TrackWork", backref="track", lazy=True, cascade="all, delete-orphan")
+
+
+class TrackWork(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    track_id = db.Column(db.Integer, db.ForeignKey("track.id"), nullable=False)
+    work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
+    notes = db.Column(db.String(255), default="")
+    work = db.relationship("Work", backref="track_works")
+
+
 @app.context_processor
 def inject_globals():
     return {"team_auth_enabled": bool(TEAM_USERNAME and TEAM_PASSWORD)}
@@ -1092,6 +1141,11 @@ def _sidebar(active):
         html += "<span class='nl'>" + label + "</span></a>"
 
     html += "<a href='#' title='Templates'><span class='ni'>&#128196;</span><span class='nl'>Templates</span></a>"
+    html += "</nav>"
+
+    html += "<div class='sb-sec'>Catalog</div>"
+    html += "<nav class='sb-nav'>"
+    html += "<a href='/releases'" + (" class='on'" if active == "releases_list" else "") + " title='Releases'><span class='ni'>&#127830;</span><span class='nl'>Releases</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Resources</div>"
@@ -5961,6 +6015,715 @@ def debug_works():
         ])
     except Exception as e:
         return "DEBUG ERROR: " + str(e), 500
+
+# ================================================================
+# PHASE 2 — RELEASES HTML TEMPLATES
+# ================================================================
+
+RELEASES_LIST_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Releases - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("releases_list") + """
+<main class="main">
+""" + _topbar("") + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127830;</div>
+    <div><div class="ph-title">Releases</div><div class="ph-sub">Albums, EPs and Singles</div></div>
+  </div>
+  <div class="ph-actions">
+    <a href="/releases/new" class="btn btn-primary btn-sm" style="color:#fff">+ New Release</a>
+  </div>
+</div>
+<div class="card">
+  <div class="tbl-wrap">
+    <table class="tbl tbl-releases">
+      <thead>
+        <tr>
+          <th>Title</th><th>Type</th><th>Artist(s)</th><th>Tracks</th><th>Release Date</th><th>Distributor</th><th>UPC</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in releases %}
+        <tr class="rel-row" data-rel="{{ r.id }}" onclick="toggleRel({{ r.id }})">
+          <td><span class="expand-chevron">&#9658;</span><span style="font-weight:600">{{ r.title }}</span></td>
+          <td><span class="tag tag-full">{{ r.release_type }}</span></td>
+          <td style="color:var(--t2);font-size:12px">{{ r.artist_display }}</td>
+          <td style="color:var(--t2)">{{ r.tracks|length }}</td>
+          <td style="font-size:12px;color:var(--t3)">{{ r.release_date.strftime('%b %d, %Y') if r.release_date else '--' }}</td>
+          <td style="font-size:12px;color:var(--t2)">{{ r.distributor or '--' }}</td>
+          <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ r.upc or '--' }}</td>
+          <td><span class="status s-{{ r.status }}"><span class="status-dot"></span>{{ r.status | title }}</span></td>
+          <td onclick="event.stopPropagation()"><a href="/releases/{{ r.id }}/edit" class="btn btn-sec btn-xs">Edit</a></td>
+        </tr>
+        <tr class="rel-detail-row" id="rel-detail-{{ r.id }}">
+          <td colspan="9">
+            <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;background:rgba(99,133,255,.03)">
+              {% if r.tracks %}
+              <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Tracks</div>
+              {% for t in r.tracks %}
+              <div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--b1)">
+                <span style="color:var(--t3);min-width:24px">{{ t.track_number or '—' }}</span>
+                <span style="font-weight:600;flex:1">{{ t.primary_title }}</span>
+                <span style="color:var(--t3);font-size:12px">{{ t.duration or '--' }}</span>
+                <span style="font-family:var(--fm);font-size:11px;color:var(--t2)">{{ t.isrc or 'No ISRC' }}</span>
+                {% for tw in t.track_works %}<span class="tag tag-full" style="font-size:11px">{{ tw.work.title }}</span>{% endfor %}
+              </div>
+              {% endfor %}
+              {% else %}
+              <span style="font-size:12px;color:var(--t3)">No tracks yet.</span>
+              {% endif %}
+              <div style="display:flex;gap:8px;margin-top:4px;width:fit-content">
+                <a href="/releases/{{ r.id }}" class="btn btn-primary btn-xs" style="color:#fff" onclick="event.stopPropagation()">View Release</a>
+                <a href="/releases/{{ r.id }}/edit" class="btn btn-sec btn-xs" onclick="event.stopPropagation()">Edit</a>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not releases %}<tr class="empty"><td colspan="9">No releases yet. Click + New Release to get started.</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<style>
+.rel-row{cursor:pointer;transition:background .15s}
+.rel-detail-row{display:none}
+.rel-detail-row.open{display:table-row}
+@media(max-width:768px){
+  .tbl-releases th:nth-child(3),.tbl-releases td:nth-child(3),
+  .tbl-releases th:nth-child(5),.tbl-releases td:nth-child(5),
+  .tbl-releases th:nth-child(6),.tbl-releases td:nth-child(6),
+  .tbl-releases th:nth-child(7),.tbl-releases td:nth-child(7){display:none}
+}
+</style>
+<script>
+function toggleRel(id) {
+  var row = document.getElementById('rel-detail-' + id);
+  var hdr = document.querySelector('[data-rel="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.rel-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.rel-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) { row.classList.add('open'); hdr.classList.add('open'); }
+}
+</script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/" class="mnav-item"><span>🖋️</span><small>New</small></a>
+  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+RELEASE_FORM_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ 'Edit' if release else 'New' }} Release - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("releases_list") + """
+<main class="main">
+""" + _topbar("") + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127830;</div>
+    <div>
+      <div class="ph-title">{{ 'Edit Release' if release else 'New Release' }}</div>
+      <div class="ph-sub">{{ release.title if release else 'Create a new album, EP or single' }}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/releases" class="btn btn-sec btn-sm">Cancel</a>
+  </div>
+</div>
+
+<form method="post" id="releaseForm">
+<!-- RELEASE INFO -->
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Release Info</span></div>
+  <div class="card-body">
+    <div class="g4">
+      <div class="field"><label class="label">Release Type *</label>
+        <select class="inp" name="release_type" required>
+          <option value="">Select type...</option>
+          {% for t in ['Album','EP','Single'] %}
+          <option value="{{ t }}" {{ 'selected' if release and release.release_type == t }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label class="label">Album / Release Title *</label>
+        <input class="inp" name="title" required value="{{ release.title if release else '' }}" placeholder="Release title">
+      </div>
+      <div class="field"><label class="label">Release Date</label>
+        <input class="inp" type="date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}">
+      </div>
+      <div class="field"><label class="label">Distributor</label>
+        <input class="inp" name="distributor" value="{{ release.distributor if release else '' }}" placeholder="DistroKid, TuneCore...">
+      </div>
+    </div>
+    <div class="g4" style="margin-top:14px">
+      <div class="field"><label class="label">UPC <span style="color:var(--t3);font-size:11px">(assign later)</span></label>
+        <input class="inp" name="upc" value="{{ release.upc if release else '' }}" placeholder="Leave blank until distributor assigns">
+      </div>
+      <div class="field"><label class="label">Status</label>
+        <select class="inp" name="status">
+          {% for s in ['draft','ready','delivered'] %}
+          <option value="{{ s }}" {{ 'selected' if release and release.status == s else ('selected' if not release and s == 'draft' else '') }}>{{ s | title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <!-- ALBUM ARTISTS -->
+    <div style="margin-top:18px">
+      <div class="label" style="margin-bottom:8px">Album Artists</div>
+      <div class="g4" id="albumArtists">
+        {% for i in range(8) %}
+        <div class="field">
+          <label class="label" style="color:var(--t3)">Artist {{ i+1 }}{% if i == 0 %} *{% endif %}</label>
+          <input class="inp" name="artist_{{ i+1 }}" value="{{ artists[i] if artists and i < artists|length else '' }}" placeholder="Artist name{% if i == 0 %} (required){% endif %}">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRACKS -->
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#127925;</div>
+    <span class="card-title">Tracks</span>
+    <button type="button" class="btn btn-sec btn-xs" style="margin-left:auto" onclick="addTrack()">+ Add Track</button>
+  </div>
+  <div class="card-body" id="tracksContainer">
+    {% if tracks %}
+    {% for t in tracks %}
+    <div class="track-block" data-track-id="{{ t.id }}">
+      <input type="hidden" name="track_id[]" value="{{ t.id }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-weight:600;font-size:13px;color:var(--a)">Track {{ loop.index }}</div>
+        <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="removeTrack(this)">Remove</button>
+      </div>
+      <div class="g4">
+        <div class="field"><label class="label">Track #</label><input class="inp" name="track_number[]" type="number" value="{{ t.track_number or '' }}" placeholder="#"></div>
+        <div class="field"><label class="label">Primary Title *</label><input class="inp" name="primary_title[]" required value="{{ t.primary_title }}" placeholder="Track title"></div>
+        <div class="field"><label class="label">Duration</label><input class="inp" name="duration[]" value="{{ t.duration or '' }}" placeholder="3:45"></div>
+        <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">(assign later)</span></label><input class="inp" name="isrc[]" value="{{ t.isrc or '' }}" placeholder="Leave blank"></div>
+      </div>
+      <div class="g4" style="margin-top:10px">
+        <div class="field"><label class="label">Recording Title</label><input class="inp" name="recording_title[]" value="{{ t.recording_title or '' }}" placeholder="If different from primary"></div>
+        <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" value="{{ t.aka_title or '' }}" placeholder="Alternate title"></div>
+        <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" value="{{ t.aka_type_code or '' }}" placeholder="AT, TT..."></div>
+        <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" value="{{ t.genre or '' }}" placeholder="Genre"></div>
+      </div>
+      <div class="g4" style="margin-top:10px">
+        <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
+        <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" value="{{ t.track_p_line or '' }}" placeholder="℗ 2024 Label Name"></div>
+        <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]" value="{{ t.recording_date.strftime('%Y-%m-%d') if t.recording_date else '' }}"></div>
+        <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" value="{{ t.producer or '' }}" placeholder="Producer name"></div>
+      </div>
+      <div class="g4" style="margin-top:10px">
+        <div class="field"><label class="label">Recording Engineer</label><input class="inp" name="recording_engineer[]" value="{{ t.recording_engineer or '' }}" placeholder="Engineer name"></div>
+        <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" value="{{ t.executive_producer or '' }}" placeholder="Exec producer"></div>
+      </div>
+      <!-- Track Artists -->
+      <div style="margin-top:12px">
+        <div class="label" style="margin-bottom:6px;color:var(--t2)">Track Artists</div>
+        <div class="g4">
+          {% set tartists = t.artists_list %}
+          {% for i in range(8) %}
+          <div class="field"><label class="label" style="color:var(--t3)">Artist {{ i+1 }}</label>
+          <input class="inp" name="track_artist_{{ loop.index0 }}_{{ loop.index0 }}[]" data-tartist="{{ i }}" value="{{ tartists[i] if i < tartists|length else '' }}" placeholder="Artist name"></div>
+          {% endfor %}
+        </div>
+      </div>
+      <!-- Link to Work -->
+      <div style="margin-top:12px">
+        <div class="label" style="margin-bottom:6px;color:var(--a)">Linked Works (Compositions)</div>
+        <div class="linked-works" id="linked-works-{{ t.id }}">
+          {% for tw in t.track_works %}
+          <div class="linked-work-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="hidden" name="linked_work_ids_{{ t.id }}[]" value="{{ tw.work_id }}">
+            <span class="tag tag-s1" style="flex:1">{{ tw.work.title }} — {{ tw.work.work_writers|map(attribute='writer')|map(attribute='full_name')|join(', ') }}</span>
+            <input class="inp" style="width:140px;font-size:12px" name="linked_work_notes_{{ t.id }}[]" value="{{ tw.notes or '' }}" placeholder="Notes (optional)">
+            <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.linked-work-row').remove()">✕</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input class="inp work-search-inp" style="flex:1" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
+        </div>
+        <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--b0);margin:18px 0">
+    {% endfor %}
+    {% else %}
+    <div id="noTracksMsg" style="color:var(--t3);font-size:13px;text-align:center;padding:20px">No tracks yet. Click + Add Track above.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:flex;gap:10px;margin-top:8px;margin-bottom:32px">
+  <button type="submit" class="btn btn-primary" style="color:#fff">Save Release</button>
+  <a href="/releases" class="btn btn-sec">Cancel</a>
+  {% if release %}
+  <form method="post" action="/releases/{{ release.id }}/delete" style="margin-left:auto" onsubmit="return confirm('Delete this release?')">
+    <button type="submit" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent">Delete Release</button>
+  </form>
+  {% endif %}
+</div>
+</form>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<script>
+var trackCount = {{ tracks|length if tracks else 0 }};
+
+function addTrack() {
+  trackCount++;
+  var idx = trackCount;
+  var noMsg = document.getElementById('noTracksMsg');
+  if (noMsg) noMsg.remove();
+  var container = document.getElementById('tracksContainer');
+  var block = document.createElement('div');
+  block.className = 'track-block';
+  block.innerHTML = `
+    <input type="hidden" name="track_id[]" value="">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:600;font-size:13px;color:var(--a)">Track ${idx}</div>
+      <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="removeTrack(this)">Remove</button>
+    </div>
+    <div class="g4">
+      <div class="field"><label class="label">Track #</label><input class="inp" name="track_number[]" type="number" placeholder="#" value="${idx}"></div>
+      <div class="field"><label class="label">Primary Title *</label><input class="inp" name="primary_title[]" required placeholder="Track title"></div>
+      <div class="field"><label class="label">Duration</label><input class="inp" name="duration[]" placeholder="3:45"></div>
+      <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">(assign later)</span></label><input class="inp" name="isrc[]" placeholder="Leave blank"></div>
+    </div>
+    <div class="g4" style="margin-top:10px">
+      <div class="field"><label class="label">Recording Title</label><input class="inp" name="recording_title[]" placeholder="If different from primary"></div>
+      <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" placeholder="Alternate title"></div>
+      <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" placeholder="AT, TT..."></div>
+      <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" placeholder="Genre"></div>
+    </div>
+    <div class="g4" style="margin-top:10px">
+      <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" placeholder="Label name"></div>
+      <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" placeholder="℗ 2024 Label Name"></div>
+      <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]"></div>
+      <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" placeholder="Producer name"></div>
+    </div>
+    <div class="g4" style="margin-top:10px">
+      <div class="field"><label class="label">Recording Engineer</label><input class="inp" name="recording_engineer[]" placeholder="Engineer name"></div>
+      <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" placeholder="Exec producer"></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="label" style="margin-bottom:6px;color:var(--t2)">Track Artists</div>
+      <div class="g4">
+        ${[...Array(8)].map((_,i) => `<div class="field"><label class="label" style="color:var(--t3)">Artist ${i+1}</label><input class="inp" name="track_artist_new_${idx}[]" placeholder="Artist name"></div>`).join('')}
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="label" style="margin-bottom:6px;color:var(--a)">Linked Works (Compositions)</div>
+      <div class="linked-works" id="linked-works-new-${idx}"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <input class="inp work-search-inp" style="flex:1" placeholder="Search works to link..." data-track-new="${idx}" oninput="searchWorks(this)">
+      </div>
+      <div class="work-suggestions" id="work-sugg-new-${idx}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
+    </div>`;
+  var hr = document.createElement('hr');
+  hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
+  container.appendChild(block);
+  container.appendChild(hr);
+}
+
+function removeTrack(btn) {
+  var block = btn.closest('.track-block');
+  var hr = block.nextElementSibling;
+  if (hr && hr.tagName === 'HR') hr.remove();
+  block.remove();
+}
+
+function searchWorks(inp) {
+  var q = inp.value.trim();
+  var trackId = inp.dataset.trackId || ('new-' + inp.dataset.trackNew);
+  var sugg = document.getElementById('work-sugg-' + trackId);
+  if (!sugg) return;
+  if (q.length < 2) { sugg.style.display = 'none'; return; }
+  fetch('/works/search?q=' + encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.length) { sugg.style.display = 'none'; return; }
+      sugg.innerHTML = data.map(function(w){
+        return '<div class="sugg-item" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px" onclick="linkWork(this,\'' + trackId + '\',' + w.id + ',\'' + w.title.replace(/'/g,"\\'") + '\')">'
+          + '<span style="font-weight:600">' + w.title + '</span>'
+          + '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + (w.writers || '') + '</span>'
+          + '</div>';
+      }).join('');
+      sugg.style.display = 'block';
+    });
+}
+
+function linkWork(el, trackId, workId, workTitle) {
+  var sugg = document.getElementById('work-sugg-' + trackId);
+  sugg.style.display = 'none';
+  var container = document.getElementById('linked-works-' + trackId);
+  if (!container) return;
+  // prevent duplicate
+  var existing = container.querySelectorAll('input[type=hidden]');
+  for (var i=0; i<existing.length; i++) { if (existing[i].value == workId) return; }
+  var nameKey = trackId.toString().startsWith('new') ? 'linked_work_ids_new_' + trackId.replace('new-','') + '[]' : 'linked_work_ids_' + trackId + '[]';
+  var notesKey = trackId.toString().startsWith('new') ? 'linked_work_notes_new_' + trackId.replace('new-','') + '[]' : 'linked_work_notes_' + trackId + '[]';
+  var row = document.createElement('div');
+  row.className = 'linked-work-row';
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+  row.innerHTML = '<input type="hidden" name="' + nameKey + '" value="' + workId + '">'
+    + '<span class="tag tag-s1" style="flex:1">' + workTitle + '</span>'
+    + '<input class="inp" style="width:140px;font-size:12px" name="' + notesKey + '" placeholder="Notes (optional)">'
+    + '<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest(\'.linked-work-row\').remove()">✕</button>';
+  container.appendChild(row);
+  // clear search
+  var inp = sugg.previousElementSibling ? sugg.previousElementSibling.querySelector('.work-search-inp') : null;
+  var allInps = document.querySelectorAll('.work-search-inp');
+  allInps.forEach(function(i){ if (i.dataset.trackId == trackId || i.dataset.trackNew == trackId.replace('new-','')) i.value = ''; });
+}
+
+document.addEventListener('click', function(e){
+  document.querySelectorAll('.work-suggestions').forEach(function(s){
+    if (!s.contains(e.target)) s.style.display = 'none';
+  });
+});
+</script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/" class="mnav-item"><span>🖋️</span><small>New</small></a>
+  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+RELEASE_DETAIL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ release.title }} - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("releases_list") + """
+<main class="main">
+""" + _topbar("") + """
+<div class="page">
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127830;</div>
+    <div>
+      <div class="ph-title">{{ release.title }}</div>
+      <div class="ph-sub">{{ release.release_type }} &mdash; {{ release.artist_display }}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/releases" class="btn btn-sec btn-sm">Back</a>
+    <a href="/releases/{{ release.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff">Edit</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Release Info</span></div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item"><label>Type</label><span>{{ release.release_type }}</span></div>
+      <div class="info-item"><label>Release Date</label><span>{{ release.release_date.strftime('%B %d, %Y') if release.release_date else '--' }}</span></div>
+      <div class="info-item"><label>Distributor</label><span>{{ release.distributor or '--' }}</span></div>
+      <div class="info-item"><label>UPC</label><span style="font-family:var(--fm)">{{ release.upc or 'Pending' }}</span></div>
+      <div class="info-item"><label>Status</label><span class="status s-{{ release.status }}"><span class="status-dot"></span>{{ release.status | title }}</span></div>
+      <div class="info-item"><label>Total Tracks</label><span>{{ release.tracks|length }}</span></div>
+    </div>
+    {% if release.artists_list %}
+    <div style="margin-top:14px">
+      <div class="label" style="margin-bottom:6px">Artists</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        {% for a in release.artists_list %}<span class="tag tag-full">{{ a }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#127925;</div><span class="card-title">Tracks</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>#</th><th>Title</th><th>Artists</th><th>Duration</th><th>ISRC</th><th>Genre</th><th>Linked Works</th></tr></thead>
+      <tbody>
+        {% for t in release.tracks %}
+        <tr>
+          <td style="color:var(--t3)">{{ t.track_number or '—' }}</td>
+          <td>
+            <div style="font-weight:600">{{ t.primary_title }}</div>
+            {% if t.recording_title and t.recording_title != t.primary_title %}<div style="font-size:11px;color:var(--t3)">Rec: {{ t.recording_title }}</div>{% endif %}
+            {% if t.aka_title %}<div style="font-size:11px;color:var(--t3)">AKA: {{ t.aka_title }}</div>{% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--t2)">{{ t.artist_display }}</td>
+          <td style="font-size:12px;color:var(--t2)">{{ t.duration or '--' }}</td>
+          <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ t.isrc or 'Pending' }}</td>
+          <td style="font-size:12px;color:var(--t2)">{{ t.genre or '--' }}</td>
+          <td>
+            {% for tw in t.track_works %}
+            <div style="font-size:12px">
+              <span class="tag tag-s1">{{ tw.work.title }}</span>
+              {% for ww in tw.work.work_writers %}
+              <span style="font-size:11px;color:var(--t3)">{{ ww.writer.full_name }} {{ "%.0f"|format(ww.writer_percentage) }}%</span>
+              {% endfor %}
+            </div>
+            {% endfor %}
+            {% if not t.track_works %}<span style="color:var(--t3);font-size:12px">Not linked</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not release.tracks %}<tr class="empty"><td colspan="7">No tracks yet.</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/" class="mnav-item"><span>🖋️</span><small>New</small></a>
+  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ================================================================
+# PHASE 2 — RELEASES ROUTES
+# ================================================================
+
+def _parse_artists(form, prefix, count=8):
+    return [form.get(f"{prefix}_{i+1}", "").strip() for i in range(count) if form.get(f"{prefix}_{i+1}", "").strip()]
+
+import json as _json
+
+@app.route("/releases")
+def releases_list():
+    if auth_required():
+        return redirect(url_for("login"))
+    releases = Release.query.order_by(Release.created_at.desc()).all()
+    for r in releases:
+        r.artists_list = _json.loads(r.artists) if r.artists else []
+        r.artist_display = ", ".join(r.artists_list[:3]) + (" +" + str(len(r.artists_list)-3) + " more" if len(r.artists_list) > 3 else "")
+        for t in r.tracks:
+            t.artists_list = _json.loads(t.artists) if t.artists else []
+    return render_template_string(RELEASES_LIST_HTML, releases=releases)
+
+
+@app.route("/releases/new", methods=["GET","POST"])
+def release_new():
+    if auth_required():
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        return _save_release(None)
+    return render_template_string(RELEASE_FORM_HTML, release=None, tracks=[], artists=[])
+
+
+@app.route("/releases/<int:release_id>/edit", methods=["GET","POST"])
+def release_edit(release_id):
+    if auth_required():
+        return redirect(url_for("login"))
+    r = Release.query.get_or_404(release_id)
+    if request.method == "POST":
+        return _save_release(r)
+    artists = _json.loads(r.artists) if r.artists else []
+    tracks = r.tracks
+    for t in tracks:
+        t.artists_list = _json.loads(t.artists) if t.artists else []
+    return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artists=artists)
+
+
+@app.route("/releases/<int:release_id>")
+def release_detail(release_id):
+    if auth_required():
+        return redirect(url_for("login"))
+    r = Release.query.get_or_404(release_id)
+    r.artists_list = _json.loads(r.artists) if r.artists else []
+    r.artist_display = ", ".join(r.artists_list)
+    for t in r.tracks:
+        t.artists_list = _json.loads(t.artists) if t.artists else []
+        t.artist_display = ", ".join(t.artists_list[:2])
+    return render_template_string(RELEASE_DETAIL_HTML, release=r)
+
+
+@app.route("/releases/<int:release_id>/delete", methods=["POST"])
+def release_delete(release_id):
+    if auth_required():
+        return redirect(url_for("login"))
+    r = Release.query.get_or_404(release_id)
+    db.session.delete(r)
+    db.session.commit()
+    flash("Release deleted.")
+    return redirect(url_for("releases_list"))
+
+
+def _save_release(existing):
+    form = request.form
+    try:
+        artists = _parse_artists(form, "artist")
+        if not artists:
+            flash("At least one album artist is required.")
+            return redirect(request.referrer or url_for("releases_list"))
+
+        if existing:
+            r = existing
+        else:
+            r = Release()
+            db.session.add(r)
+
+        r.release_type = form.get("release_type", "").strip()
+        r.title = form.get("title", "").strip()
+        r.upc = form.get("upc", "").strip() or None
+        r.release_date = datetime.datetime.strptime(form["release_date"], "%Y-%m-%d").date() if form.get("release_date") else None
+        r.distributor = form.get("distributor", "").strip()
+        r.status = form.get("status", "draft")
+        r.artists = _json.dumps(artists)
+
+        # --- Tracks ---
+        track_ids = form.getlist("track_id[]")
+        primary_titles = form.getlist("primary_title[]")
+        track_numbers = form.getlist("track_number[]")
+        durations = form.getlist("duration[]")
+        isrcs = form.getlist("isrc[]")
+        recording_titles = form.getlist("recording_title[]")
+        aka_titles = form.getlist("aka_title[]")
+        aka_type_codes = form.getlist("aka_type_code[]")
+        genres = form.getlist("genre[]")
+        track_labels = form.getlist("track_label[]")
+        track_p_lines = form.getlist("track_p_line[]")
+        recording_dates = form.getlist("recording_date[]")
+        producers = form.getlist("producer[]")
+        recording_engineers = form.getlist("recording_engineer[]")
+        executive_producers = form.getlist("executive_producer[]")
+
+        # flush to get release id for new records
+        db.session.flush()
+
+        kept_track_ids = set()
+        for i, pt in enumerate(primary_titles):
+            if not pt.strip():
+                continue
+            tid = track_ids[i] if i < len(track_ids) else ""
+            if tid:
+                t = Track.query.get(int(tid))
+                if not t:
+                    t = Track(release_id=r.id)
+                    db.session.add(t)
+            else:
+                t = Track(release_id=r.id)
+                db.session.add(t)
+
+            t.primary_title = pt.strip()
+            t.track_number = int(track_numbers[i]) if i < len(track_numbers) and track_numbers[i].strip() else None
+            t.duration = durations[i].strip() if i < len(durations) else ""
+            t.isrc = isrcs[i].strip() or None if i < len(isrcs) else None
+            t.recording_title = recording_titles[i].strip() if i < len(recording_titles) else ""
+            t.aka_title = aka_titles[i].strip() if i < len(aka_titles) else ""
+            t.aka_type_code = aka_type_codes[i].strip() if i < len(aka_type_codes) else ""
+            t.genre = genres[i].strip() if i < len(genres) else ""
+            t.track_label = track_labels[i].strip() if i < len(track_labels) else ""
+            t.track_p_line = track_p_lines[i].strip() if i < len(track_p_lines) else ""
+            t.producer = producers[i].strip() if i < len(producers) else ""
+            t.recording_engineer = recording_engineers[i].strip() if i < len(recording_engineers) else ""
+            t.executive_producer = executive_producers[i].strip() if i < len(executive_producers) else ""
+            rd = recording_dates[i].strip() if i < len(recording_dates) else ""
+            t.recording_date = datetime.datetime.strptime(rd, "%Y-%m-%d").date() if rd else None
+
+            # track artists — collected as track_artist_new_N[] for new, track_artist_X_X[] for existing
+            # use a unified approach: collect all track artist keys
+            tartist_key = f"track_artist_new_{i+1}[]" if not tid else None
+            if tartist_key:
+                tartists = [v.strip() for v in form.getlist(tartist_key) if v.strip()]
+            else:
+                tartists = []
+                for j in range(8):
+                    v = form.get(f"track_artist_{j}_{j}[]", "")
+                    if isinstance(v, list):
+                        all_vals = form.getlist(f"track_artist_{j}_{j}[]")
+                        if i < len(all_vals) and all_vals[i].strip():
+                            tartists.append(all_vals[i].strip())
+                    elif v.strip():
+                        tartists.append(v.strip())
+            t.artists = _json.dumps(tartists)
+
+            db.session.flush()
+
+            # linked works — clear and re-link
+            TrackWork.query.filter_by(track_id=t.id).delete()
+            work_key = f"linked_work_ids_{t.id}[]" if tid else f"linked_work_ids_new_{i+1}[]"
+            notes_key = f"linked_work_notes_{t.id}[]" if tid else f"linked_work_notes_new_{i+1}[]"
+            wids = form.getlist(work_key)
+            wnotes = form.getlist(notes_key)
+            for wi, wid in enumerate(wids):
+                if wid:
+                    tw = TrackWork(track_id=t.id, work_id=int(wid), notes=wnotes[wi] if wi < len(wnotes) else "")
+                    db.session.add(tw)
+
+            kept_track_ids.add(t.id)
+
+        # remove tracks no longer in form
+        if existing:
+            for t in existing.tracks:
+                if t.id not in kept_track_ids:
+                    db.session.delete(t)
+
+        r.num_tracks = len(kept_track_ids)
+        db.session.commit()
+        flash("Release saved.")
+        return redirect(url_for("release_detail", release_id=r.id))
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error("RELEASE SAVE ERROR: %s", e)
+        app.logger.error(traceback.format_exc())
+        flash("Error saving release: " + str(e))
+        return redirect(request.referrer or url_for("releases_list"))
+
+
+@app.route("/works/search")
+def works_search():
+    if auth_required():
+        return jsonify([])
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    works = Work.query.filter(Work.title.ilike(f"%{q}%")).limit(10).all()
+    return jsonify([{
+        "id": w.id,
+        "title": w.title,
+        "writers": ", ".join(ww.writer.full_name for ww in w.work_writers)
+    } for w in works])
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
