@@ -6189,6 +6189,10 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         <input class="inp" name="distributor" value="{{ release.distributor if release else '' }}" placeholder="DistroKid, TuneCore...">
       </div>
       <div class="field">
+        <label class="label">Number of Tracks</label>
+        <input class="inp" name="num_tracks" type="number" min="1" value="{{ release.num_tracks if release and release.num_tracks else '' }}" placeholder="e.g. 12">
+      </div>
+      <div class="field">
         <label class="label">UPC <span style="color:var(--t3);font-size:11px">assign later</span></label>
         <input class="inp" name="upc" value="{{ release.upc if release else '' }}" placeholder="Leave blank">
       </div>
@@ -6827,7 +6831,8 @@ def _save_release(existing):
                 if t.id not in kept_track_ids:
                     db.session.delete(t)
 
-        r.num_tracks = len(kept_track_ids)
+        manual_num = form.get("num_tracks", "").strip()
+        r.num_tracks = int(manual_num) if manual_num.isdigit() else len(kept_track_ids)
         db.session.commit()
         flash("Release saved.")
         return redirect(url_for("release_detail", release_id=r.id))
