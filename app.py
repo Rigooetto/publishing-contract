@@ -6149,43 +6149,51 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
     <div class="ph-icon">&#127830;</div>
     <div>
       <div class="ph-title">{{ 'Edit Release' if release else 'New Release' }}</div>
-      <div class="ph-sub">{{ release.title if release else 'Create a new album, EP or single' }}</div>
+      <div class="ph-sub">{{ release.title if release else 'Add album, EP or single details and link tracks to compositions' }}</div>
     </div>
-  </div>
-  <div class="ph-actions">
-    <a href="/releases" class="btn btn-sec btn-sm">Cancel</a>
   </div>
 </div>
 
 <form method="post" id="releaseForm">
+
 <!-- RELEASE INFO -->
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Release Info</span></div>
+  <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Release Information</span></div>
   <div class="card-body">
-    <div class="g4">
-      <div class="field"><label class="label">Release Type *</label>
+    <div class="wc-sec">General</div>
+    <div class="g g2">
+      <div class="field">
+        <label class="label">Release Title *</label>
+        <div class="inp-wrap"><span class="inp-ico">&#127830;</span>
+        <input class="inp" name="title" required value="{{ release.title if release else '' }}" placeholder="Album / EP / Single title"></div>
+      </div>
+      <div class="field">
+        <label class="label">Release Type *</label>
+        <div class="inp-wrap"><span class="inp-ico">&#127991;</span>
         <select class="inp" name="release_type" required>
           <option value="">Select type...</option>
-          {% for t in ['Album','EP','Single'] %}
-          <option value="{{ t }}" {{ 'selected' if release and release.release_type == t }}>{{ t }}</option>
+          {% for rt in ['Album','EP','Single'] %}
+          <option value="{{ rt }}" {{ 'selected' if release and release.release_type == rt }}>{{ rt }}</option>
           {% endfor %}
-        </select>
-      </div>
-      <div class="field"><label class="label">Album / Release Title *</label>
-        <input class="inp" name="title" required value="{{ release.title if release else '' }}" placeholder="Release title">
-      </div>
-      <div class="field"><label class="label">Release Date</label>
-        <input class="inp" type="date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}">
-      </div>
-      <div class="field"><label class="label">Distributor</label>
-        <input class="inp" name="distributor" value="{{ release.distributor if release else '' }}" placeholder="DistroKid, TuneCore...">
+        </select></div>
       </div>
     </div>
-    <div class="g4" style="margin-top:14px">
-      <div class="field"><label class="label">UPC <span style="color:var(--t3);font-size:11px">(assign later)</span></label>
-        <input class="inp" name="upc" value="{{ release.upc if release else '' }}" placeholder="Leave blank until distributor assigns">
+    <div class="g g4" style="margin-top:12px">
+      <div class="field">
+        <label class="label">Release Date</label>
+        <div class="inp-wrap"><span class="inp-ico">&#128197;</span>
+        <input class="inp" type="date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}"></div>
       </div>
-      <div class="field"><label class="label">Status</label>
+      <div class="field">
+        <label class="label">Distributor</label>
+        <input class="inp" name="distributor" value="{{ release.distributor if release else '' }}" placeholder="DistroKid, TuneCore...">
+      </div>
+      <div class="field">
+        <label class="label">UPC <span style="color:var(--t3);font-size:11px">assign later</span></label>
+        <input class="inp" name="upc" value="{{ release.upc if release else '' }}" placeholder="Leave blank">
+      </div>
+      <div class="field">
+        <label class="label">Status</label>
         <select class="inp" name="status">
           {% for s in ['draft','ready','delivered'] %}
           <option value="{{ s }}" {{ 'selected' if release and release.status == s else ('selected' if not release and s == 'draft' else '') }}>{{ s | title }}</option>
@@ -6193,17 +6201,14 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         </select>
       </div>
     </div>
-    <!-- ALBUM ARTISTS -->
-    <div style="margin-top:18px">
-      <div class="label" style="margin-bottom:8px">Album Artists</div>
-      <div class="g4" id="albumArtists">
-        {% for i in range(8) %}
-        <div class="field">
-          <label class="label" style="color:var(--t3)">Artist {{ i+1 }}{% if i == 0 %} *{% endif %}</label>
-          <input class="inp" name="artist_{{ i+1 }}" value="{{ artists[i] if artists and i < artists|length else '' }}" placeholder="Artist name{% if i == 0 %} (required){% endif %}">
-        </div>
-        {% endfor %}
+    <div class="wc-sec" style="margin-top:18px">Album Artists</div>
+    <div class="g g4">
+      {% for i in range(8) %}
+      <div class="field">
+        <label class="label">Artist {{ i+1 }}{% if i == 0 %} *{% endif %}</label>
+        <input class="inp" name="artist_{{ i+1 }}" value="{{ artists[i] if artists and i < artists|length else '' }}" placeholder="{% if i == 0 %}Primary artist{% else %}Additional artist{% endif %}">
       </div>
+      {% endfor %}
     </div>
   </div>
 </div>
@@ -6213,85 +6218,86 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
   <div class="card-hd">
     <div class="card-ico">&#127925;</div>
     <span class="card-title">Tracks</span>
-    <button type="button" class="btn btn-sec btn-xs" style="margin-left:auto" onclick="addTrack()">+ Add Track</button>
+    <div class="card-actions">
+      <button type="button" class="btn btn-sec btn-sm" onclick="addTrack()">+ Add Track</button>
+    </div>
   </div>
   <div class="card-body" id="tracksContainer">
     {% if tracks %}
     {% for t in tracks %}
     <div class="track-block" data-track-id="{{ t.id }}">
       <input type="hidden" name="track_id[]" value="{{ t.id }}">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-weight:600;font-size:13px;color:var(--a)">Track {{ loop.index }}</div>
+      <div class="wc-hd" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--b0)">
+        <div style="font-weight:700;font-size:14px;color:var(--a)">Track {{ loop.index }}</div>
         <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="removeTrack(this)">Remove</button>
       </div>
-      <div class="g4">
+      <div class="wc-sec">Track Info</div>
+      <div class="g g4">
         <div class="field"><label class="label">Track #</label><input class="inp" name="track_number[]" type="number" value="{{ t.track_number or '' }}" placeholder="#"></div>
         <div class="field"><label class="label">Primary Title *</label><input class="inp" name="primary_title[]" required value="{{ t.primary_title }}" placeholder="Track title"></div>
         <div class="field"><label class="label">Duration</label><input class="inp" name="duration[]" value="{{ t.duration or '' }}" placeholder="3:45"></div>
-        <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">(assign later)</span></label><input class="inp" name="isrc[]" value="{{ t.isrc or '' }}" placeholder="Leave blank"></div>
+        <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" value="{{ t.genre or '' }}" placeholder="Genre"></div>
       </div>
-      <div class="g4" style="margin-top:10px">
+      <div class="g g4" style="margin-top:10px">
         <div class="field"><label class="label">Recording Title</label><input class="inp" name="recording_title[]" value="{{ t.recording_title or '' }}" placeholder="If different from primary"></div>
         <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" value="{{ t.aka_title or '' }}" placeholder="Alternate title"></div>
         <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" value="{{ t.aka_type_code or '' }}" placeholder="AT, TT..."></div>
-        <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" value="{{ t.genre or '' }}" placeholder="Genre"></div>
+        <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">assign later</span></label><input class="inp" name="isrc[]" value="{{ t.isrc or '' }}" placeholder="Leave blank"></div>
       </div>
-      <div class="g4" style="margin-top:10px">
-        <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
-        <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" value="{{ t.track_p_line or '' }}" placeholder="℗ 2024 Label Name"></div>
-        <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]" value="{{ t.recording_date.strftime('%Y-%m-%d') if t.recording_date else '' }}"></div>
+      <div class="wc-sec" style="margin-top:14px">Production</div>
+      <div class="g g4">
         <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" value="{{ t.producer or '' }}" placeholder="Producer name"></div>
-      </div>
-      <div class="g4" style="margin-top:10px">
         <div class="field"><label class="label">Recording Engineer</label><input class="inp" name="recording_engineer[]" value="{{ t.recording_engineer or '' }}" placeholder="Engineer name"></div>
         <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" value="{{ t.executive_producer or '' }}" placeholder="Exec producer"></div>
+        <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]" value="{{ t.recording_date.strftime('%Y-%m-%d') if t.recording_date else '' }}"></div>
       </div>
-      <!-- Track Artists -->
-      <div style="margin-top:12px">
-        <div class="label" style="margin-bottom:6px;color:var(--t2)">Track Artists</div>
-        <div class="g4">
-          {% set tartists = t.artists_list %}
-          {% for i in range(8) %}
-          <div class="field"><label class="label" style="color:var(--t3)">Artist {{ i+1 }}</label>
-          <input class="inp" name="track_artist_{{ loop.index0 }}_{{ loop.index0 }}[]" data-tartist="{{ i }}" value="{{ tartists[i] if i < tartists|length else '' }}" placeholder="Artist name"></div>
-          {% endfor %}
-        </div>
+      <div class="g g2" style="margin-top:10px">
+        <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
+        <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" value="{{ t.track_p_line or '' }}" placeholder="(P) 2024 Label Name"></div>
       </div>
-      <!-- Link to Work -->
-      <div style="margin-top:12px">
-        <div class="label" style="margin-bottom:6px;color:var(--a)">Linked Works (Compositions)</div>
-        <div class="linked-works" id="linked-works-{{ t.id }}">
-          {% for tw in t.track_works %}
-          <div class="linked-work-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <input type="hidden" name="linked_work_ids_{{ t.id }}[]" value="{{ tw.work_id }}">
-            <span class="tag tag-s1" style="flex:1">{{ tw.work.title }} — {{ tw.work.work_writers|map(attribute='writer')|map(attribute='full_name')|join(', ') }}</span>
-            <input class="inp" style="width:140px;font-size:12px" name="linked_work_notes_{{ t.id }}[]" value="{{ tw.notes or '' }}" placeholder="Notes (optional)">
-            <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.linked-work-row').remove()">✕</button>
-          </div>
-          {% endfor %}
-        </div>
-        <div style="display:flex;gap:8px;margin-top:6px">
-          <input class="inp work-search-inp" style="flex:1" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
-        </div>
-        <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
+      <div class="wc-sec" style="margin-top:14px">Track Artists</div>
+      <div class="g g4">
+        {% set tartists = t.artists_list %}
+        {% for i in range(8) %}
+        <div class="field"><label class="label">Artist {{ i+1 }}</label>
+        <input class="inp" name="track_artist_{{ loop.index0 }}_{{ loop.index0 }}[]" value="{{ tartists[i] if i < tartists|length else '' }}" placeholder="Artist name"></div>
+        {% endfor %}
       </div>
+      <div class="wc-sec" style="margin-top:14px;color:var(--a)">Linked Works (Compositions)</div>
+      <div class="linked-works" id="linked-works-{{ t.id }}">
+        {% for tw in t.track_works %}
+        <div class="linked-work-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <input type="hidden" name="linked_work_ids_{{ t.id }}[]" value="{{ tw.work_id }}">
+          <span class="tag tag-s1" style="flex:1">{{ tw.work.title }} — {{ tw.work.work_writers|map(attribute='writer')|map(attribute='full_name')|join(', ') }}</span>
+          <input class="inp" style="width:140px;font-size:12px" name="linked_work_notes_{{ t.id }}[]" value="{{ tw.notes or '' }}" placeholder="Notes (optional)">
+          <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.linked-work-row').remove()">X</button>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="inp-wrap" style="margin-top:8px">
+        <span class="inp-ico">&#127932;</span>
+        <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
+      </div>
+      <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
     </div>
-    <hr style="border:none;border-top:1px solid var(--b0);margin:18px 0">
+    <hr style="border:none;border-top:1px solid var(--b0);margin:20px 0">
     {% endfor %}
     {% else %}
-    <div id="noTracksMsg" style="color:var(--t3);font-size:13px;text-align:center;padding:20px">No tracks yet. Click + Add Track above.</div>
+    <div id="noTracksMsg" style="color:var(--t3);font-size:13px;text-align:center;padding:24px">No tracks yet. Click <strong>+ Add Track</strong> above to get started.</div>
     {% endif %}
   </div>
 </div>
 
-<div style="display:flex;gap:10px;margin-top:8px;margin-bottom:32px">
-  <button type="submit" class="btn btn-primary" style="color:#fff">Save Release</button>
-  <a href="/releases" class="btn btn-sec">Cancel</a>
+<div class="action-bar">
+  <button type="button" class="btn btn-sec" onclick="addTrack()">+ Add Track</button>
+  <div class="ab-space"></div>
   {% if release %}
-  <form method="post" action="/releases/{{ release.id }}/delete" style="margin-left:auto" onsubmit="return confirm('Delete this release?')">
-    <button type="submit" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent">Delete Release</button>
+  <form method="post" action="/releases/{{ release.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this release?')">
+    <button type="submit" class="btn btn-sec" style="color:var(--ar);border-color:var(--ar)">Delete</button>
   </form>
   {% endif %}
+  <a href="/releases" class="btn btn-sec">Cancel</a>
+  <button type="submit" class="btn btn-primary" style="color:#fff">Save Release</button>
 </div>
 </form>
 </div>
@@ -6309,8 +6315,11 @@ function makeField(labelText, inputAttrs) {
   d.appendChild(l); d.appendChild(inp);
   return d;
 }
+function makeSection(text) {
+  var s = document.createElement('div'); s.className = 'wc-sec'; s.textContent = text; return s;
+}
 function makeGrid(fields) {
-  var g = document.createElement('div'); g.className = 'g4';
+  var g = document.createElement('div'); g.className = 'g g4';
   fields.forEach(function(f){ g.appendChild(f); });
   return g;
 }
@@ -6330,11 +6339,11 @@ function addTrack() {
   hiddenId.type = 'hidden'; hiddenId.name = 'track_id[]'; hiddenId.value = '';
   block.appendChild(hiddenId);
 
-  // header row
+  // header
   var hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--b0)';
   var title = document.createElement('div');
-  title.style.cssText = 'font-weight:600;font-size:13px;color:var(--a)';
+  title.style.cssText = 'font-weight:700;font-size:14px;color:var(--a)';
   title.textContent = 'Track ' + idx;
   var rmBtn = document.createElement('button');
   rmBtn.type = 'button'; rmBtn.className = 'btn btn-xs';
@@ -6344,65 +6353,59 @@ function addTrack() {
   hdr.appendChild(title); hdr.appendChild(rmBtn);
   block.appendChild(hdr);
 
-  // row 1
+  // Track Info section
+  block.appendChild(makeSection('Track Info'));
   block.appendChild(makeGrid([
     makeField('Track #', {name:'track_number[]', type:'number', placeholder:'#', value:idx}),
     makeField('Primary Title', {name:'primary_title[]', placeholder:'Track title', required:true}),
     makeField('Duration', {name:'duration[]', placeholder:'3:45'}),
-    makeField('ISRC (assign later)', {name:'isrc[]', placeholder:'Leave blank'})
+    makeField('Genre', {name:'genre[]', placeholder:'Genre'})
   ]));
-
-  // row 2
   var r2 = makeGrid([
     makeField('Recording Title', {name:'recording_title[]', placeholder:'If different from primary'}),
     makeField('AKA Title', {name:'aka_title[]', placeholder:'Alternate title'}),
     makeField('AKA Type Code', {name:'aka_type_code[]', placeholder:'AT, TT...'}),
-    makeField('Genre', {name:'genre[]', placeholder:'Genre'})
+    makeField('ISRC (assign later)', {name:'isrc[]', placeholder:'Leave blank'})
   ]); r2.style.marginTop = '10px'; block.appendChild(r2);
 
-  // row 3
-  var r3 = makeGrid([
-    makeField('Track Label', {name:'track_label[]', placeholder:'Label name'}),
-    makeField('Track P Line', {name:'track_p_line[]', placeholder:'(P) 2024 Label Name'}),
-    makeField('Recording Date', {name:'recording_date[]', type:'date'}),
-    makeField('Producer', {name:'producer[]', placeholder:'Producer name'})
-  ]); r3.style.marginTop = '10px'; block.appendChild(r3);
-
-  // row 4
-  var r4 = makeGrid([
+  // Production section
+  var ps = makeSection('Production'); ps.style.marginTop = '14px'; block.appendChild(ps);
+  block.appendChild(makeGrid([
+    makeField('Producer', {name:'producer[]', placeholder:'Producer name'}),
     makeField('Recording Engineer', {name:'recording_engineer[]', placeholder:'Engineer name'}),
-    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'})
-  ]); r4.style.marginTop = '10px'; block.appendChild(r4);
+    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'}),
+    makeField('Recording Date', {name:'recording_date[]', type:'date'})
+  ]));
+  var r3 = document.createElement('div'); r3.className = 'g g2'; r3.style.marginTop = '10px';
+  r3.appendChild(makeField('Track Label', {name:'track_label[]', placeholder:'Label name'}));
+  r3.appendChild(makeField('Track P Line', {name:'track_p_line[]', placeholder:'(P) 2024 Label Name'}));
+  block.appendChild(r3);
 
-  // track artists
-  var artistSec = document.createElement('div'); artistSec.style.marginTop = '12px';
-  var artistLbl = document.createElement('div'); artistLbl.className = 'label';
-  artistLbl.style.cssText = 'margin-bottom:6px;color:var(--t2)'; artistLbl.textContent = 'Track Artists';
-  var artistGrid = document.createElement('div'); artistGrid.className = 'g4';
+  // Track Artists section
+  var as2 = makeSection('Track Artists'); as2.style.marginTop = '14px'; block.appendChild(as2);
+  var artistGrid = document.createElement('div'); artistGrid.className = 'g g4';
   for (var a = 0; a < 8; a++) {
     artistGrid.appendChild(makeField('Artist ' + (a+1), {name:'track_artist_new_'+idx+'[]', placeholder:'Artist name'}));
   }
-  artistSec.appendChild(artistLbl); artistSec.appendChild(artistGrid);
-  block.appendChild(artistSec);
+  block.appendChild(artistGrid);
 
-  // linked works
-  var workSec = document.createElement('div'); workSec.style.marginTop = '12px';
-  var workLbl = document.createElement('div'); workLbl.className = 'label';
-  workLbl.style.cssText = 'margin-bottom:6px;color:var(--a)'; workLbl.textContent = 'Linked Works (Compositions)';
+  // Linked Works section
+  var ws2 = makeSection('Linked Works (Compositions)'); ws2.style.cssText = 'margin-top:14px;color:var(--a)'; block.appendChild(ws2);
   var linkedDiv = document.createElement('div');
   linkedDiv.className = 'linked-works'; linkedDiv.id = 'linked-works-new-' + idx;
-  var searchWrap = document.createElement('div'); searchWrap.style.cssText = 'display:flex;gap:8px;margin-top:6px';
+  block.appendChild(linkedDiv);
+  var searchWrap = document.createElement('div'); searchWrap.className = 'inp-wrap'; searchWrap.style.marginTop = '8px';
+  var searchIco = document.createElement('span'); searchIco.className = 'inp-ico'; searchIco.textContent = '&#9835;';
   var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp';
-  searchInp.style.flex = '1'; searchInp.placeholder = 'Search works to link...';
+  searchInp.placeholder = 'Search works to link...';
   searchInp.setAttribute('data-track-new', idx);
   searchInp.setAttribute('oninput', 'searchWorks(this)');
-  searchWrap.appendChild(searchInp);
+  searchWrap.appendChild(searchIco); searchWrap.appendChild(searchInp);
+  block.appendChild(searchWrap);
   var suggDiv = document.createElement('div');
   suggDiv.id = 'work-sugg-new-' + idx;
   suggDiv.style.cssText = 'display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px';
-  workSec.appendChild(workLbl); workSec.appendChild(linkedDiv);
-  workSec.appendChild(searchWrap); workSec.appendChild(suggDiv);
-  block.appendChild(workSec);
+  block.appendChild(suggDiv);
 
   var hr = document.createElement('hr');
   hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
