@@ -696,6 +696,19 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-writer-works th:nth-child(3),.tbl-writer-works td:nth-child(3),
   .tbl-writer-works th:nth-child(4),.tbl-writer-works td:nth-child(4),
   .tbl-writer-works th:nth-child(5),.tbl-writer-works td:nth-child(5){display:none}
+
+  /* Session detail - Works in Session: hide Writers(2), Date(3) */
+  .tbl-batch-works th:nth-child(2),.tbl-batch-works td:nth-child(2),
+  .tbl-batch-works th:nth-child(3),.tbl-batch-works td:nth-child(3){display:none}
+
+  /* Session detail - Writer Summary: hide AKA(2), IPI(3), PRO(4), Publishing Contract(6) */
+  .tbl-batch-writers th:nth-child(2),.tbl-batch-writers td:nth-child(2),
+  .tbl-batch-writers th:nth-child(3),.tbl-batch-writers td:nth-child(3),
+  .tbl-batch-writers th:nth-child(4),.tbl-batch-writers td:nth-child(4),
+  .tbl-batch-writers th:nth-child(6),.tbl-batch-writers td:nth-child(6){display:none}
+
+  .ph{flex-wrap:wrap}
+  .ph-actions{flex-wrap:wrap}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
@@ -2265,7 +2278,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works in Session</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="table-layout:auto">
+    <table class="tbl tbl-batch-works" style="table-layout:auto">
       <thead><tr><th>Work Title</th><th>Writers</th><th>Date</th></tr></thead>
       <tbody>
         {% for work in works %}
@@ -2328,7 +2341,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128101;</div><span class="card-title">Writer Summary</span></div>
   <div class="tbl-wrap">
-    <table class="tbl">
+    <table class="tbl tbl-batch-writers">
       <thead><tr><th>Writer</th><th>AKA</th><th>IPI</th><th>PRO</th><th>Works</th><th>Publishing Contract</th></tr></thead>
       <tbody>
         {% for item in writer_summary %}
