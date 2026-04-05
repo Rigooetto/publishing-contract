@@ -413,7 +413,6 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-batch-writers th:nth-child(4),.tbl-batch-writers td:nth-child(4),
   .tbl-batch-writers th:nth-child(6),.tbl-batch-writers td:nth-child(6){display:none}
 
-  .ph{flex-wrap:wrap}
   .ph-actions{flex-wrap:wrap}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
