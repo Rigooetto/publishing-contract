@@ -554,13 +554,40 @@ def works_list():
 def batches_list():
     if auth_required():
         return redirect(url_for(".login"))
+
+    q    = (request.args.get("q") or "").strip()
+    sort = (request.args.get("sort") or "newest").strip()
     page = max(1, int(request.args.get("page") or 1))
     per_page = 50
-    pagination = (
-        GenerationBatch.query
-        .order_by(GenerationBatch.created_at.desc())
-        .paginate(page=page, per_page=per_page, error_out=False)
-    )
+
+    query = GenerationBatch.query
+
+    if q:
+        like_q = f"%{q.lower()}%"
+        query = (
+            query
+            .outerjoin(Work, Work.batch_id == GenerationBatch.id)
+            .outerjoin(WorkWriter, WorkWriter.work_id == Work.id)
+            .outerjoin(Writer, Writer.id == WorkWriter.writer_id)
+            .filter(or_(
+                func.lower(GenerationBatch.session_name).like(like_q),
+                func.lower(Work.title).like(like_q),
+                func.lower(Writer.full_name).like(like_q),
+            ))
+            .distinct()
+        )
+
+    if sort == "oldest":
+        query = query.order_by(GenerationBatch.created_at.asc())
+    elif sort == "title_asc":
+        query = query.order_by(func.lower(GenerationBatch.session_name).asc())
+    elif sort == "title_desc":
+        query = query.order_by(func.lower(GenerationBatch.session_name).desc())
+    else:
+        query = query.order_by(GenerationBatch.created_at.desc())
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
     batch_ids = [b.id for b in pagination.items]
     work_counts = dict(
         db.session.query(Work.batch_id, func.count(Work.id))
@@ -578,7 +605,7 @@ def batches_list():
     session_works = {}
     for w in raw_works:
         session_works.setdefault(w.batch_id, []).append(w)
-    return render_template_string(BATCHES_LIST_HTML, batches=pagination.items, pagination=pagination, work_counts=work_counts, session_works=session_works)
+    return render_template_string(BATCHES_LIST_HTML, batches=pagination.items, pagination=pagination, work_counts=work_counts, session_works=session_works, q=q, sort=sort)
 
 
 @bp.route("/batches/<int:batch_id>")

@@ -1815,6 +1815,22 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
   <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
 </div>
 <div class="card">
+  <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="inp" name="q" value="{{ q }}" placeholder="Search by session name, work title, or writer..." style="max-width:340px">
+      <select class="inp" name="sort" style="max-width:220px">
+        <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest First</option>
+        <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest First</option>
+        <option value="title_asc" {% if sort == "title_asc" %}selected{% endif %}>Name A-Z</option>
+        <option value="title_desc" {% if sort == "title_desc" %}selected{% endif %}>Name Z-A</option>
+      </select>
+      <button class="btn btn-sec" type="submit">Apply</button>
+      {% if q or sort != "newest" %}<a href="/batches" class="btn btn-sec">Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+<div class="card">
   <div class="card-hd"><div class="card-ico">&#128466;</div><span class="card-title">All Sessions</span></div>
   <div class="tbl-wrap">
     <table class="tbl" style="table-layout:auto">
@@ -1862,7 +1878,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
           </td>
         </tr>
         {% endfor %}
-        {% if not batches %}<tr class="empty"><td colspan="4">No sessions yet. Create a work to get started.</td></tr>{% endif %}
+        {% if not batches %}<tr class="empty"><td colspan="4">No sessions found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
@@ -1870,8 +1886,8 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
     <span>{{ pagination.total }} sessions &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
     <div style="display:flex;gap:6px">
-      {% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
-      {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+      {% if pagination.has_prev %}<a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
     </div>
   </div>
   {% endif %}
