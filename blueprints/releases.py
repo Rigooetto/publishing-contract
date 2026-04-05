@@ -26,13 +26,46 @@ def _parse_artists(form, prefix, count=8):
 def releases_list():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    releases = Release.query.order_by(Release.created_at.desc()).all()
+
+    from sqlalchemy import func as _func, or_ as _or
+    from models import Track as _Track
+
+    q    = (request.args.get("q") or "").strip()
+    sort = (request.args.get("sort") or "newest").strip()
+
+    query = Release.query
+
+    if q:
+        like_q = f"%{q.lower()}%"
+        query = (
+            query
+            .outerjoin(_Track, _Track.release_id == Release.id)
+            .filter(_or(
+                _func.lower(Release.title).like(like_q),
+                Release.artists.ilike(like_q),
+                Release.distributor.ilike(like_q),
+                Release.upc.ilike(like_q),
+                _func.lower(_Track.primary_title).like(like_q),
+            ))
+            .distinct()
+        )
+
+    if sort == "oldest":
+        query = query.order_by(Release.created_at.asc())
+    elif sort == "title_asc":
+        query = query.order_by(_func.lower(Release.title).asc())
+    elif sort == "title_desc":
+        query = query.order_by(_func.lower(Release.title).desc())
+    else:
+        query = query.order_by(Release.created_at.desc())
+
+    releases = query.all()
     for r in releases:
         r.artists_list = json.loads(r.artists) if r.artists else []
         r.artist_display = ", ".join(r.artists_list[:3]) + (" +" + str(len(r.artists_list)-3) + " more" if len(r.artists_list) > 3 else "")
         for t in r.tracks:
             t.artists_list = json.loads(t.artists) if t.artists else []
-    return render_template_string(RELEASES_LIST_HTML, releases=releases)
+    return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort)
 
 
 @bp.route("/releases/new", methods=["GET", "POST"])

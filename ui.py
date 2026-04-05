@@ -3721,6 +3721,22 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
   </div>
 </div>
 <div class="card">
+  <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="inp" name="q" value="{{ q }}" placeholder="Search by title, artist, track, UPC..." style="max-width:340px">
+      <select class="inp" name="sort" style="max-width:200px">
+        <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest First</option>
+        <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest First</option>
+        <option value="title_asc" {% if sort == "title_asc" %}selected{% endif %}>Title A-Z</option>
+        <option value="title_desc" {% if sort == "title_desc" %}selected{% endif %}>Title Z-A</option>
+      </select>
+      <button class="btn btn-sec" type="submit">Apply</button>
+      {% if q or sort != "newest" %}<a href="/releases" class="btn btn-sec">Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+<div class="card">
   <div class="tbl-wrap">
     <table class="tbl tbl-releases">
       <thead>
