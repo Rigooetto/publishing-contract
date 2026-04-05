@@ -804,7 +804,7 @@ def _sidebar(active):
 
     html += "<div class='sb-sec'>Catalog</div>"
     html += "<nav class='sb-nav'>"
-    html += "<a href='/releases'" + (" class='on'" if active == "releases_list" else "") + " title='Releases'><span class='ni'>&#127830;</span><span class='nl'>Releases</span></a>"
+    html += "<a href='/releases'" + (" class='on'" if active == "releases_list" else "") + " title='Releases'><span class='ni'>&#128191;</span><span class='nl'>Releases</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Resources</div>"
@@ -3582,7 +3582,7 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
 {% endif %}{% endwith %}
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127830;</div>
+    <div class="ph-icon">&#128191;</div>
     <div><div class="ph-title">Releases</div><div class="ph-sub">Albums, EPs and Singles</div></div>
   </div>
   <div class="ph-actions">
@@ -3608,7 +3608,7 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#127830;</div><span class="card-title">All Releases</span></div>
+  <div class="card-hd"><div class="card-ico">&#128191;</div><span class="card-title">All Releases</span></div>
   <div class="tbl-wrap">
     <table class="tbl tbl-releases" style="table-layout:auto">
       <thead>
@@ -3740,7 +3740,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
 {% endif %}{% endwith %}
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127830;</div>
+    <div class="ph-icon">&#128191;</div>
     <div>
       <div class="ph-title">{{ 'Edit Release' if release else 'New Release' }}</div>
       <div class="ph-sub">{{ release.title if release else 'Add album, EP or single details and link tracks to compositions' }}</div>
@@ -4535,7 +4535,7 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127830;</div>
+    <div class="ph-icon">&#128191;</div>
     <div>
       <div class="ph-title">{{ release.title }}</div>
       <div class="ph-sub">{{ release.release_type }} &mdash; {{ release.artist_display }}</div>
