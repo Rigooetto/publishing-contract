@@ -3906,7 +3906,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
     <div class="track-block" data-track-id="{{ t.id }}">
       <input type="hidden" name="track_id[]" value="{{ t.id }}">
       <div class="wc-hd" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--b0)">
-        <div style="font-weight:700;font-size:14px;color:var(--a)">Track {{ loop.index }}</div>
+        <div class="track-label" style="font-weight:700;font-size:14px;color:var(--a)">Track {{ loop.index }}{% if t.primary_title %} <span style="color:#fff;font-weight:400">— {{ t.primary_title }}</span>{% endif %}</div>
         <button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="removeTrack(this)">Remove</button>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
@@ -3929,7 +3929,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         {% endif %}
       </div>
       <div class="g g4" style="margin-top:10px">
-        <div class="field"><label class="label">Primary Title *</label><input class="inp" name="primary_title[]" required value="{{ t.primary_title }}" placeholder="Track title"></div>
+        <div class="field"><label class="label">Primary Title *</label><input class="inp" name="primary_title[]" required value="{{ t.primary_title }}" placeholder="Track title" oninput="updateTrackLabel(this)"></div>
         <div class="field"><label class="label">Duration</label><input class="inp" name="duration[]" value="{{ t.duration or '' }}" placeholder="3:45"></div>
         <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">assign later</span></label><input class="inp" name="isrc[]" value="{{ t.isrc or '' }}" placeholder="Leave blank"></div>
         <div class="field"><label class="label">Track #</label><input class="inp" name="track_number[]" type="number" value="{{ t.track_number or '' }}" placeholder="#"></div>
@@ -4057,6 +4057,7 @@ function addTrack() {
   var hdr = document.createElement('div');
   hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--b0)';
   var title = document.createElement('div');
+  title.className = 'track-label';
   title.style.cssText = 'font-weight:700;font-size:14px;color:var(--a)';
   title.textContent = 'Track ' + idx;
   var rmBtn = document.createElement('button');
@@ -4109,7 +4110,9 @@ function addTrack() {
     makeField('Duration', {name:'duration[]', placeholder:'3:45'}),
     makeField('ISRC (assign later)', {name:'isrc[]', placeholder:'Leave blank'}),
     makeField('Track #', {name:'track_number[]', type:'number', placeholder:'#', value:idx})
-  ]); r1.style.marginTop = '10px'; block.appendChild(r1);
+  ]); r1.style.marginTop = '10px';
+  r1.querySelector('input[name="primary_title[]"]').addEventListener('input', function(){ updateTrackLabel(this); });
+  block.appendChild(r1);
 
   // Other Titles collapsible (below Primary Title)
   var otWrap = document.createElement('div'); otWrap.style.marginTop = '10px';
@@ -4170,6 +4173,19 @@ function addTrack() {
   hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
   container.appendChild(block);
   container.appendChild(hr);
+}
+
+function updateTrackLabel(inp) {
+  var block = inp.closest('.track-block');
+  if (!block) return;
+  var label = block.querySelector('.track-label');
+  if (!label) return;
+  var num = label.textContent.split(' \u2014')[0].split(' -')[0].trim();
+  if (inp.value.trim()) {
+    label.innerHTML = num + ' <span style="color:#fff;font-weight:400">\u2014 ' + inp.value.trim() + '</span>';
+  } else {
+    label.textContent = num;
+  }
 }
 
 function toggleOtherTitles(btn) {
