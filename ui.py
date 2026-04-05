@@ -1374,7 +1374,7 @@ function syncModalPro(sel) {
 
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -1600,7 +1600,7 @@ document.addEventListener('click', function(e) {
 });
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -1784,7 +1784,7 @@ function toggleWork(id) {
 }
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -1911,7 +1911,7 @@ function toggleSession(id) {
 }
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -2230,7 +2230,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -2376,7 +2376,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
 });
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -2784,7 +2784,7 @@ function syncModalPro(sel) {
 
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -2919,7 +2919,7 @@ function toggleWriter(id) {
 }
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -3072,7 +3072,7 @@ function toggleWk(id) {
 }
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -3253,7 +3253,7 @@ function syncWriterModalPro(sel) {
 }
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -3331,7 +3331,7 @@ ADMIN_HTML = """<!DOCTYPE html>
 </div>
 """ + _SB_JS + """
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -3450,7 +3450,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 </div>
 """ + _SB_JS + """
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -3715,7 +3715,7 @@ function toggleRel(id) {
 }
 </script>
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -4513,7 +4513,7 @@ document.addEventListener('focusin', function(e){
 </div>
 
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
@@ -4608,7 +4608,7 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 """ + _SB_JS + """
 <div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
+  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
