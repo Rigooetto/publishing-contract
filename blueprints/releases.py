@@ -154,20 +154,12 @@ def _save_release(existing):
             rd = recording_dates[i].strip() if i < len(recording_dates) else ""
             t.recording_date = datetime.datetime.strptime(rd, "%Y-%m-%d").date() if rd else None
 
-            # track artists — collected as track_artist_new_N[] for new, track_artist_X_X[] for existing
-            tartist_key = f"track_artist_new_{i+1}[]" if not tid else None
-            if tartist_key:
-                tartists = [v.strip() for v in form.getlist(tartist_key) if v.strip()]
+            # track artists — existing tracks use track_artist_TRACKID[], new tracks use track_artist_new_N[]
+            if tid:
+                tartist_key = f"track_artist_{t.id}[]"
             else:
-                tartists = []
-                for j in range(8):
-                    v = form.get(f"track_artist_{j}_{j}[]", "")
-                    if isinstance(v, list):
-                        all_vals = form.getlist(f"track_artist_{j}_{j}[]")
-                        if i < len(all_vals) and all_vals[i].strip():
-                            tartists.append(all_vals[i].strip())
-                    elif v.strip():
-                        tartists.append(v.strip())
+                tartist_key = f"track_artist_new_{i+1}[]"
+            tartists = [v.strip() for v in form.getlist(tartist_key) if v.strip()]
             t.artists = json.dumps(tartists)
 
             db.session.flush()

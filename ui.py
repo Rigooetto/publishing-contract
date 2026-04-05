@@ -3881,7 +3881,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       {% if artists %}
         {% for a in artists %}
         <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-          <input class="inp" name="artist_{{ loop.index }}" value="{{ a }}" placeholder="{% if loop.first %}Primary artist *{% else %}Additional artist{% endif %}" style="flex:1">
+          <input class="inp" name="artist_1" value="{{ a }}" placeholder="{% if loop.first %}Primary artist *{% else %}Additional artist{% endif %}" style="flex:1">
           {% if not loop.first %}<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.artist-row').remove()">X</button>{% endif %}
         </div>
         {% endfor %}
@@ -3945,13 +3945,13 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         {% if tartists %}
           {% for a in tartists %}
           <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-            <input class="inp" name="track_artist_0_0[]" value="{{ a }}" placeholder="{% if loop.first %}Primary artist{% else %}Additional artist{% endif %}" style="flex:1">
+            <input class="inp" name="track_artist_{{ t.id }}[]" value="{{ a }}" placeholder="{% if loop.first %}Primary artist{% else %}Additional artist{% endif %}" style="flex:1">
             {% if not loop.first %}<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.artist-row').remove()">X</button>{% endif %}
           </div>
           {% endfor %}
         {% else %}
           <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-            <input class="inp" name="track_artist_0_0[]" placeholder="Primary artist" style="flex:1">
+            <input class="inp" name="track_artist_{{ t.id }}[]" placeholder="Primary artist" style="flex:1">
           </div>
         {% endif %}
       </div>
