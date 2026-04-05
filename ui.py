@@ -3934,15 +3934,6 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         <div class="field"><label class="label">ISRC <span style="color:var(--t3);font-size:11px">assign later</span></label><input class="inp" name="isrc[]" value="{{ t.isrc or '' }}" placeholder="Leave blank"></div>
         <div class="field"><label class="label">Track #</label><input class="inp" name="track_number[]" type="number" value="{{ t.track_number or '' }}" placeholder="#"></div>
       </div>
-      <div class="g g4" style="margin-top:10px">
-        <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" value="{{ t.genre or '' }}" placeholder="Genre"></div>
-        <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]" value="{{ t.recording_date.strftime('%Y-%m-%d') if t.recording_date else '' }}"></div>
-        <div class="field"><label class="label">Recording Engineer</label><input class="inp" name="recording_engineer[]" value="{{ t.recording_engineer or '' }}" placeholder="Engineer name"></div>
-        <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" value="{{ t.producer or '' }}" placeholder="Producer name"></div>
-      </div>
-      <div class="g g4" style="margin-top:10px">
-        <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" value="{{ t.executive_producer or '' }}" placeholder="Exec producer"></div>
-      </div>
       {% set has_alt_titles = t.recording_title or t.aka_title or t.aka_type_code %}
       <div style="margin-top:10px">
         <button type="button" class="other-titles-toggle" onclick="toggleOtherTitles(this)" style="background:none;border:none;cursor:pointer;color:var(--t2);font-size:12px;padding:0;display:flex;align-items:center;gap:5px">
@@ -3954,6 +3945,15 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
           <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" value="{{ t.aka_title or '' }}" placeholder="Alternate title"></div>
           <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" value="{{ t.aka_type_code or '' }}" placeholder="AT, TT..."></div>
         </div>
+      </div>
+      <div class="g g4" style="margin-top:10px">
+        <div class="field"><label class="label">Genre</label><input class="inp" name="genre[]" value="{{ t.genre or '' }}" placeholder="Genre"></div>
+        <div class="field"><label class="label">Recording Date</label><input class="inp" type="date" name="recording_date[]" value="{{ t.recording_date.strftime('%Y-%m-%d') if t.recording_date else '' }}"></div>
+        <div class="field"><label class="label">Recording Engineer</label><input class="inp" name="recording_engineer[]" value="{{ t.recording_engineer or '' }}" placeholder="Engineer name"></div>
+        <div class="field"><label class="label">Producer</label><input class="inp" name="producer[]" value="{{ t.producer or '' }}" placeholder="Producer name"></div>
+      </div>
+      <div class="g g4" style="margin-top:10px">
+        <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" value="{{ t.executive_producer or '' }}" placeholder="Exec producer"></div>
       </div>
       <div class="g g2" style="margin-top:10px">
         <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
@@ -4111,20 +4111,7 @@ function addTrack() {
     makeField('Track #', {name:'track_number[]', type:'number', placeholder:'#', value:idx})
   ]); r1.style.marginTop = '10px'; block.appendChild(r1);
 
-  // Row 3: Genre, Recording Date, Recording Engineer, Producer
-  var r2 = makeGrid([
-    makeField('Genre', {name:'genre[]', placeholder:'Genre'}),
-    makeField('Recording Date', {name:'recording_date[]', type:'date'}),
-    makeField('Recording Engineer', {name:'recording_engineer[]', placeholder:'Engineer name'}),
-    makeField('Producer', {name:'producer[]', placeholder:'Producer name'})
-  ]); r2.style.marginTop = '10px'; block.appendChild(r2);
-
-  // Row 4: Executive Producer only
-  var r3 = makeGrid([
-    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'})
-  ]); r3.style.marginTop = '10px'; block.appendChild(r3);
-
-  // Other Titles collapsible
+  // Other Titles collapsible (below Primary Title)
   var otWrap = document.createElement('div'); otWrap.style.marginTop = '10px';
   var otBtn = document.createElement('button'); otBtn.type = 'button'; otBtn.className = 'other-titles-toggle';
   otBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--t2);font-size:12px;padding:0;display:flex;align-items:center;gap:5px';
@@ -4141,6 +4128,19 @@ function addTrack() {
   otBody.appendChild(makeField('AKA Type Code', {name:'aka_type_code[]', placeholder:'AT, TT...'}));
   otWrap.appendChild(otBtn); otWrap.appendChild(otBody);
   block.appendChild(otWrap);
+
+  // Row 3: Genre, Recording Date, Recording Engineer, Producer
+  var r2 = makeGrid([
+    makeField('Genre', {name:'genre[]', placeholder:'Genre'}),
+    makeField('Recording Date', {name:'recording_date[]', type:'date'}),
+    makeField('Recording Engineer', {name:'recording_engineer[]', placeholder:'Engineer name'}),
+    makeField('Producer', {name:'producer[]', placeholder:'Producer name'})
+  ]); r2.style.marginTop = '10px'; block.appendChild(r2);
+
+  // Row 4: Executive Producer only
+  var r3 = makeGrid([
+    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'})
+  ]); r3.style.marginTop = '10px'; block.appendChild(r3);
 
   // Row 5: Track Label, Track P Line
   var r4 = document.createElement('div'); r4.className = 'g g2'; r4.style.marginTop = '10px';
