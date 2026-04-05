@@ -774,7 +774,7 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 
 def _sidebar(active):
     pages = [
-        ("works_list",   "Works",     "<span class='ni'>&#127932;</span>"),
+        ("works_list",   "Works",     "<span class='ni'>&#128395;</span>"),
         ("batches_list", "Sessions",  "<span class='ni'>&#128466;</span>"),
     ]
 
@@ -925,7 +925,7 @@ FORM_HTML = """<!DOCTYPE html>
         <div class="field">
           <label class="label">Work Title</label>
           <div class="inp-wrap">
-            <span class="inp-ico">&#127932;</span>
+            <span class="inp-ico">&#128395;</span>
             <input class="inp" name="work_title" required placeholder="e.g. La Serenata" value="{{ work_title_value or '' }}">
           </div>
         </div>
@@ -1625,7 +1625,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127932;</div>
+    <div class="ph-icon">&#128395;</div>
     <div><div class="ph-title">Works</div><div class="ph-sub">All registered musical works</div></div>
   </div>
   <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
@@ -1967,7 +1967,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
   </div>
 </div>
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works in Session</span></div>
+  <div class="card-hd"><div class="card-ico">&#128395;</div><span class="card-title">Works in Session</span></div>
   <div class="tbl-wrap">
     <table class="tbl tbl-batch-works" style="table-layout:auto">
       <thead><tr><th>Work Title</th><th>Writers</th><th>Date</th></tr></thead>
@@ -2255,7 +2255,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <div class="page">
 <div class="ph">
   <div class="ph-left">
-    <div class="ph-icon">&#127932;</div>
+    <div class="ph-icon">&#128395;</div>
     <div>
       <div class="ph-title">{{ work.title }}</div>
       <div class="ph-sub">{{ work.batch.session_name if work.batch and work.batch.session_name else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
@@ -2419,7 +2419,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 
 <form method="post" id="workEditForm">
   <div class="card">
-    <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Work Information</span></div>
+    <div class="card-hd"><div class="card-ico">&#128395;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
       <div class="g g2" style="margin-bottom:12px">
         <div class="field">
@@ -2988,7 +2988,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="card">
-  <div class="card-hd"><div class="card-ico">&#127932;</div><span class="card-title">Works</span></div>
+  <div class="card-hd"><div class="card-ico">&#128395;</div><span class="card-title">Works</span></div>
   <div class="tbl-wrap">
     <table class="tbl tbl-writer-works" style="table-layout:auto">
       <thead>
@@ -3903,7 +3903,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       </div>
       <div id="work-search-area-{{ t.id }}" {% if t.is_cover %}style="display:none"{% endif %}>
         <div class="inp-wrap" style="margin-top:8px">
-          <span class="inp-ico">&#127932;</span>
+          <span class="inp-ico">&#128395;</span>
           <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
         </div>
         <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
