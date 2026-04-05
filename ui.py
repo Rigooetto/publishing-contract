@@ -1,16 +1,9 @@
 # ui.py — CSS, JS, sidebar, topbar, and all HTML template string constants
 
-def _topbar(pill=""):
-    works_on = " class='pill on'" if pill == "works" else " class='pill'"
-    sess_on = " class='pill on'" if pill == "sessions" else " class='pill'"
-
+def _topbar():
     html = "<header class='topbar'>"
     html += "<div class='tb-brand'><img src='/static/logo.png' class='tb-logo' alt='AfinArte Music'><span class='tb-brand-name'>AfinArte Music</span></div>"
     html += "<div class='tb-right'>"
-    html += "<div class='pill-group'>"
-    html += "<a href='/works'" + works_on + ">Works</a>"
-    html += "<a href='/batches'" + sess_on + ">Sessions</a>"
-    html += "</div>"
     html += "{% if team_auth_enabled and session.get('logged_in') %}"
     html += "<a href='/logout' class='tb-ibtn' title='Log out'>&#128682;</a>"
     html += "{% endif %}"
@@ -295,7 +288,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .page{padding:16px 13px 160px}
   .g3,.g2,.g4,.g4a,.g5,.g52{grid-template-columns:1fr}
   .topbar{padding:0 13px}
-  .tb-brand-name{display:none}
+  .tb-brand-name{font-size:13px}
 
   .action-bar{
     left:0!important;
@@ -869,7 +862,7 @@ FORM_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 {% if not is_modal %}""" + _sidebar("formulario") + """{% endif %}
 <main class="main">
-{% if not is_modal %}""" + _topbar("") + """{% endif %}
+{% if not is_modal %}""" + _topbar() + """{% endif %}
 <div class="page">
 {% with messages = get_flashed_messages() %}
 {% if messages %}
@@ -1394,7 +1387,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("formulario") + """
 <main class="main">
-""" + _topbar("") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
@@ -1620,7 +1613,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("works_list") + """
 <main class="main">
-""" + _topbar("works") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
@@ -1804,7 +1797,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("batches_list") + """
 <main class="main">
-""" + _topbar("sessions") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
@@ -1931,7 +1924,7 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("batches_list") + """
 <main class="main">
-""" + _topbar("sessions") + """
+""" + _topbar() + """
 <div class="page">
 {% with messages = get_flashed_messages() %}{% if messages %}
 <div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
@@ -2250,7 +2243,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("works_list") + """
 <main class="main">
-""" + _topbar("works") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
@@ -2396,7 +2389,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("works_list") + """
 <main class="main">
-""" + _topbar("works") + """
+""" + _topbar() + """
 <div class="page">
 {% with messages = get_flashed_messages() %}
 {% if messages %}
@@ -2804,7 +2797,7 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("writers_list") + """
 <main class="main">
-""" + _topbar("writers") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
@@ -2940,7 +2933,7 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("writers_list") + """
 <main class="main">
-""" + _topbar("writers") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
@@ -3092,7 +3085,7 @@ WRITER_EDIT_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("writers_list") + """
 <main class="main">
-""" + _topbar("writers") + """
+""" + _topbar() + """
 <div class="page">
 {% with messages = get_flashed_messages() %}
 {% if messages %}
@@ -3274,7 +3267,7 @@ ADMIN_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("admin") + """
 <main class="main">
-""" + _topbar("") + """
+""" + _topbar() + """
 <div class="page">
 
 {% with messages = get_flashed_messages() %}
@@ -3351,7 +3344,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("admin") + """
 <main class="main">
-""" + _topbar("") + """
+""" + _topbar() + """
 <div class="page">
 
 {% with messages = get_flashed_messages() %}
@@ -3574,7 +3567,7 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("releases_list") + """
 <main class="main">
-""" + _topbar("") + """
+""" + _topbar() + """
 <div class="page">
 {% with messages = get_flashed_messages() %}{% if messages %}
 <div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
@@ -3732,7 +3725,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("releases_list") + """
 <main class="main">
-""" + _topbar("") + """
+""" + _topbar() + """
 <div class="page">
 {% with messages = get_flashed_messages() %}{% if messages %}
 <div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
@@ -4530,7 +4523,7 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 <div class="app" id="mainApp">
 """ + _sidebar("releases_list") + """
 <main class="main">
-""" + _topbar("") + """
+""" + _topbar() + """
 <div class="page">
 <div class="ph">
   <div class="ph-left">
