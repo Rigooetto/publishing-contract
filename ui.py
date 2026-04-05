@@ -139,7 +139,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .tb-ibtn:hover{border-color:var(--bf);color:var(--t1)}
 .avatar{width:29px;height:29px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ae));display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:#fff;flex-shrink:0}
 .ph{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:22px}
-.ph-left{display:flex;align-items:center;gap:12px}
+.ph-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
 .ph-icon{width:36px;height:36px;background:linear-gradient(135deg,rgba(99,133,255,.16),rgba(165,91,255,.16));border:1px solid rgba(99,133,255,.2);border-radius:var(--rm);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .ph-title{font-size:20px;font-weight:700;letter-spacing:-.03em;line-height:1.2}
 .ph-sub{font-size:12px;color:var(--t2);margin-top:2px}
@@ -1802,7 +1802,7 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <div class="ph">
   <div class="ph-left">
     <div class="ph-icon">&#128466;</div>
-    <div style="min-width:0"><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready for contract generation</div></div>
+    <div><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready for contract generation</div></div>
   </div>
   <div class="ph-actions" style="flex-shrink:0"><a href="/" class="btn btn-primary">+ New Work</a></div>
 </div>
