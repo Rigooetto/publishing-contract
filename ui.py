@@ -799,7 +799,6 @@ def _sidebar(active):
         html += icon_html
         html += "<span class='nl'>" + label + "</span></a>"
 
-    html += "<a href='#' title='Templates'><span class='ni'>&#128196;</span><span class='nl'>Templates</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Catalog</div>"
