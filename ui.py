@@ -3832,37 +3832,34 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
     <div class="g g2">
       <div class="field">
         <label class="label">Release Title *</label>
-        <div class="inp-wrap"><span class="inp-ico">&#127830;</span>
-        <input class="inp" name="title" required value="{{ release.title if release else '' }}" placeholder="Album / EP / Single title"></div>
+        <input class="inp" name="title" required value="{{ release.title if release else '' }}" placeholder="Album / EP / Single title">
       </div>
       <div class="field">
         <label class="label">Release Type *</label>
-        <div class="inp-wrap"><span class="inp-ico">&#127991;</span>
         <select class="inp" name="release_type" required>
           <option value="">Select type...</option>
           {% for rt in ['Album','EP','Single'] %}
           <option value="{{ rt }}" {{ 'selected' if release and release.release_type == rt }}>{{ rt }}</option>
           {% endfor %}
-        </select></div>
+        </select>
       </div>
     </div>
     <div class="g g4" style="margin-top:12px">
       <div class="field">
-        <label class="label">Release Date</label>
-        <div class="inp-wrap"><span class="inp-ico">&#128197;</span>
-        <input class="inp" type="date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}"></div>
+        <label class="label">UPC <span style="color:var(--t3);font-size:11px">assign later</span></label>
+        <input class="inp" name="upc" value="{{ release.upc if release else '' }}" placeholder="Leave blank">
       </div>
       <div class="field">
-        <label class="label">Distributor</label>
-        <input class="inp" name="distributor" value="{{ release.distributor if release else '' }}" placeholder="DistroKid, TuneCore...">
+        <label class="label">Release Date</label>
+        <input class="inp" type="date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}">
       </div>
       <div class="field">
         <label class="label">Number of Tracks</label>
         <input class="inp" name="num_tracks" type="number" min="1" value="{{ release.num_tracks if release and release.num_tracks else '' }}" placeholder="e.g. 12">
       </div>
       <div class="field">
-        <label class="label">UPC <span style="color:var(--t3);font-size:11px">assign later</span></label>
-        <input class="inp" name="upc" value="{{ release.upc if release else '' }}" placeholder="Leave blank">
+        <label class="label">Distributor</label>
+        <input class="inp" name="distributor" value="{{ release.distributor if release and release.distributor else 'Believe' }}" placeholder="Believe">
       </div>
       <div class="field">
         <label class="label">Status</label>
@@ -4133,7 +4130,7 @@ function addTrack() {
   linkedDiv.className = 'linked-works'; linkedDiv.id = 'linked-works-new-' + idx;
   block.appendChild(linkedDiv);
   var searchWrap = document.createElement('div'); searchWrap.className = 'inp-wrap'; searchWrap.style.marginTop = '8px';
-  var searchIco = document.createElement('span'); searchIco.className = 'inp-ico'; searchIco.textContent = '&#9835;';
+  var searchIco = document.createElement('span'); searchIco.className = 'inp-ico'; searchIco.textContent = '\u266B';
   var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp';
   searchInp.placeholder = 'Search works to link...';
   searchInp.setAttribute('data-track-new', idx);
