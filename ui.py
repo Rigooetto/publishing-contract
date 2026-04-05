@@ -1802,9 +1802,9 @@ BATCHES_LIST_HTML = """<!DOCTYPE html>
 <div class="ph">
   <div class="ph-left">
     <div class="ph-icon">&#128466;</div>
-    <div><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready for contract generation</div></div>
+    <div><div class="ph-title">Sessions</div><div class="ph-sub">Groups of works ready<br>for contract generation</div></div>
   </div>
-  <div class="ph-actions"><a href="/" class="btn btn-primary">+ New Work</a></div>
+  <div class="ph-actions" style="flex-shrink:0"><a href="/" class="btn btn-primary">+ New Work</a></div>
 </div>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
