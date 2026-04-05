@@ -3717,15 +3717,16 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
     <div><div class="ph-title">Releases</div><div class="ph-sub">Albums, EPs and Singles</div></div>
   </div>
   <div class="ph-actions">
-    <a href="/releases/new" class="btn btn-primary btn-sm" style="color:#fff">+ New Release</a>
+    <a href="/releases/new" class="btn btn-primary" style="color:#fff">+ New Release</a>
   </div>
 </div>
+
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
   <div class="card-body">
     <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
       <input class="inp" name="q" value="{{ q }}" placeholder="Search by title, artist, track, UPC..." style="max-width:340px">
-      <select class="inp" name="sort" style="max-width:200px">
+      <select class="inp" name="sort" style="max-width:220px">
         <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest First</option>
         <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest First</option>
         <option value="title_asc" {% if sort == "title_asc" %}selected{% endif %}>Title A-Z</option>
@@ -3736,56 +3737,90 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
     </form>
   </div>
 </div>
+
 <div class="card">
+  <div class="card-hd"><div class="card-ico">&#127830;</div><span class="card-title">All Releases</span></div>
   <div class="tbl-wrap">
-    <table class="tbl tbl-releases">
+    <table class="tbl tbl-releases" style="table-layout:auto">
       <thead>
         <tr>
-          <th>Title</th><th>Type</th><th>Artist(s)</th><th>Tracks</th><th>Release Date</th><th>Distributor</th><th>UPC</th><th>Status</th><th></th>
+          <th style="width:28%">Title</th>
+          <th>Type</th>
+          <th>Artist(s)</th>
+          <th>Tracks</th>
+          <th style="white-space:nowrap">Release Date</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for r in releases %}
         <tr class="rel-row" data-rel="{{ r.id }}" onclick="toggleRel({{ r.id }})">
-          <td><span class="expand-chevron">&#9658;</span><span style="font-weight:600">{{ r.title }}</span></td>
+          <td>
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ r.title }}</span>
+            {% if r.release_date %}<div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">{{ r.release_date.strftime('%b %d, %Y') }}</div>{% endif %}
+          </td>
           <td><span class="tag tag-full">{{ r.release_type }}</span></td>
           <td style="color:var(--t2);font-size:12px">{{ r.artist_display }}</td>
           <td style="color:var(--t2)">{{ r.tracks|length }}</td>
-          <td style="font-size:12px;color:var(--t3)">{{ r.release_date.strftime('%b %d, %Y') if r.release_date else '--' }}</td>
-          <td style="font-size:12px;color:var(--t2)">{{ r.distributor or '--' }}</td>
-          <td style="font-family:var(--fm);font-size:12px;color:var(--t2)">{{ r.upc or '--' }}</td>
+          <td style="white-space:nowrap;font-size:12px;color:var(--t2)">{{ r.release_date.strftime('%b %d, %Y') if r.release_date else '--' }}</td>
           <td><span class="status s-{{ r.status }}"><span class="status-dot"></span>{{ r.status | title }}</span></td>
-          <td onclick="event.stopPropagation()"><a href="/releases/{{ r.id }}/edit" class="btn btn-sec btn-xs">Edit</a></td>
         </tr>
         <tr class="rel-detail-row" id="rel-detail-{{ r.id }}">
-          <td colspan="9">
-            <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;background:rgba(99,133,255,.03)">
-              {% if r.tracks %}
-              <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Tracks</div>
-              {% for t in r.tracks %}
-              <div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--b1)">
-                <span style="color:var(--t3);min-width:24px">{{ t.track_number or '—' }}</span>
-                <span style="font-weight:600;flex:1">{{ t.primary_title }}</span>
-                <span style="color:var(--t3);font-size:12px">{{ t.duration or '--' }}</span>
-                <span style="font-family:var(--fm);font-size:11px;color:var(--t2)">{{ t.isrc or 'No ISRC' }}</span>
-                {% for tw in t.track_works %}<span class="tag tag-full" style="font-size:11px">{{ tw.work.title }}</span>{% endfor %}
+          <td colspan="6">
+            <div class="work-detail-inner">
+              <div class="wd-section">
+                <div class="wd-label">Tracks</div>
+                {% if r.tracks %}
+                <table class="wd-writers-tbl">
+                  <thead><tr><th>#</th><th>Title</th><th>Duration</th><th>ISRC</th><th>Linked Works</th></tr></thead>
+                  <tbody>
+                    {% for t in r.tracks %}
+                    <tr>
+                      <td style="color:var(--t3)">{{ t.track_number or '—' }}</td>
+                      <td style="font-weight:600">{{ t.primary_title }}</td>
+                      <td style="font-family:var(--fm)">{{ t.duration or '--' }}</td>
+                      <td style="font-family:var(--fm)">{{ t.isrc or '--' }}</td>
+                      <td>{% for tw in t.track_works %}<span class="tag tag-full" style="font-size:11px">{{ tw.work.title }}</span> {% endfor %}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% else %}
+                <span style="font-size:12px;color:var(--t3)">No tracks yet.</span>
+                {% endif %}
               </div>
-              {% endfor %}
-              {% else %}
-              <span style="font-size:12px;color:var(--t3)">No tracks yet.</span>
-              {% endif %}
-              <div style="display:flex;gap:8px;margin-top:4px;width:fit-content">
-                <a href="/releases/{{ r.id }}" class="btn btn-primary btn-xs" style="color:#fff" onclick="event.stopPropagation()">View Release</a>
-                <a href="/releases/{{ r.id }}/edit" class="btn btn-sec btn-xs" onclick="event.stopPropagation()">Edit</a>
+              <div class="wd-section">
+                <div class="wd-label">Release Info</div>
+                <table class="wd-writers-tbl">
+                  <tbody>
+                    <tr><td style="color:var(--t3)">Distributor</td><td>{{ r.distributor or '--' }}</td></tr>
+                    <tr><td style="color:var(--t3)">UPC</td><td style="font-family:var(--fm)">{{ r.upc or '--' }}</td></tr>
+                    <tr><td style="color:var(--t3)">Total Tracks</td><td>{{ r.num_tracks or r.tracks|length }}</td></tr>
+                  </tbody>
+                </table>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <a href="/releases/{{ r.id }}" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Full View</a>
+                  <a href="/releases/{{ r.id }}/edit" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Edit</a>
+                </div>
               </div>
             </div>
           </td>
         </tr>
         {% endfor %}
-        {% if not releases %}<tr class="empty"><td colspan="9">No releases yet. Click + New Release to get started.</td></tr>{% endif %}
+        {% if not releases %}<tr class="empty"><td colspan="6">No releases found{% if q %} for "{{ q }}"{% endif %}.</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} releases &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 </div>
 </main>
@@ -3797,9 +3832,7 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
 .rel-detail-row.open{display:table-row}
 @media(max-width:768px){
   .tbl-releases th:nth-child(3),.tbl-releases td:nth-child(3),
-  .tbl-releases th:nth-child(5),.tbl-releases td:nth-child(5),
-  .tbl-releases th:nth-child(6),.tbl-releases td:nth-child(6),
-  .tbl-releases th:nth-child(7),.tbl-releases td:nth-child(7){display:none}
+  .tbl-releases th:nth-child(5),.tbl-releases td:nth-child(5){display:none}
 }
 </style>
 <script>

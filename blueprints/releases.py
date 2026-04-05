@@ -59,13 +59,17 @@ def releases_list():
     else:
         query = query.order_by(Release.created_at.desc())
 
-    releases = query.all()
+    page = max(1, int(request.args.get("page") or 1))
+    per_page = 50
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    releases = pagination.items
     for r in releases:
         r.artists_list = json.loads(r.artists) if r.artists else []
         r.artist_display = ", ".join(r.artists_list[:3]) + (" +" + str(len(r.artists_list)-3) + " more" if len(r.artists_list) > 3 else "")
         for t in r.tracks:
             t.artists_list = json.loads(t.artists) if t.artists else []
-    return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort)
+    return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort, pagination=pagination)
 
 
 @bp.route("/releases/new", methods=["GET", "POST"])
