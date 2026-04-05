@@ -1646,7 +1646,7 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">All Works</span></div>
   <div class="tbl-wrap">
-    <table class="tbl" style="table-layout:auto">
+    <table class="tbl tbl-works" style="table-layout:auto">
       <thead>
         <tr>
           <th style="width:30%">Work Title</th>
