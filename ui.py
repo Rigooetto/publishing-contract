@@ -3942,9 +3942,18 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       </div>
       <div class="g g4" style="margin-top:10px">
         <div class="field"><label class="label">Executive Producer</label><input class="inp" name="executive_producer[]" value="{{ t.executive_producer or '' }}" placeholder="Exec producer"></div>
-        <div class="field"><label class="label">Recording Title</label><input class="inp" name="recording_title[]" value="{{ t.recording_title or '' }}" placeholder="If different from primary"></div>
-        <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" value="{{ t.aka_title or '' }}" placeholder="Alternate title"></div>
-        <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" value="{{ t.aka_type_code or '' }}" placeholder="AT, TT..."></div>
+      </div>
+      {% set has_alt_titles = t.recording_title or t.aka_title or t.aka_type_code %}
+      <div style="margin-top:10px">
+        <button type="button" class="other-titles-toggle" onclick="toggleOtherTitles(this)" style="background:none;border:none;cursor:pointer;color:var(--t2);font-size:12px;padding:0;display:flex;align-items:center;gap:5px">
+          <span class="ot-arrow" style="display:inline-block;transition:transform .2s;{{ 'transform:rotate(90deg)' if has_alt_titles else '' }}">&#9654;&#65038;</span>
+          <span>Other Titles</span>
+        </button>
+        <div class="other-titles-body g g3" style="margin-top:8px;{{ '' if has_alt_titles else 'display:none' }}">
+          <div class="field"><label class="label">Recording Title</label><input class="inp" name="recording_title[]" value="{{ t.recording_title or '' }}" placeholder="If different from primary"></div>
+          <div class="field"><label class="label">AKA Title</label><input class="inp" name="aka_title[]" value="{{ t.aka_title or '' }}" placeholder="Alternate title"></div>
+          <div class="field"><label class="label">AKA Type Code</label><input class="inp" name="aka_type_code[]" value="{{ t.aka_type_code or '' }}" placeholder="AT, TT..."></div>
+        </div>
       </div>
       <div class="g g2" style="margin-top:10px">
         <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
@@ -4110,13 +4119,28 @@ function addTrack() {
     makeField('Producer', {name:'producer[]', placeholder:'Producer name'})
   ]); r2.style.marginTop = '10px'; block.appendChild(r2);
 
-  // Row 4: Executive Producer, Recording Title, AKA Title, AKA Type Code
+  // Row 4: Executive Producer only
   var r3 = makeGrid([
-    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'}),
-    makeField('Recording Title', {name:'recording_title[]', placeholder:'If different from primary'}),
-    makeField('AKA Title', {name:'aka_title[]', placeholder:'Alternate title'}),
-    makeField('AKA Type Code', {name:'aka_type_code[]', placeholder:'AT, TT...'})
+    makeField('Executive Producer', {name:'executive_producer[]', placeholder:'Exec producer'})
   ]); r3.style.marginTop = '10px'; block.appendChild(r3);
+
+  // Other Titles collapsible
+  var otWrap = document.createElement('div'); otWrap.style.marginTop = '10px';
+  var otBtn = document.createElement('button'); otBtn.type = 'button'; otBtn.className = 'other-titles-toggle';
+  otBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--t2);font-size:12px;padding:0;display:flex;align-items:center;gap:5px';
+  otBtn.setAttribute('onclick', 'toggleOtherTitles(this)');
+  var otArrow = document.createElement('span'); otArrow.className = 'ot-arrow';
+  otArrow.style.cssText = 'display:inline-block;transition:transform .2s';
+  otArrow.innerHTML = '&#9654;&#65038;';
+  var otLabel = document.createElement('span'); otLabel.textContent = 'Other Titles';
+  otBtn.appendChild(otArrow); otBtn.appendChild(otLabel);
+  var otBody = document.createElement('div'); otBody.className = 'other-titles-body g g3';
+  otBody.style.cssText = 'margin-top:8px;display:none';
+  otBody.appendChild(makeField('Recording Title', {name:'recording_title[]', placeholder:'If different from primary'}));
+  otBody.appendChild(makeField('AKA Title', {name:'aka_title[]', placeholder:'Alternate title'}));
+  otBody.appendChild(makeField('AKA Type Code', {name:'aka_type_code[]', placeholder:'AT, TT...'}));
+  otWrap.appendChild(otBtn); otWrap.appendChild(otBody);
+  block.appendChild(otWrap);
 
   // Row 5: Track Label, Track P Line
   var r4 = document.createElement('div'); r4.className = 'g g2'; r4.style.marginTop = '10px';
@@ -4146,6 +4170,14 @@ function addTrack() {
   hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
   container.appendChild(block);
   container.appendChild(hr);
+}
+
+function toggleOtherTitles(btn) {
+  var body = btn.nextElementSibling;
+  var arrow = btn.querySelector('.ot-arrow');
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'grid';
+  arrow.style.transform = open ? '' : 'rotate(90deg)';
 }
 
 function removeTrack(btn) {
