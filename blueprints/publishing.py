@@ -12,7 +12,7 @@ import traceback
 
 from flask import (
     Blueprint, request, redirect, url_for, session, flash,
-    render_template_string, send_file, jsonify, current_app
+    render_template_string, send_file, jsonify, current_app, make_response
 )
 from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
@@ -466,15 +466,34 @@ def formulario():
             db.session.add(work_writer)
 
         db.session.commit()
+
+        is_modal = request.form.get("_modal") == "1"
+        if is_modal:
+            writers_str = ", ".join(
+                ww.writer.full_name for ww in work.work_writers
+            )
+            batch_url = url_for(".batch_detail", batch_id=batch.id)
+            script = (
+                "<script>"
+                "window.parent.onWorkCreated("
+                f"{work.id}, {work.title!r}, {writers_str!r}, {batch_url!r}"
+                ");"
+                "</script>"
+            )
+            return make_response(script)
+
         return redirect(url_for(".batch_detail", batch_id=batch.id))
 
+    is_modal = request.args.get("modal") == "1"
+    prefill_title = request.args.get("work_title", "")
     return render_template_string(
         FORM_HTML,
         **collect_form_context(),
-        work_title_value="",
+        work_title_value=prefill_title,
         contract_date_value="",
         new_session_name_value="",
         submitted_writers=[],
+        is_modal=is_modal,
     )
 
 

@@ -129,6 +129,7 @@ class Track(db.Model):
     recording_engineer = db.Column(db.String(255), default="")
     producer = db.Column(db.String(255), default="")
     executive_producer = db.Column(db.String(255), default="")
+    is_cover = db.Column(db.Boolean, default=False, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     track_works = db.relationship("TrackWork", backref="track", lazy=True, cascade="all, delete-orphan")
 

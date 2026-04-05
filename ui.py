@@ -869,10 +869,11 @@ FORM_HTML = """<!DOCTYPE html>
 <title>New Work - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
+{% if is_modal %}<style>.sidebar,.topbar,.mobile-nav,.action-bar{display:none!important}.main{padding:0!important;margin:0!important}.page{padding:16px!important}</style>{% endif %}
 <div class="app" id="mainApp">
-""" + _sidebar("formulario") + """
+{% if not is_modal %}""" + _sidebar("formulario") + """{% endif %}
 <main class="main">
-""" + _topbar("") + """
+{% if not is_modal %}""" + _topbar("") + """{% endif %}
 <div class="page">
 {% with messages = get_flashed_messages() %}
 {% if messages %}
@@ -899,6 +900,7 @@ FORM_HTML = """<!DOCTYPE html>
 </div>
 <form method="post" id="workForm">
   <input type="hidden" name="force_create" value="{{ force_create or '' }}">
+  <input type="hidden" name="_modal" value="{{ '1' if is_modal else '' }}">
   <div class="card">
     <div class="card-hd"><div class="card-ico">&#128203;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
@@ -955,6 +957,12 @@ FORM_HTML = """<!DOCTYPE html>
     <div class="ab-space"></div>
     <button type="submit" class="btn btn-primary">Save Work to Session</button>
   </div>
+  {% if is_modal %}
+  <div style="padding:16px;display:flex;justify-content:flex-end;gap:10px">
+    <button type="button" class="btn btn-sec" onclick="window.parent.closeQuickWorkModal()">Cancel</button>
+    <button type="submit" class="btn btn-primary" style="color:#fff">Save Work to Session</button>
+  </div>
+  {% endif %}
 </form>
 </div>
 </main>
@@ -3825,9 +3833,9 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
 <form method="post" id="releaseForm">
 
 <!-- RELEASE INFO -->
-<div class="card">
+<div class="card" style="overflow:visible">
   <div class="card-hd"><div class="card-ico">&#8505;</div><span class="card-title">Release Information</span></div>
-  <div class="card-body">
+  <div class="card-body" style="overflow:visible">
     <div class="wc-sec">General</div>
     <div class="g g2">
       <div class="field">
@@ -3959,8 +3967,13 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         <div class="field"><label class="label">Track Label</label><input class="inp" name="track_label[]" value="{{ t.track_label or '' }}" placeholder="Label name"></div>
         <div class="field"><label class="label">Track P Line</label><input class="inp" name="track_p_line[]" value="{{ t.track_p_line or '' }}" placeholder="(P) 2024 Label Name"></div>
       </div>
-      <div class="wc-sec" style="margin-top:14px;color:var(--a)">Linked Works (Compositions)</div>
-      <div class="linked-works" id="linked-works-{{ t.id }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+        <div class="wc-sec" style="color:var(--a);margin:0">Linked Works (Compositions)</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer">
+          <input type="checkbox" name="is_cover[]" value="1" {% if t.is_cover %}checked{% endif %} onchange="toggleCoverMode(this,'{{ t.id }}')"> Cover
+        </label>
+      </div>
+      <div class="linked-works" id="linked-works-{{ t.id }}" {% if t.is_cover %}style="display:none"{% endif %}>
         {% for tw in t.track_works %}
         <div class="linked-work-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <input type="hidden" name="linked_work_ids_{{ t.id }}[]" value="{{ tw.work_id }}">
@@ -3970,11 +3983,16 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         </div>
         {% endfor %}
       </div>
-      <div class="inp-wrap" style="margin-top:8px">
-        <span class="inp-ico">&#127932;</span>
-        <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
+      <div id="work-search-area-{{ t.id }}" {% if t.is_cover %}style="display:none"{% endif %}>
+        <div class="inp-wrap" style="margin-top:8px">
+          <span class="inp-ico">&#127932;</span>
+          <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
+        </div>
+        <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
       </div>
-      <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
+      <div id="cover-badge-{{ t.id }}" style="{% if not t.is_cover %}display:none;{% endif %}margin-top:8px">
+        <span class="tag" style="background:var(--bg3);color:var(--t2);font-size:12px">Cover — no publishing required</span>
+      </div>
     </div>
     <hr style="border:none;border-top:1px solid var(--b0);margin:20px 0">
     {% endfor %}
@@ -4152,10 +4170,21 @@ function addTrack() {
   block.appendChild(r4);
 
   // Linked Works section
-  var ws2 = makeSection('Linked Works (Compositions)'); ws2.style.cssText = 'margin-top:14px;color:var(--a)'; block.appendChild(ws2);
+  var lwHd = document.createElement('div');
+  lwHd.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-top:14px';
+  var lwTitle = makeSection('Linked Works (Compositions)'); lwTitle.style.cssText = 'color:var(--a);margin:0';
+  var coverLabel = document.createElement('label');
+  coverLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer';
+  var coverCb = document.createElement('input'); coverCb.type = 'checkbox'; coverCb.name = 'is_cover[]'; coverCb.value = '1';
+  coverCb.setAttribute('onchange', 'toggleCoverMode(this,"new-' + idx + '")');
+  coverLabel.appendChild(coverCb); coverLabel.appendChild(document.createTextNode(' Cover'));
+  lwHd.appendChild(lwTitle); lwHd.appendChild(coverLabel);
+  block.appendChild(lwHd);
   var linkedDiv = document.createElement('div');
   linkedDiv.className = 'linked-works'; linkedDiv.id = 'linked-works-new-' + idx;
   block.appendChild(linkedDiv);
+  var searchArea = document.createElement('div');
+  searchArea.id = 'work-search-area-new-' + idx;
   var searchWrap = document.createElement('div'); searchWrap.className = 'inp-wrap'; searchWrap.style.marginTop = '8px';
   var searchIco = document.createElement('span'); searchIco.className = 'inp-ico'; searchIco.textContent = '\u266B';
   var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp';
@@ -4163,11 +4192,17 @@ function addTrack() {
   searchInp.setAttribute('data-track-new', idx);
   searchInp.setAttribute('oninput', 'searchWorks(this)');
   searchWrap.appendChild(searchIco); searchWrap.appendChild(searchInp);
-  block.appendChild(searchWrap);
+  searchArea.appendChild(searchWrap);
   var suggDiv = document.createElement('div');
   suggDiv.id = 'work-sugg-new-' + idx;
   suggDiv.style.cssText = 'display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px';
-  block.appendChild(suggDiv);
+  searchArea.appendChild(suggDiv);
+  block.appendChild(searchArea);
+  var coverBadge = document.createElement('div');
+  coverBadge.id = 'cover-badge-new-' + idx;
+  coverBadge.style.cssText = 'display:none;margin-top:8px';
+  coverBadge.innerHTML = '<span class="tag" style="background:var(--bg3);color:var(--t2);font-size:12px">Cover \u2014 no publishing required</span>';
+  block.appendChild(coverBadge);
 
   var hr = document.createElement('hr');
   hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
@@ -4212,7 +4247,6 @@ function searchWorks(inp) {
   fetch('/works/search?q=' + encodeURIComponent(q))
     .then(function(r){ return r.json(); })
     .then(function(data){
-      if (!data.length) { sugg.style.display = 'none'; return; }
       sugg.innerHTML = '';
       data.forEach(function(w){
         var item = document.createElement('div');
@@ -4228,9 +4262,97 @@ function searchWorks(inp) {
         });
         sugg.appendChild(item);
       });
+      // "Create New Work" option
+      var createItem = document.createElement('div');
+      createItem.className = 'sugg-item';
+      createItem.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px;color:var(--a);font-weight:600';
+      createItem.innerHTML = '+ Create &ldquo;' + q.replace(/</g,'&lt;') + '&rdquo; as new work';
+      createItem.addEventListener('click', function(){
+        sugg.style.display = 'none';
+        openQuickWorkModal(trackId, q);
+      });
+      sugg.appendChild(createItem);
+      // "Cover" option
+      var coverItem = document.createElement('div');
+      coverItem.className = 'sugg-item';
+      coverItem.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:13px;color:var(--t2);font-weight:600';
+      coverItem.innerHTML = 'Cover \u2014 no publishing required';
+      coverItem.addEventListener('click', function(){
+        sugg.style.display = 'none';
+        var suggEl = document.getElementById('work-sugg-' + trackId);
+        if (suggEl) {
+          var block = suggEl.closest('.track-block');
+          if (block) {
+            var coverCb = block.querySelector('input[type=checkbox][name="is_cover[]"]');
+            if (coverCb && !coverCb.checked) { coverCb.checked = true; toggleCoverMode(coverCb, trackId); }
+          }
+        }
+        document.querySelectorAll('.work-search-inp').forEach(function(i){
+          if (i.dataset.trackId == trackId || ('new-' + i.dataset.trackNew) == trackId) i.value = '';
+        });
+      });
+      sugg.appendChild(coverItem);
       sugg.style.display = 'block';
     });
 }
+
+function toggleCoverMode(cb, trackId) {
+  var linkedDiv = document.getElementById('linked-works-' + trackId);
+  var searchArea = document.getElementById('work-search-area-' + trackId);
+  var badge = document.getElementById('cover-badge-' + trackId);
+  if (cb.checked) {
+    if (linkedDiv) linkedDiv.style.display = 'none';
+    if (searchArea) searchArea.style.display = 'none';
+    if (badge) badge.style.display = 'block';
+  } else {
+    if (linkedDiv) linkedDiv.style.display = '';
+    if (searchArea) searchArea.style.display = '';
+    if (badge) badge.style.display = 'none';
+  }
+}
+
+// ── Quick Work Modal (iframe) ─────────────────────────────────────────────────
+function openQuickWorkModal(trackId, prefillTitle) {
+  var modal = document.getElementById('quickWorkModal');
+  if (!modal) return;
+  var frame = document.getElementById('qwm-iframe');
+  var url = '/?modal=1' + (prefillTitle ? '&work_title=' + encodeURIComponent(prefillTitle) : '');
+  frame.src = url;
+  modal.dataset.trackId = trackId;
+  modal.style.display = 'flex';
+}
+
+function closeQuickWorkModal() {
+  var modal = document.getElementById('quickWorkModal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  document.getElementById('qwm-iframe').src = 'about:blank';
+}
+
+// Called by the iframe after a work is saved successfully
+function onWorkCreated(workId, workTitle, workWriters, batchUrl) {
+  var modal = document.getElementById('quickWorkModal');
+  var trackId = modal ? modal.dataset.trackId : null;
+  closeQuickWorkModal();
+  if (trackId) {
+    linkWork(null, trackId, workId, workTitle + (workWriters ? ' \u2014 ' + workWriters : ''));
+  }
+  if (batchUrl) {
+    document.getElementById('qwm-session-link').href = batchUrl;
+    document.getElementById('qwm-session-toast').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('qwm-session-toast').style.display = 'none'; }, 10000);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  var modal = document.getElementById('quickWorkModal');
+  if (!modal) return;
+  modal.addEventListener('click', function(e){ if (e.target === modal) closeQuickWorkModal(); });
+  var toastClose = document.getElementById('qwm-toast-close');
+  if (toastClose) toastClose.addEventListener('click', function(){
+    document.getElementById('qwm-session-toast').style.display = 'none';
+  });
+});
 
 function linkWork(el, trackId, workId, workTitle) {
   var sugg = document.getElementById('work-sugg-' + trackId);
@@ -4266,11 +4388,212 @@ function linkWork(el, trackId, workId, workTitle) {
 }
 
 document.addEventListener('click', function(e){
-  document.querySelectorAll('.work-suggestions').forEach(function(s){
+  document.querySelectorAll('.work-suggestions,.artist-suggestions,.title-suggestions').forEach(function(s){
     if (!s.contains(e.target)) s.style.display = 'none';
   });
 });
+
+// ── Artist autocomplete ──────────────────────────────────────────────────────
+var _artistSuggStyle = 'position:absolute;top:100%;left:0;right:0;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);z-index:200;overflow:hidden;margin-top:2px';
+
+function _ensureArtistSugg(inp) {
+  var wrap = inp.parentElement;
+  if (wrap.style.position !== 'relative') { wrap.style.position = 'relative'; }
+  var id = 'asugg-' + inp.dataset.asuggId;
+  var el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = id; el.className = 'artist-suggestions';
+    el.style.cssText = _artistSuggStyle;
+    el.style.display = 'none';
+    wrap.appendChild(el);
+  }
+  return el;
+}
+
+var _artistSuggCounter = 0;
+function setupArtistInput(inp) {
+  if (inp.dataset.asuggId) return; // already wired
+  inp.dataset.asuggId = ++_artistSuggCounter;
+  inp.addEventListener('input', function() {
+    var q = inp.value.trim();
+    var sugg = _ensureArtistSugg(inp);
+    if (q.length < 2) { sugg.style.display = 'none'; return; }
+    fetch('/artists/search?q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(names){
+        if (!names.length) { sugg.style.display = 'none'; return; }
+        sugg.innerHTML = '';
+        names.forEach(function(name){
+          var item = document.createElement('div');
+          item.style.cssText = 'padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--b1)';
+          item.textContent = name;
+          item.addEventListener('mousedown', function(e){
+            e.preventDefault();
+            inp.value = name;
+            sugg.style.display = 'none';
+          });
+          sugg.appendChild(item);
+        });
+        sugg.style.display = 'block';
+      });
+  });
+  inp.addEventListener('blur', function(){
+    setTimeout(function(){ var s = _ensureArtistSugg(inp); s.style.display = 'none'; }, 150);
+  });
+}
+
+// Wire existing artist inputs and observe new ones
+document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('.artist-row input.inp').forEach(setupArtistInput);
+});
+document.addEventListener('focusin', function(e){
+  if (e.target.matches('.artist-row input.inp')) setupArtistInput(e.target);
+});
+
+// ── Track title autocomplete ─────────────────────────────────────────────────
+var _titleSuggStyle = 'position:absolute;top:100%;left:0;right:0;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);z-index:200;overflow:hidden;margin-top:2px';
+
+function _ensureTitleSugg(inp) {
+  var wrap = inp.parentElement;
+  if (wrap.style.position !== 'relative') { wrap.style.position = 'relative'; }
+  var el = wrap.querySelector('.title-suggestions');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'title-suggestions';
+    el.style.cssText = _titleSuggStyle;
+    el.style.display = 'none';
+    wrap.appendChild(el);
+  }
+  return el;
+}
+
+function _fillTrackFromResult(inp, t) {
+  var block = inp.closest('.track-block');
+  if (!block) return;
+  function set(selector, val) {
+    var el = block.querySelector(selector);
+    if (el && val) { el.value = val; el.dispatchEvent(new Event('input')); }
+  }
+  // primary title already filled via inp.value
+  set('input[name="duration[]"]',           t.duration);
+  set('input[name="isrc[]"]',               t.isrc);
+  set('input[name="recording_title[]"]',    t.recording_title);
+  set('input[name="aka_title[]"]',          t.aka_title);
+  set('input[name="aka_type_code[]"]',      t.aka_type_code);
+  set('input[name="genre[]"]',              t.genre);
+  set('input[name="producer[]"]',           t.producer);
+  set('input[name="recording_engineer[]"]', t.recording_engineer);
+  set('input[name="executive_producer[]"]', t.executive_producer);
+  set('input[name="track_label[]"]',        t.track_label);
+  set('input[name="track_p_line[]"]',       t.track_p_line);
+  // expand Other Titles if any alt title was filled
+  if (t.recording_title || t.aka_title || t.aka_type_code) {
+    var otBody = block.querySelector('.other-titles-body');
+    var otArrow = block.querySelector('.ot-arrow');
+    if (otBody) otBody.style.display = 'grid';
+    if (otArrow) otArrow.style.transform = 'rotate(90deg)';
+  }
+  // fill artists from track
+  if (t.artists && t.artists.length) {
+    var artistContainerId = null;
+    var hiddenId = block.querySelector('input[name="track_id[]"]');
+    var tid = hiddenId ? hiddenId.value : '';
+    if (tid) {
+      artistContainerId = 'tartist-' + tid;
+    } else {
+      // new track — find the artistList div by class pattern
+      var artistDiv = block.querySelector('[id^="tartist-new-"]');
+      if (artistDiv) artistContainerId = artistDiv.id;
+    }
+    if (artistContainerId) {
+      var ac = document.getElementById(artistContainerId);
+      if (ac) {
+        var artistInputName = ac.querySelector('input') ? ac.querySelector('input').name : null;
+        ac.innerHTML = '';
+        t.artists.forEach(function(name, ai) {
+          var row = document.createElement('div');
+          row.className = 'artist-row';
+          row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+          var ainp = document.createElement('input'); ainp.className = 'inp';
+          ainp.name = artistInputName || (tid ? ('track_artist_' + tid + '[]') : ('track_artist_new_1[]'));
+          ainp.value = name; ainp.style.flex = '1';
+          ainp.placeholder = ai === 0 ? 'Primary artist' : 'Additional artist';
+          setupArtistInput(ainp);
+          row.appendChild(ainp);
+          if (ai > 0) {
+            var xb = document.createElement('button'); xb.type = 'button'; xb.className = 'btn btn-xs';
+            xb.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
+            xb.textContent = 'X'; xb.onclick = function(){ this.closest('.artist-row').remove(); };
+            row.appendChild(xb);
+          }
+          ac.appendChild(row);
+        });
+      }
+    }
+  }
+}
+
+function setupTitleInput(inp) {
+  if (inp.dataset.titleWired) return;
+  inp.dataset.titleWired = '1';
+  inp.addEventListener('input', function() {
+    var q = inp.value.trim();
+    var sugg = _ensureTitleSugg(inp);
+    if (q.length < 2) { sugg.style.display = 'none'; return; }
+    fetch('/tracks/search?q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(tracks){
+        if (!tracks.length) { sugg.style.display = 'none'; return; }
+        sugg.innerHTML = '';
+        tracks.forEach(function(t){
+          var item = document.createElement('div');
+          item.style.cssText = 'padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--b1)';
+          item.innerHTML = '<span style="font-weight:600">' + t.primary_title + '</span>'
+            + (t.artists && t.artists.length ? '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + t.artists.slice(0,2).join(', ') + '</span>' : '');
+          item.addEventListener('mousedown', function(e){
+            e.preventDefault();
+            inp.value = t.primary_title;
+            inp.dispatchEvent(new Event('input'));
+            sugg.style.display = 'none';
+            _fillTrackFromResult(inp, t);
+          });
+          sugg.appendChild(item);
+        });
+        sugg.style.display = 'block';
+      });
+  });
+  inp.addEventListener('blur', function(){
+    setTimeout(function(){ var s = _ensureTitleSugg(inp); s.style.display = 'none'; }, 150);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('input[name="primary_title[]"]').forEach(setupTitleInput);
+});
+document.addEventListener('focusin', function(e){
+  if (e.target.matches('input[name="primary_title[]"]')) setupTitleInput(e.target);
+});
 </script>
+
+<!-- Quick Work Modal -->
+<div id="quickWorkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--bg1);border:1px solid var(--b0);border-radius:14px;width:92%;max-width:960px;height:88vh;display:flex;flex-direction:column;overflow:hidden;position:relative">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--b0);background:var(--bg2);flex-shrink:0">
+      <span style="font-weight:700;font-size:15px;color:var(--t1)">New Work</span>
+      <button type="button" onclick="closeQuickWorkModal()" style="background:transparent;border:none;color:var(--t2);font-size:22px;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <iframe id="qwm-iframe" src="about:blank" style="flex:1;border:none;width:100%"></iframe>
+  </div>
+</div>
+
+<!-- Session toast (shown after quick-creating a work with a session) -->
+<div id="qwm-session-toast" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--b0);border-radius:10px;padding:14px 18px;z-index:1100;align-items:center;gap:14px;box-shadow:0 4px 20px rgba(0,0,0,0.3)">
+  <span style="font-size:13px;color:var(--t1)">Work saved to session.</span>
+  <a id="qwm-session-link" href="#" target="_blank" style="font-size:13px;color:var(--a);font-weight:600">Open session &#8599;</a>
+  <button type="button" id="qwm-toast-close" style="background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:16px;line-height:1">&times;</button>
+</div>
+
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>🎼</span><small>Works</small></a>
   <a href="/" class="mnav-item"><span>🖋️</span><small>New</small></a>

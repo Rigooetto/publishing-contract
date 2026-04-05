@@ -6,7 +6,7 @@ from flask import Blueprint, request, redirect, url_for, flash, render_template_
 from flask import current_app
 
 from extensions import db
-from models import Release, Track, TrackWork
+from models import Release, Track, TrackWork, GenerationBatch
 from utils import auth_required
 from ui import RELEASES_LIST_HTML, RELEASE_FORM_HTML, RELEASE_DETAIL_HTML
 
@@ -41,7 +41,8 @@ def release_new():
         return redirect(url_for("publishing.login"))
     if request.method == "POST":
         return _save_release(None)
-    return render_template_string(RELEASE_FORM_HTML, release=None, tracks=[], artists=[])
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+    return render_template_string(RELEASE_FORM_HTML, release=None, tracks=[], artists=[], batches=batches)
 
 
 @bp.route("/releases/<int:release_id>/edit", methods=["GET", "POST"])
@@ -55,7 +56,8 @@ def release_edit(release_id):
     tracks = r.tracks
     for t in tracks:
         t.artists_list = json.loads(t.artists) if t.artists else []
-    return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artists=artists)
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+    return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artists=artists, batches=batches)
 
 
 @bp.route("/releases/<int:release_id>")
@@ -120,6 +122,7 @@ def _save_release(existing):
         producers = form.getlist("producer[]")
         recording_engineers = form.getlist("recording_engineer[]")
         executive_producers = form.getlist("executive_producer[]")
+        is_covers = form.getlist("is_cover[]")
 
         # flush to get release id for new records
         db.session.flush()
@@ -151,6 +154,7 @@ def _save_release(existing):
             t.producer = producers[i].strip() if i < len(producers) else ""
             t.recording_engineer = recording_engineers[i].strip() if i < len(recording_engineers) else ""
             t.executive_producer = executive_producers[i].strip() if i < len(executive_producers) else ""
+            t.is_cover = (is_covers[i] == "1") if i < len(is_covers) else False
             rd = recording_dates[i].strip() if i < len(recording_dates) else ""
             t.recording_date = datetime.datetime.strptime(rd, "%Y-%m-%d").date() if rd else None
 
