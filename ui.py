@@ -3917,7 +3917,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         <button type="button" class="btn btn-sec btn-xs" onclick="addArtist('tartist-{{ t.id }}')">+ Add Artist</button>
       </div>
       <div id="tartist-{{ t.id }}" style="margin-top:8px">
-        {% set tartists = t.artists_list %}
+        {% set tartists = t.artists_list if t.artists_list else artists %}
         {% if tartists %}
           {% for a in tartists %}
           <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
@@ -4072,14 +4072,29 @@ function addTrack() {
   asHdr.appendChild(asLbl); asHdr.appendChild(asBtn);
   block.appendChild(asHdr);
   var artistList = document.createElement('div'); artistList.id = artistListId; artistList.style.marginTop = '8px';
-  var firstArtistRow = document.createElement('div');
-  firstArtistRow.className = 'artist-row';
-  firstArtistRow.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
-  var firstArtistInp = document.createElement('input'); firstArtistInp.className = 'inp';
-  firstArtistInp.name = 'track_artist_new_' + idx + '[]';
-  firstArtistInp.placeholder = 'Primary artist'; firstArtistInp.style.flex = '1';
-  firstArtistRow.appendChild(firstArtistInp);
-  artistList.appendChild(firstArtistRow);
+  var albumArtistInputs = document.querySelectorAll('#albumArtistList input[name="artist_1"]');
+  var albumArtists = [];
+  albumArtistInputs.forEach(function(inp){ if (inp.value.trim()) albumArtists.push(inp.value.trim()); });
+  if (albumArtists.length === 0) albumArtists = [''];
+  albumArtists.forEach(function(val, ai) {
+    var row = document.createElement('div');
+    row.className = 'artist-row';
+    row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+    var inp = document.createElement('input'); inp.className = 'inp';
+    inp.name = 'track_artist_new_' + idx + '[]';
+    inp.value = val;
+    inp.placeholder = ai === 0 ? 'Primary artist' : 'Additional artist';
+    inp.style.flex = '1';
+    row.appendChild(inp);
+    if (ai > 0) {
+      var xb = document.createElement('button'); xb.type = 'button'; xb.className = 'btn btn-xs';
+      xb.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
+      xb.textContent = 'X';
+      xb.onclick = function(){ this.closest('.artist-row').remove(); };
+      row.appendChild(xb);
+    }
+    artistList.appendChild(row);
+  });
   block.appendChild(artistList);
 
   // Row 2: Primary Title, Duration, ISRC, Track #
