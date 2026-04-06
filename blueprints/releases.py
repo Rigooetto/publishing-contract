@@ -4,9 +4,10 @@ import traceback
 
 from flask import Blueprint, request, redirect, url_for, flash, render_template_string
 from flask import current_app
+from sqlalchemy import func as _func
 
 from extensions import db
-from models import Release, Track, TrackWork, GenerationBatch
+from models import Release, Track, TrackWork, GenerationBatch, Artist, ArtistRelease
 from utils import auth_required
 from ui import RELEASES_LIST_HTML, RELEASE_FORM_HTML, RELEASE_DETAIL_HTML
 
@@ -226,6 +227,20 @@ def _save_release(existing):
 
         manual_num = form.get("num_tracks", "").strip()
         r.num_tracks = int(manual_num) if manual_num.isdigit() else len(kept_track_ids)
+
+        # --- Sync ArtistRelease join rows ---
+        ArtistRelease.query.filter_by(release_id=r.id).delete()
+        for name in artists:
+            name = name.strip()
+            if not name:
+                continue
+            artist = Artist.query.filter(_func.lower(Artist.name) == name.lower()).first()  # noqa
+            if not artist:
+                artist = Artist(name=name)
+                db.session.add(artist)
+                db.session.flush()
+            db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id))
+
         db.session.commit()
         flash("Release saved.")
         return redirect(url_for("releases.release_detail", release_id=r.id))

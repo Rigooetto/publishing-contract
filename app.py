@@ -57,5 +57,37 @@ app.logger.warning("JSON LEN: %s", len(GOOGLE_SERVICE_ACCOUNT_JSON or ""))
 
 import models  # noqa: F401 — ensures all tables are registered with SQLAlchemy metadata
 
+@app.cli.command("backfill-artists")
+def backfill_artists():
+    """Backfill ArtistRelease rows from existing Release.artists JSON field."""
+    import json
+    from models import Release, Artist, ArtistRelease
+    releases = Release.query.all()
+    created_artists = 0
+    created_links = 0
+    for r in releases:
+        names = json.loads(r.artists) if r.artists else []
+        for name in names:
+            name = name.strip()
+            if not name:
+                continue
+            artist = Artist.query.filter(
+                db.func.lower(Artist.name) == name.lower()
+            ).first()
+            if not artist:
+                artist = Artist(name=name)
+                db.session.add(artist)
+                db.session.flush()
+                created_artists += 1
+            exists = ArtistRelease.query.filter_by(
+                artist_id=artist.id, release_id=r.id
+            ).first()
+            if not exists:
+                db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id))
+                created_links += 1
+    db.session.commit()
+    print(f"Done. Created {created_artists} artists, {created_links} artist-release links.")
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5052")))
