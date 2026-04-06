@@ -140,3 +140,18 @@ class TrackWork(db.Model):
     work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False)
     notes = db.Column(db.String(255), default="")
     work = db.relationship("Work", backref="track_works")
+
+
+class Artist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    legal_name = db.Column(db.String(255), default="")
+    aka = db.Column(db.String(255), default="")
+    email = db.Column(db.String(255), nullable=True, index=True)
+    phone_number = db.Column(db.String(50), default="")
+    address = db.Column(db.String(255), default="")
+    city = db.Column(db.String(100), default="")
+    state = db.Column(db.String(100), default="")
+    zip_code = db.Column(db.String(20), default="")
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

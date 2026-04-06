@@ -801,6 +801,7 @@ def _sidebar(active):
     html += "<div class='sb-sec'>Resources</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/writers'" + (" class='on'" if active == "writers_list" else "") + " title='Writer Directory'><span class='ni'>&#128101;</span><span class='nl'>Writer Directory</span></a>"
+    html += "<a href='/artists'" + (" class='on'" if active == "artists_list" else "") + " title='Artist Directory'><span class='ni'>&#127908;</span><span class='nl'>Artist Directory</span></a>"
     html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#127899;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
@@ -4603,5 +4604,374 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>👥</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ================================================================
+# ARTIST DIRECTORY LIST HTML
+# ================================================================
+
+ARTISTS_LIST_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Artist Directory - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("artists_list") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127908;</div>
+    <div>
+      <div class="ph-title">Artist Directory</div>
+      <div class="ph-sub">Recording artists linked to releases</div>
+    </div>
+  </div>
+  <div class="ph-actions" style="flex-shrink:0">
+    <a href="/artists/new" class="btn btn-primary">+ New Artist</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="inp" name="q" value="{{ q }}" placeholder="Search by name, AKA, or email..." style="max-width:340px">
+      <select class="inp" name="sort" style="max-width:220px">
+        <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest First</option>
+        <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Oldest First</option>
+        <option value="name_asc" {% if sort == 'name_asc' %}selected{% endif %}>Name A-Z</option>
+        <option value="name_desc" {% if sort == 'name_desc' %}selected{% endif %}>Name Z-A</option>
+      </select>
+      <button class="btn btn-sec" type="submit">Apply</button>
+      {% if q or sort not in ('newest', '') %}<a href="/artists" class="btn btn-sec">Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#127908;</div><span class="card-title">All Artists</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl" style="table-layout:auto">
+      <thead>
+        <tr>
+          <th style="width:35%">Artist</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Releases</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for artist in artists %}
+        <tr class="ar-row" data-artist="{{ artist.id }}" onclick="toggleArtist({{ artist.id }})">
+          <td>
+            <span class="expand-chevron">&#9658;</span>
+            <span style="font-weight:600">{{ artist.name }}</span>
+            {% if artist.aka %}<div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">aka {{ artist.aka }}</div>{% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--t2)">{{ artist.email or '--' }}</td>
+          <td style="font-size:12px;color:var(--t2)">{{ artist.phone_number or '--' }}</td>
+          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ artist.release_count }}</span></td>
+        </tr>
+        <tr class="ar-detail-row" id="ardetail-{{ artist.id }}">
+          <td colspan="4">
+            <div class="wr-detail-inner">
+              <div class="wd-section">
+                <div class="wd-label">Contact</div>
+                <div style="font-size:13px;display:flex;flex-direction:column;gap:4px">
+                  {% if artist.email %}<span>&#9993; {{ artist.email }}</span>{% endif %}
+                  {% if artist.phone_number %}<span>&#128222; {{ artist.phone_number }}</span>{% endif %}
+                  {% if artist.address %}
+                  <span style="color:var(--t3);font-size:12px">{{ artist.address }}{% if artist.city %}, {{ artist.city }}{% endif %}{% if artist.state %}, {{ artist.state }}{% endif %}{% if artist.zip_code %} {{ artist.zip_code }}{% endif %}</span>
+                  {% endif %}
+                  {% if not artist.email and not artist.phone_number %}<span style="color:var(--t3)">No contact info</span>{% endif %}
+                </div>
+              </div>
+              <div class="wd-section">
+                <div class="wd-label">Details</div>
+                <div style="font-size:13px;display:flex;flex-direction:column;gap:4px;color:var(--t2)">
+                  {% if artist.legal_name %}<span>Legal: {{ artist.legal_name }}</span>{% endif %}
+                  {% if artist.aka %}<span>AKA: {{ artist.aka }}</span>{% endif %}
+                  <span style="color:var(--t3);font-size:11px">Added {{ artist.created_at.strftime('%b %d, %Y') if artist.created_at else '--' }}</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <a href="/artists/{{ artist.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Edit</a>
+                  <a href="/artists/{{ artist.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not artists %}
+          <tr class="empty"><td colspan="4">No artists found{% if q %} for "{{ q }}"{% endif %}.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} artists &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?q={{ q }}&sort={{ sort }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<script>
+function toggleArtist(id) {
+  var row = document.getElementById('ardetail-' + id);
+  var header = document.querySelector('[data-artist="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.ar-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.ar-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    header.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+</script>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ================================================================
+# ARTIST DETAIL HTML
+# ================================================================
+
+ARTIST_DETAIL_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ artist.name }} - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("artists_list") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127908;</div>
+    <div>
+      <div class="ph-title">{{ artist.name }}</div>
+      <div class="ph-sub">{{ artist.aka or 'Artist profile' }}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/artists/{{ artist.id }}/edit" class="btn btn-primary btn-sm">Edit Artist</a>
+    <a href="/artists" class="btn btn-sec btn-sm">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#127908;</div><span class="card-title">Artist Info</span></div>
+  <div class="card-body">
+    <div class="g g3" style="gap:8px 22px;margin-bottom:10px">
+      <div class="info-item"><label>Stage Name</label><span>{{ artist.name }}</span></div>
+      <div class="info-item"><label>Legal Name</label><span>{{ artist.legal_name or '--' }}</span></div>
+      <div class="info-item"><label>AKA</label><span>{{ artist.aka or '--' }}</span></div>
+    </div>
+    <div class="g g4" style="gap:8px 22px;margin-bottom:10px">
+      <div class="info-item"><label>Email</label><span>{{ artist.email or '--' }}</span></div>
+      <div class="info-item"><label>Phone</label><span>{{ artist.phone_number or '--' }}</span></div>
+      <div class="info-item"><label>City</label><span>{{ artist.city or '--' }}</span></div>
+      <div class="info-item"><label>State</label><span>{{ artist.state or '--' }}</span></div>
+    </div>
+    <div class="g g2" style="gap:8px 22px;margin-bottom:10px">
+      <div class="info-item"><label>Address</label><span>{{ artist.address or '--' }}</span></div>
+      <div class="info-item"><label>Zip</label><span>{{ artist.zip_code or '--' }}</span></div>
+    </div>
+    <div class="g g2" style="gap:8px 22px">
+      <div class="info-item"><label>Added</label><span>{{ artist.created_at.strftime('%b %d, %Y') if artist.created_at else '--' }}</span></div>
+      <div class="info-item"><label>Last Updated</label><span>{{ artist.updated_at.strftime('%b %d, %Y') if artist.updated_at else '--' }}</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#128191;</div><span class="card-title">Releases</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl" style="table-layout:auto">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Type</th>
+          <th>Release Date</th>
+          <th>Status</th>
+          <th>Tracks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in releases %}
+        <tr onclick="window.location='/releases/{{ r.id }}'" style="cursor:pointer">
+          <td>
+            <span style="font-weight:600">{{ r.title }}</span>
+            <div style="font-size:11px;color:var(--t3);margin-top:2px">{{ r.artist_display }}</div>
+          </td>
+          <td style="font-size:12px;color:var(--t2)">{{ r.release_type }}</td>
+          <td style="font-size:12px;color:var(--t2)">{{ r.release_date.strftime('%b %d, %Y') if r.release_date else '--' }}</td>
+          <td>
+            {% if r.status == 'delivered' %}<span class="tag tag-s1">Delivered</span>
+            {% elif r.status == 'ready' %}<span class="tag tag-s2">Ready</span>
+            {% else %}<span class="tag tag-full">Draft</span>{% endif %}
+          </td>
+          <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">{{ r.num_tracks or r.tracks|length }}</span></td>
+        </tr>
+        {% endfor %}
+        {% if not releases %}
+          <tr class="empty"><td colspan="5">No releases linked to this artist.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ================================================================
+# ARTIST FORM HTML (Create / Edit)
+# ================================================================
+
+ARTIST_FORM_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% if artist %}Edit {{ artist.name }}{% else %}New Artist{% endif %} - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("artists_list") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#9998;</div>
+    <div>
+      <div class="ph-title">{% if artist %}Edit Artist{% else %}New Artist{% endif %}</div>
+      <div class="ph-sub">{% if artist %}{{ artist.name }}{% else %}Add a new recording artist{% endif %}</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    {% if artist %}
+    <a href="/artists/{{ artist.id }}" class="btn btn-sec btn-sm">Back to Profile</a>
+    {% else %}
+    <a href="/artists" class="btn btn-sec btn-sm">Back</a>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-ico">&#127908;</div>
+      <span class="card-title">Artist Information</span>
+    </div>
+    <div class="card-body">
+
+      <div class="g g3" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Stage Name <span style="color:var(--err)">*</span></label>
+          <input class="inp" name="name" value="{{ artist.name if artist else '' }}" required>
+        </div>
+        <div class="field">
+          <label class="label">Legal Name</label>
+          <input class="inp" name="legal_name" value="{{ artist.legal_name if artist else '' }}">
+        </div>
+        <div class="field">
+          <label class="label">AKA</label>
+          <input class="inp" name="aka" value="{{ artist.aka if artist else '' }}">
+        </div>
+      </div>
+
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Email</label>
+          <input class="inp" name="email" type="email" value="{{ artist.email if artist else '' }}">
+        </div>
+        <div class="field">
+          <label class="label">Phone Number</label>
+          <input class="inp" name="phone_number" value="{{ artist.phone_number if artist else '' }}">
+        </div>
+      </div>
+
+      <div class="g g4a">
+        <div class="field">
+          <label class="label">Street Address</label>
+          <input class="inp" name="address" value="{{ artist.address if artist else '' }}">
+        </div>
+        <div class="field">
+          <label class="label">City</label>
+          <input class="inp" name="city" value="{{ artist.city if artist else '' }}">
+        </div>
+        <div class="field">
+          <label class="label">State</label>
+          <input class="inp" name="state" value="{{ artist.state if artist else '' }}">
+        </div>
+        <div class="field">
+          <label class="label">Zip</label>
+          <input class="inp" name="zip_code" value="{{ artist.zip_code if artist else '' }}">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="ph-actions" style="justify-content:flex-end;margin-bottom:8px">
+    <button type="submit" class="btn btn-primary">{% if artist %}Save Changes{% else %}Create Artist{% endif %}</button>
+  </div>
+
+</form>
+
+{% if artist %}
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b1);text-align:right">
+  <form method="post" action="/artists/{{ artist.id }}/delete" onsubmit="return confirm('Delete this artist? This cannot be undone.')">
+    <button type="submit" class="btn btn-sec btn-sm" style="color:var(--err);border-color:var(--err)">Delete Artist</button>
+  </form>
+</div>
+{% endif %}
+
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
 </div>
 </body></html>"""

@@ -33,10 +33,12 @@ migrate.init_app(app, db)
 from blueprints.publishing import bp as publishing_bp
 from blueprints.releases import bp as releases_bp
 from blueprints.api import bp as api_bp
+from blueprints.artists import bp as artists_bp
 
 app.register_blueprint(publishing_bp)
 app.register_blueprint(releases_bp)
 app.register_blueprint(api_bp)
+app.register_blueprint(artists_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
