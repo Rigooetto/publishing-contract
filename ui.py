@@ -4703,7 +4703,7 @@ ARTISTS_LIST_HTML = """<!DOCTYPE html>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for r in artist.releases %}
+                  {% for r in artist.releases_list %}
                   <tr style="border-bottom:1px solid var(--b0)">
                     <td style="padding:6px 8px 6px 0">
                       <a href="/releases/{{ r.id }}" style="font-weight:600;font-size:13px;color:var(--a)" onclick="event.stopPropagation()">{{ r.title }}</a>

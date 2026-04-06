@@ -47,9 +47,10 @@ def artists_list():
     import json
     artists = pagination.items
     for a in artists:
-        a.releases = a.releases.order_by(Release.release_date.desc()).all()
-        a.release_count = len(a.releases)
-        for r in a.releases:
+        rels = a.releases.order_by(Release.release_date.desc()).all()
+        a.releases_list = rels
+        a.release_count = len(rels)
+        for r in a.releases_list:
             r.artists_list = json.loads(r.artists) if r.artists else []
             r.artist_display = ", ".join(r.artists_list[:2])
 
