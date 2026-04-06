@@ -546,11 +546,11 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .work-row,.sess-row,.wr-row,.wk-row{cursor:pointer;transition:background .15s}
 .work-row:hover td,.sess-row:hover td,.wr-row:hover td,.wk-row:hover td{background:rgba(255,255,255,.04)!important}
 .work-row.open td,.sess-row.open td,.wr-row.open td,.wk-row.open td{background:rgba(99,133,255,.06)!important}
-.work-detail-row,.sess-detail-row,.wr-detail-row,.wk-detail-row{display:none}
-.work-detail-row.open,.sess-detail-row.open,.wr-detail-row.open,.wk-detail-row.open{display:table-row}
-.work-detail-row td,.sess-detail-row td,.wr-detail-row td,.wk-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
-.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;background:rgba(99,133,255,.03)}
-@media(max-width:768px){.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner{grid-template-columns:1fr}}
+.work-detail-row,.sess-detail-row,.wr-detail-row,.wk-detail-row,.ar-detail-row{display:none}
+.work-detail-row.open,.sess-detail-row.open,.wr-detail-row.open,.wk-detail-row.open,.ar-detail-row.open{display:table-row}
+.work-detail-row td,.sess-detail-row td,.wr-detail-row td,.wk-detail-row td,.ar-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
+.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner,.ar-detail-inner{padding:16px 20px;background:rgba(99,133,255,.03)}
+@media(max-width:768px){.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner,.ar-detail-inner{grid-template-columns:1fr}}
 .wd-section{display:flex;flex-direction:column;gap:8px}
 .wd-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:2px}
 .wd-writers-tbl{width:100%;border-collapse:collapse;font-size:12px}
@@ -4680,30 +4680,49 @@ ARTISTS_LIST_HTML = """<!DOCTYPE html>
         </tr>
         <tr class="ar-detail-row" id="ardetail-{{ artist.id }}">
           <td colspan="4">
-            <div class="wr-detail-inner">
-              <div class="wd-section">
-                <div class="wd-label">Contact</div>
-                <div style="font-size:13px;display:flex;flex-direction:column;gap:4px">
+            <div class="ar-detail-inner">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+                <div style="font-size:13px;display:flex;gap:16px;flex-wrap:wrap;color:var(--t2)">
                   {% if artist.email %}<span>&#9993; {{ artist.email }}</span>{% endif %}
                   {% if artist.phone_number %}<span>&#128222; {{ artist.phone_number }}</span>{% endif %}
-                  {% if artist.address %}
-                  <span style="color:var(--t3);font-size:12px">{{ artist.address }}{% if artist.city %}, {{ artist.city }}{% endif %}{% if artist.state %}, {{ artist.state }}{% endif %}{% if artist.zip_code %} {{ artist.zip_code }}{% endif %}</span>
-                  {% endif %}
-                  {% if not artist.email and not artist.phone_number %}<span style="color:var(--t3)">No contact info</span>{% endif %}
+                  {% if artist.legal_name %}<span style="color:var(--t3)">Legal: {{ artist.legal_name }}</span>{% endif %}
                 </div>
-              </div>
-              <div class="wd-section">
-                <div class="wd-label">Details</div>
-                <div style="font-size:13px;display:flex;flex-direction:column;gap:4px;color:var(--t2)">
-                  {% if artist.legal_name %}<span>Legal: {{ artist.legal_name }}</span>{% endif %}
-                  {% if artist.aka %}<span>AKA: {{ artist.aka }}</span>{% endif %}
-                  <span style="color:var(--t3);font-size:11px">Added {{ artist.created_at.strftime('%b %d, %Y') if artist.created_at else '--' }}</span>
-                </div>
-                <div style="display:flex;gap:8px;margin-top:16px">
+                <div style="display:flex;gap:8px">
                   <a href="/artists/{{ artist.id }}/edit" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Edit</a>
                   <a href="/artists/{{ artist.id }}" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Full View</a>
                 </div>
               </div>
+              {% if artist.releases %}
+              <table class="wd-writers-tbl" style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--b1)">
+                    <th style="text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:4px 8px 6px 0">Title</th>
+                    <th style="text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:4px 8px 6px 0">Type</th>
+                    <th style="text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:4px 8px 6px 0">Release Date</th>
+                    <th style="text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:4px 8px 6px 0">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in artist.releases %}
+                  <tr style="border-bottom:1px solid var(--b0)">
+                    <td style="padding:6px 8px 6px 0">
+                      <a href="/releases/{{ r.id }}" style="font-weight:600;font-size:13px;color:var(--a)" onclick="event.stopPropagation()">{{ r.title }}</a>
+                      <div style="font-size:11px;color:var(--t3)">{{ r.artist_display }}</div>
+                    </td>
+                    <td style="padding:6px 8px 6px 0;font-size:12px;color:var(--t2)">{{ r.release_type }}</td>
+                    <td style="padding:6px 8px 6px 0;font-size:12px;color:var(--t2)">{{ r.release_date.strftime('%b %d, %Y') if r.release_date else '--' }}</td>
+                    <td style="padding:6px 0">
+                      {% if r.status == 'delivered' %}<span class="tag tag-s1">Delivered</span>
+                      {% elif r.status == 'ready' %}<span class="tag tag-s2">Ready</span>
+                      {% else %}<span class="tag tag-full">Draft</span>{% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div style="font-size:13px;color:var(--t3)">No releases linked to this artist yet.</div>
+              {% endif %}
             </div>
           </td>
         </tr>

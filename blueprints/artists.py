@@ -44,11 +44,16 @@ def artists_list():
     per_page = 50
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
+    import json
     artists = pagination.items
     for a in artists:
-        a.release_count = Release.query.filter(
+        a.releases = Release.query.filter(
             Release.artists.ilike(f"%{a.name}%")
-        ).count()
+        ).order_by(Release.release_date.desc()).all()
+        a.release_count = len(a.releases)
+        for r in a.releases:
+            r.artists_list = json.loads(r.artists) if r.artists else []
+            r.artist_display = ", ".join(r.artists_list[:2])
 
     return render_template_string(ARTISTS_LIST_HTML, artists=artists, q=q, sort=sort, pagination=pagination)
 
