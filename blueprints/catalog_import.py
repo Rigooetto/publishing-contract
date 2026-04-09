@@ -13,7 +13,6 @@ import json
 import traceback
 
 from flask import Blueprint, request, redirect, url_for, flash, render_template_string, current_app
-from sqlalchemy import func
 
 from extensions import db
 from models import Release, Track, Artist, ArtistRelease, Work, Writer, WorkWriter, TrackWork
@@ -162,36 +161,41 @@ def _run_import(file_bytes):
         k = _release_key(row)
         release_groups.setdefault(k, []).append(row)
 
-    # In-session caches so we don't re-query the DB thousands of times
-    artist_cache  = {}   # lower_name → Artist
-    writer_cache  = {}   # lower_name → Writer
-    work_cache    = {}   # lower_title → Work
-    release_cache = {}   # release_key → Release
+    # ── Pre-load all existing DB records into memory ──────────────────────
+    # This avoids thousands of individual SELECT queries during the import,
+    # keeping the Postgres connection short-lived and preventing timeouts.
+    artist_cache  = {a.name.lower(): a for a in Artist.query.all()}
+    writer_cache  = {w.full_name.lower(): w for w in Writer.query.all()}
+    writer_ipi_cache = {w.ipi: w for w in Writer.query.all() if w.ipi}
+    work_cache    = {w.title.lower(): w for w in Work.query.all()}
+    release_by_upc   = {r.upc: r for r in Release.query.all() if r.upc}
+    release_by_title = {r.title.lower(): r for r in Release.query.all() if not r.upc}
+    track_by_isrc    = {t.isrc: t for t in Track.query.all() if t.isrc}
+    # (release_id, lower_title) → Track  for tracks without ISRC
+    track_by_rid_title = {(t.release_id, t.primary_title.lower()): t for t in Track.query.all()}
+    # Sets of (artist_id, release_id) and (track_id, work_id) and (work_id, writer_id)
+    artist_release_set = {(ar.artist_id, ar.release_id) for ar in ArtistRelease.query.all()}
+    track_work_set     = {(tw.track_id, tw.work_id) for tw in TrackWork.query.all()}
+    work_writer_set    = {(ww.work_id, ww.writer_id) for ww in WorkWriter.query.all()}
 
     def _get_or_create_artist(name):
         key = name.lower()
-        if key in artist_cache:
-            return artist_cache[key]
-        obj = Artist.query.filter(func.lower(Artist.name) == key).first()
-        if not obj:
+        if key not in artist_cache:
             obj = Artist(name=name)
             db.session.add(obj)
             db.session.flush()
+            artist_cache[key] = obj
             stats["artists_created"] += 1
-        artist_cache[key] = obj
-        return obj
+        return artist_cache[key]
 
     def _get_or_create_writer(full_name, ipi, pro, first_name="", middle_name="", last_names=""):
+        # IPI lookup takes priority
+        if ipi and ipi in writer_ipi_cache:
+            obj = writer_ipi_cache[ipi]
+            writer_cache[full_name.lower()] = obj
+            return obj
         key = full_name.lower()
-        if key in writer_cache:
-            return writer_cache[key]
-        # Try IPI lookup first (most reliable)
-        obj = None
-        if ipi:
-            obj = Writer.query.filter_by(ipi=ipi).first()
-        if not obj:
-            obj = Writer.query.filter(func.lower(Writer.full_name) == key).first()
-        if not obj:
+        if key not in writer_cache:
             obj = Writer(
                 full_name=full_name,
                 pro=pro or "",
@@ -203,26 +207,24 @@ def _run_import(file_bytes):
                 obj.ipi = ipi
             db.session.add(obj)
             db.session.flush()
+            writer_cache[key] = obj
+            if ipi:
+                writer_ipi_cache[ipi] = obj
             stats["writers_created"] += 1
-        writer_cache[key] = obj
-        return obj
+        return writer_cache[key]
 
     def _get_or_create_work(title, contract_date):
         key = title.lower()
-        if key in work_cache:
-            return work_cache[key]
-        normalized = title.lower().strip()
-        obj = Work.query.filter(func.lower(Work.title) == key).first()
-        if not obj:
-            obj = Work(title=title, normalized_title=normalized, contract_date=contract_date)
+        if key not in work_cache:
+            obj = Work(title=title, normalized_title=key, contract_date=contract_date)
             db.session.add(obj)
             db.session.flush()
+            work_cache[key] = obj
             stats["works_created"] += 1
-        work_cache[key] = obj
-        return obj
+        return work_cache[key]
 
     # ── Process each release group ─────────────────────────────────────────
-    for rkey, rrows in release_groups.items():
+    for _, rrows in release_groups.items():
         first = rrows[0]
         try:
             upc = first["UPC"].strip() or None
@@ -236,14 +238,10 @@ def _run_import(file_bytes):
             # ── Upsert Release ─────────────────────────────────────────────
             r = None
             if upc:
-                r = Release.query.filter_by(upc=upc).first()
+                r = release_by_upc.get(upc)
             # Only fall back to title matching when no UPC is available.
-            # If a UPC was present but not found, create a new release to
-            # avoid merging distinct releases that share a title.
             if not r and not upc:
-                r = Release.query.filter(
-                    func.lower(Release.title) == album_title.lower()
-                ).first()
+                r = release_by_title.get(album_title.lower())
 
             if r:
                 r.title = album_title
@@ -251,6 +249,7 @@ def _run_import(file_bytes):
                 r.distributor = distributor or r.distributor
                 if upc and not r.upc:
                     r.upc = upc
+                    release_by_upc[upc] = r
                 stats["releases_updated"] += 1
             else:
                 r = Release(
@@ -265,18 +264,19 @@ def _run_import(file_bytes):
                 )
                 db.session.add(r)
                 db.session.flush()
+                if upc:
+                    release_by_upc[upc] = r
+                else:
+                    release_by_title[album_title.lower()] = r
                 stats["releases_created"] += 1
-
-            release_cache[rkey] = r
 
             # ── Album-level artists ────────────────────────────────────────
             for artist_name in release_artists:
                 art = _get_or_create_artist(artist_name)
-                exists = ArtistRelease.query.filter_by(
-                    artist_id=art.id, release_id=r.id
-                ).first()
-                if not exists:
+                key = (art.id, r.id)
+                if key not in artist_release_set:
                     db.session.add(ArtistRelease(artist_id=art.id, release_id=r.id))
+                    artist_release_set.add(key)
 
             # ── Process each track row ─────────────────────────────────────
             for row in rrows:
@@ -301,12 +301,9 @@ def _run_import(file_bytes):
                     # Upsert Track
                     t = None
                     if isrc:
-                        t = Track.query.filter_by(isrc=isrc).first()
+                        t = track_by_isrc.get(isrc)
                     if not t:
-                        t = Track.query.filter_by(
-                            release_id=r.id,
-                            primary_title=track_title
-                        ).first()
+                        t = track_by_rid_title.get((r.id, track_title.lower()))
 
                     if t:
                         t.duration     = duration or t.duration
@@ -314,6 +311,7 @@ def _run_import(file_bytes):
                         t.track_p_line = track_p_line or t.track_p_line
                         if isrc and not t.isrc:
                             t.isrc = isrc
+                            track_by_isrc[isrc] = t
                         if track_num and not t.track_number:
                             t.track_number = track_num
                         stats["tracks_updated"] += 1
@@ -330,29 +328,29 @@ def _run_import(file_bytes):
                         )
                         db.session.add(t)
                         db.session.flush()
+                        if isrc:
+                            track_by_isrc[isrc] = t
+                        track_by_rid_title[(r.id, track_title.lower())] = t
                         stats["tracks_created"] += 1
 
-                    # Track-level artist links (any track artist not already linked)
-                    track_artist_lower = {a.lower() for a in release_artists}
+                    # Track-level artist links
+                    release_artist_lower = {a.lower() for a in release_artists}
                     for ta_name in track_artists:
-                        if ta_name.lower() not in track_artist_lower:
+                        if ta_name.lower() not in release_artist_lower:
                             ta = _get_or_create_artist(ta_name)
-                            exists = ArtistRelease.query.filter_by(
-                                artist_id=ta.id, release_id=r.id
-                            ).first()
-                            if not exists:
+                            key = (ta.id, r.id)
+                            if key not in artist_release_set:
                                 db.session.add(ArtistRelease(artist_id=ta.id, release_id=r.id))
+                                artist_release_set.add(key)
 
                     # ── Publishing == TRUE → Work + Writers ────────────────
                     if publishing:
                         work = _get_or_create_work(track_title, release_date)
 
-                        # Link track → work (idempotent)
-                        tw_exists = TrackWork.query.filter_by(
-                            track_id=t.id, work_id=work.id
-                        ).first()
-                        if not tw_exists:
+                        tw_key = (t.id, work.id)
+                        if tw_key not in track_work_set:
                             db.session.add(TrackWork(track_id=t.id, work_id=work.id))
+                            track_work_set.add(tw_key)
 
                         # Writers / WorkWriters
                         for i, (nc, fnc, mnc, lnc, ic, sc, pc) in enumerate(COMPOSER_COLS):
@@ -366,12 +364,10 @@ def _run_import(file_bytes):
                             except ValueError:
                                 csplit = 0.0
 
-                            # Split name fields (composers 1–6 only)
                             cfirst  = row.get(fnc, "").strip() if fnc else ""
                             cmiddle = row.get(mnc, "").strip() if mnc else ""
                             clast   = row.get(lnc, "").strip() if lnc else ""
 
-                            # Matching publisher (same index)
                             pub_name, pub_ipi = "", ""
                             if i < len(PUBLISHER_COLS):
                                 pnc, pic, _ = PUBLISHER_COLS[i]
@@ -385,19 +381,16 @@ def _run_import(file_bytes):
                                 last_names=clast,
                             )
 
-                            # Upsert WorkWriter
-                            ww = WorkWriter.query.filter_by(
-                                work_id=work.id, writer_id=writer.id
-                            ).first()
-                            if not ww:
-                                ww = WorkWriter(
+                            ww_key = (work.id, writer.id)
+                            if ww_key not in work_writer_set:
+                                db.session.add(WorkWriter(
                                     work_id=work.id,
                                     writer_id=writer.id,
                                     writer_percentage=csplit,
                                     publisher=pub_name,
                                     publisher_ipi=pub_ipi,
-                                )
-                                db.session.add(ww)
+                                ))
+                                work_writer_set.add(ww_key)
 
                 except Exception as row_err:
                     stats["errors"].append(
