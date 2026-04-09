@@ -422,6 +422,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-wrap{overflow-x:visible}
 
   .ph-actions{flex-wrap:wrap}
+  #genForm{display:none!important}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
