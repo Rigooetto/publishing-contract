@@ -422,7 +422,6 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-wrap{overflow-x:visible}
 
   .ph-actions{flex-wrap:wrap}
-  #genForm{display:none!important}
 }
 .action-bar{transition:width .22s ease,margin-left .22s ease,left .22s ease}
 
@@ -1949,11 +1948,6 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
   </div>
   <div class="ph-actions">
     <a href="/batches" class="btn btn-sec btn-sm">Back</a>
-    <form method="post" action="/batches/{{ batch.id }}/generate" id="genForm" style="display:inline">
-      <button type="submit" class="btn btn-primary btn-sm" id="genBtn">
-        <span id="genLabel">Generate Docs</span><span class="spin" id="genSpin"></span>
-      </button>
-    </form>
   </div>
 </div>
 <div class="card">
@@ -2215,14 +2209,12 @@ function bindDs() {
 
 document.addEventListener('DOMContentLoaded', function() {
   bindDs();
-  var gf = document.getElementById('genForm');
+  var gf = document.getElementById('genFormMobile');
   if (gf) {
     gf.addEventListener('submit', function(e) {
       e.preventDefault();
-      var btn = document.getElementById('genBtn');
-      btn.disabled = true;
-      document.getElementById('genSpin').classList.add('on');
-      document.getElementById('genLabel').textContent = 'Generating...';
+      var btn = gf.querySelector('button');
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
       setTimeout(function() { gf.submit(); }, 150);
       setTimeout(function() { window.location.reload(); }, 5000);
     });
