@@ -1076,23 +1076,48 @@ def writer_edit(writer_id):
 
         if not first_name or not last_names:
             flash("First and last name are required.")
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         if not email or "@" not in email:
             flash("A valid email is required.")
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         if not ipi:
             flash("IPI is required.")
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         if not pro:
             flash("PRO is required.")
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         if not address or not city or not state or not zip_code:
             flash("Complete address is required.")
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         existing_ipi = Writer.query.filter(
             func.lower(Writer.ipi) == ipi.lower(),
@@ -1100,7 +1125,12 @@ def writer_edit(writer_id):
         ).first()
         if existing_ipi:
             flash("That IPI already belongs to " + existing_ipi.full_name)
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         existing_name = Writer.query.filter(
             func.lower(Writer.full_name) == full_name.lower(),
@@ -1108,7 +1138,12 @@ def writer_edit(writer_id):
         ).first()
         if existing_name:
             flash("That full name already exists for another writer.")
-            return render_template_string(WRITER_EDIT_HTML, writer=writer)
+            return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
         writer.first_name = first_name
         writer.middle_name = middle_name
@@ -1131,7 +1166,12 @@ def writer_edit(writer_id):
         flash("Writer updated successfully.")
         return redirect(url_for(".writer_detail", writer_id=writer.id))
 
-    return render_template_string(WRITER_EDIT_HTML, writer=writer)
+    return render_template_string(
+            WRITER_EDIT_HTML,
+            writer=writer,
+            default_publisher_for_pro=default_publisher_for_pro,
+            default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+        )
 
 @bp.route("/works/<int:work_id>/edit", methods=["GET", "POST"])
 def work_edit(work_id):

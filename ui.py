@@ -1170,7 +1170,8 @@ function resetNew(r) { r.querySelector('.wid').value = ''; setStatus(r, 'New Wri
 
 function fillWriter(r, w) {
   r.querySelector('.wid').value = w.id || '';
-  r.querySelector('.wfn').value = w.first_name || '';
+  var hasNameParts = w.first_name || w.middle_name || w.last_names;
+  r.querySelector('.wfn').value = w.first_name || (!hasNameParts ? (w.full_name || '') : '');
   r.querySelector('.wmn').value = w.middle_name || '';
   r.querySelector('.wln').value = w.last_names || '';
   r.querySelector('.waka').value = w.writer_aka || '';
@@ -3318,6 +3319,20 @@ ADMIN_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128191;</div>
+    <span class="card-title">Import Releases &amp; Tracks Catalog</span>
+  </div>
+  <div class="card-body">
+    <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
+      Import your full catalog CSV (one row per track) with releases, artists, and publishing works.
+      Rows with <strong>Publishing = TRUE</strong> will also create songwriting works.
+    </p>
+    <a href="/admin/import-catalog-csv" class="btn btn-primary">Go to Catalog Import</a>
+  </div>
+</div>
+
 </div>
 </main>
 </div>
@@ -4980,6 +4995,152 @@ ARTIST_FORM_HTML = """<!DOCTYPE html>
   <form method="post" action="/artists/{{ artist.id }}/delete" onsubmit="return confirm('Delete this artist? This cannot be undone.')">
     <button type="submit" class="btn btn-sec btn-sm" style="color:var(--err);border-color:var(--err)">Delete Artist</button>
   </form>
+</div>
+{% endif %}
+
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+# ================================================================
+# CATALOG CSV IMPORT
+# ================================================================
+
+CATALOG_IMPORT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Import Catalog CSV - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("admin") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128228;</div>
+    <div>
+      <div class="ph-title">Import Catalog CSV</div>
+      <div class="ph-sub">Bulk-load releases, tracks, artists, and publishing works from your catalog file.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/admin" class="btn btn-sec btn-sm">Back to Admin</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128202;</div>
+    <span class="card-title">Upload Catalog CSV</span>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/admin/import-catalog-csv" enctype="multipart/form-data">
+      <div class="field" style="margin-bottom:16px">
+        <label class="label">CSV File</label>
+        <input class="inp" type="file" name="catalog_file" accept=".csv" required>
+      </div>
+      <div style="color:var(--t2);font-size:12px;margin-bottom:16px;line-height:1.7">
+        <strong>Expected format:</strong> one row per track with columns UPC, Album Title, Artist, Track title, ISRC,
+        Composer 1&ndash;8 (+ IPI, Split %, PRO), Publisher 1&ndash;7, and a <em>Publishing</em> TRUE/FALSE flag.<br>
+        Rows with <strong>Publishing = TRUE</strong> will create Works in the publishing catalog.<br>
+        Rows with <strong>Publishing = FALSE</strong> will create Release + Track only (covers, etc.).<br>
+        The import is <strong>idempotent</strong> &mdash; safe to re-run without duplicating data.
+      </div>
+      <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+    </form>
+  </div>
+</div>
+
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+CATALOG_IMPORT_RESULT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Import Results - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("admin") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#9989;</div>
+    <div>
+      <div class="ph-title">Import Complete</div>
+      <div class="ph-sub">Catalog CSV has been processed.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/releases" class="btn btn-primary btn-sm">View Releases</a>
+    <a href="/admin/import-catalog-csv" class="btn btn-sec btn-sm" style="margin-left:8px">Import Another</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128202;</div>
+    <span class="card-title">Summary</span>
+  </div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item"><label>Releases Created</label><span>{{ stats.releases_created }}</span></div>
+      <div class="info-item"><label>Releases Updated</label><span>{{ stats.releases_updated }}</span></div>
+      <div class="info-item"><label>Tracks Created</label><span>{{ stats.tracks_created }}</span></div>
+      <div class="info-item"><label>Tracks Updated</label><span>{{ stats.tracks_updated }}</span></div>
+      <div class="info-item"><label>Artists Created</label><span>{{ stats.artists_created }}</span></div>
+      <div class="info-item"><label>Works Created</label><span>{{ stats.works_created }}</span></div>
+      <div class="info-item"><label>Writers Created</label><span>{{ stats.writers_created }}</span></div>
+      <div class="info-item"><label>Rows Skipped</label><span>{{ stats.rows_skipped }}</span></div>
+      <div class="info-item"><label>Errors</label><span style="{% if stats.errors %}color:#ff8a8a{% endif %}">{{ stats.errors|length }}</span></div>
+    </div>
+  </div>
+</div>
+
+{% if stats.errors %}
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#9888;</div>
+    <span class="card-title">Errors ({{ stats.errors|length }})</span>
+  </div>
+  <div class="card-body">
+    <div style="font-family:var(--fm);font-size:12px;color:#ff8a8a;line-height:1.9">
+      {% for e in stats.errors %}
+      <div>{{ loop.index }}. {{ e }}</div>
+      {% endfor %}
+    </div>
+  </div>
 </div>
 {% endif %}
 

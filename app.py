@@ -34,11 +34,13 @@ from blueprints.publishing import bp as publishing_bp
 from blueprints.releases import bp as releases_bp
 from blueprints.api import bp as api_bp
 from blueprints.artists import bp as artists_bp
+from blueprints.catalog_import import bp as catalog_import_bp
 
 app.register_blueprint(publishing_bp)
 app.register_blueprint(releases_bp)
 app.register_blueprint(api_bp)
 app.register_blueprint(artists_bp)
+app.register_blueprint(catalog_import_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
@@ -75,16 +77,30 @@ def _run_artist_backfill():
                     db.func.lower(Artist.name) == name.lower()
                 ).first()
                 if not artist:
-                    artist = Artist(name=name)
-                    db.session.add(artist)
-                    db.session.flush()
-                    created_artists += 1
+                    try:
+                        artist = Artist(name=name)
+                        db.session.add(artist)
+                        db.session.flush()
+                        created_artists += 1
+                    except Exception:
+                        db.session.rollback()
+                        artist = Artist.query.filter(
+                            db.func.lower(Artist.name) == name.lower()
+                        ).first()
+                        if not artist:
+                            continue
+                if not artist:
+                    continue
                 exists = ArtistRelease.query.filter_by(
                     artist_id=artist.id, release_id=r.id
                 ).first()
                 if not exists:
-                    db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id))
-                    created_links += 1
+                    try:
+                        db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id))
+                        db.session.flush()
+                        created_links += 1
+                    except Exception:
+                        db.session.rollback()
         db.session.commit()
         app.logger.warning("ARTIST BACKFILL: +%d artists, +%d links", created_artists, created_links)
     except Exception as e:
