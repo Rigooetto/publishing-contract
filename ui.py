@@ -3341,10 +3341,88 @@ ADMIN_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<div class="card">
+  <div class="card-hd">
+    <div class="card-ico">&#128257;</div>
+    <span class="card-title">Merge Duplicate Writers</span>
+  </div>
+  <div class="card-body">
+    <p style="color:var(--t2);font-size:13px;margin-bottom:16px">
+      Search for two writers and merge them. All works and documents from the
+      <strong>duplicate</strong> will be moved to the <strong>primary</strong>, then the duplicate is deleted.
+    </p>
+    <form method="post" action="/admin/merge-writers" onsubmit="return confirm('Merge these two writers? This cannot be undone.')">
+      <div class="g g2" style="margin-bottom:14px">
+        <div class="field">
+          <label class="label">Primary Writer (keep this one)</label>
+          <input class="inp" type="text" id="mergeSearch1" placeholder="Search by name..." autocomplete="off">
+          <input type="hidden" name="primary_writer_id" id="primaryWriterId" required>
+          <div id="mergeDrop1" style="display:none;position:relative;z-index:100;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);margin-top:2px;max-height:180px;overflow-y:auto"></div>
+          <div id="primaryLabel" style="font-size:12px;color:var(--ag);margin-top:4px"></div>
+        </div>
+        <div class="field">
+          <label class="label">Duplicate Writer (delete this one)</label>
+          <input class="inp" type="text" id="mergeSearch2" placeholder="Search by name..." autocomplete="off">
+          <input type="hidden" name="duplicate_writer_id" id="duplicateWriterId" required>
+          <div id="mergeDrop2" style="display:none;position:relative;z-index:100;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);margin-top:2px;max-height:180px;overflow-y:auto"></div>
+          <div id="duplicateLabel" style="font-size:12px;color:var(--ar);margin-top:4px"></div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-danger" id="mergBtn" disabled>Merge Writers</button>
+    </form>
+  </div>
+</div>
+
 </div>
 </main>
 </div>
 """ + _SB_JS + """
+<script>
+function mergeSearch(inputId, dropId, hiddenId, labelId, labelColor) {
+  var inp = document.getElementById(inputId);
+  var drop = document.getElementById(dropId);
+  var hidden = document.getElementById(hiddenId);
+  var label = document.getElementById(labelId);
+  inp.addEventListener('input', function() {
+    var q = inp.value.trim();
+    hidden.value = '';
+    label.textContent = '';
+    checkMergeReady();
+    if (q.length < 2) { drop.style.display = 'none'; return; }
+    fetch('/writers/search?q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(results) {
+        drop.innerHTML = '';
+        if (!results.length) { drop.style.display = 'none'; return; }
+        results.forEach(function(w) {
+          var d = document.createElement('div');
+          d.style.cssText = 'padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--b1)';
+          d.innerHTML = '<strong>' + w.full_name + '</strong><span style="color:var(--t3);font-size:11px;margin-left:8px">IPI: ' + (w.ipi || '--') + '</span>';
+          d.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            inp.value = w.full_name;
+            hidden.value = w.id;
+            label.textContent = '\u2713 ' + w.full_name + (w.ipi ? ' (' + w.ipi + ')' : '');
+            label.style.color = labelColor;
+            drop.style.display = 'none';
+            checkMergeReady();
+          });
+          drop.appendChild(d);
+        });
+        drop.style.display = 'block';
+      });
+  });
+  inp.addEventListener('blur', function() { setTimeout(function(){ drop.style.display='none'; }, 150); });
+}
+function checkMergeReady() {
+  var p = document.getElementById('primaryWriterId').value;
+  var d = document.getElementById('duplicateWriterId').value;
+  var btn = document.getElementById('mergBtn');
+  btn.disabled = !(p && d && p !== d);
+}
+mergeSearch('mergeSearch1', 'mergeDrop1', 'primaryWriterId', 'primaryLabel', 'var(--ag)');
+mergeSearch('mergeSearch2', 'mergeDrop2', 'duplicateWriterId', 'duplicateLabel', 'var(--ar)');
+</script>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>

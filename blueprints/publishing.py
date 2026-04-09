@@ -1332,6 +1332,55 @@ def admin_panel():
         return redirect(url_for(".login"))
     return render_template_string(ADMIN_HTML)
 
+
+@bp.route("/admin/merge-writers", methods=["POST"])
+def merge_writers():
+    if auth_required():
+        return redirect(url_for(".login"))
+
+    primary_id   = request.form.get("primary_writer_id", type=int)
+    duplicate_id = request.form.get("duplicate_writer_id", type=int)
+
+    if not primary_id or not duplicate_id or primary_id == duplicate_id:
+        flash("Please select two different writers.")
+        return redirect(url_for(".admin_panel"))
+
+    primary   = Writer.query.get(primary_id)
+    duplicate = Writer.query.get(duplicate_id)
+
+    if not primary or not duplicate:
+        flash("One or both writers not found.")
+        return redirect(url_for(".admin_panel"))
+
+    # Repoint WorkWriter rows — skip if primary already has a link to that work
+    for ww in list(duplicate.work_links):
+        existing = WorkWriter.query.filter_by(
+            work_id=ww.work_id, writer_id=primary.id
+        ).first()
+        if existing:
+            db.session.delete(ww)
+        else:
+            ww.writer_id = primary.id
+
+    # Repoint ContractDocument rows
+    ContractDocument.query.filter_by(writer_id=duplicate.id).update(
+        {"writer_id": primary.id}, synchronize_session="fetch"
+    )
+
+    # Fill any missing fields on primary from duplicate
+    for field in ("ipi", "email", "phone_number", "pro", "address",
+                  "city", "state", "zip_code", "default_publisher",
+                  "default_publisher_ipi", "first_name", "middle_name", "last_names"):
+        if not getattr(primary, field) and getattr(duplicate, field):
+            setattr(primary, field, getattr(duplicate, field))
+
+    dup_name = duplicate.full_name
+    db.session.delete(duplicate)
+    db.session.commit()
+
+    flash(f"Merged '{dup_name}' into '{primary.full_name}' successfully.")
+    return redirect(url_for(".admin_panel"))
+
 @bp.route("/works/<int:work_id>")
 def work_detail(work_id):
     if auth_required():
