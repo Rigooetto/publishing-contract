@@ -1352,20 +1352,33 @@ def merge_writers():
         flash("One or both writers not found.")
         return redirect(url_for(".admin_panel"))
 
-    # Repoint WorkWriter rows — skip if primary already has a link to that work
-    for ww in list(duplicate.work_links):
-        existing = WorkWriter.query.filter_by(
-            work_id=ww.work_id, writer_id=primary.id
-        ).first()
-        if existing:
-            db.session.delete(ww)
-        else:
-            ww.writer_id = primary.id
+    primary_pk   = primary.id
+    duplicate_pk = duplicate.id
+
+    # Find work_ids the primary already owns — those duplicate links must be deleted
+    primary_work_ids = {
+        ww.work_id for ww in WorkWriter.query.filter_by(writer_id=primary_pk).all()
+    }
+
+    # Delete conflicting WorkWriter rows (primary already covers that work)
+    if primary_work_ids:
+        WorkWriter.query.filter(
+            WorkWriter.writer_id == duplicate_pk,
+            WorkWriter.work_id.in_(primary_work_ids)
+        ).delete(synchronize_session="fetch")
+
+    # Repoint remaining WorkWriter rows directly — no ORM attribute assignment
+    WorkWriter.query.filter_by(writer_id=duplicate_pk).update(
+        {"writer_id": primary_pk}, synchronize_session="fetch"
+    )
 
     # Repoint ContractDocument rows
-    ContractDocument.query.filter_by(writer_id=duplicate.id).update(
-        {"writer_id": primary.id}, synchronize_session="fetch"
+    ContractDocument.query.filter_by(writer_id=duplicate_pk).update(
+        {"writer_id": primary_pk}, synchronize_session="fetch"
     )
+
+    # Push all FK changes to DB before the writer row is deleted
+    db.session.flush()
 
     # Fill any missing fields on primary from duplicate
     for field in ("ipi", "email", "phone_number", "pro", "address",
