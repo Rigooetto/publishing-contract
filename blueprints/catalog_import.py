@@ -399,6 +399,7 @@ def _run_import(file_bytes):
                     current_app.logger.error("CATALOG IMPORT ROW ERROR: %s", row_err)
 
             db.session.commit()
+            db.session.expire_all()  # free session memory between releases
 
         except Exception as rel_err:
             db.session.rollback()
