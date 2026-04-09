@@ -161,7 +161,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .g4a{grid-template-columns:2fr 1fr .55fr .55fr}
 .field{display:flex;flex-direction:column;gap:5px}
 .label{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t2)}
-.inp{background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);color:var(--t1);font-family:var(--f);font-size:14px;padding:9px 12px;width:100%;outline:none;transition:border-color .14s,box-shadow .14s;-webkit-appearance:none;appearance:none}
+.inp{background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);color:var(--t1);font-family:var(--f);font-size:14px;padding:9px 12px;width:100%;outline:none;transition:border-color .14s,box-shadow .14s;-webkit-appearance:none;appearance:none;min-height:40px}
 .inp::placeholder{color:var(--t3)}
 .inp:focus{border-color:var(--bf);box-shadow:0 0 0 3px rgba(99,133,255,.1)}
 select.inp{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%234a5470' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;padding-right:28px;cursor:pointer}
@@ -2222,6 +2222,15 @@ document.addEventListener('DOMContentLoaded', function() {
   setInterval(poll, 5000);
 });
 </script>
+<div class="action-bar">
+  <a href="/?batch_id={{ batch.id }}" class="btn btn-sec">+ Add Work</a>
+  <div class="ab-space"></div>
+  <form method="post" action="/batches/{{ batch.id }}/generate" id="genFormMobile" style="flex:1 1 auto;display:flex">
+    <button type="submit" class="btn btn-primary" style="flex:1 1 auto;justify-content:center">
+      <span>Generate Docs</span>
+    </button>
+  </form>
+</div>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
