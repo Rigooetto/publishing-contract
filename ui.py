@@ -51,7 +51,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
   text-decoration:none;
   white-space:nowrap;
   overflow:hidden;
-}.sb-ico{width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0}.sb-ico img{width:28px;height:28px;object-fit:contain}
+}.sb-ico{width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0}.sb-ico img{width:40px;height:40px;object-fit:contain}
 .sb-name{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.02em;transition:opacity .18s}
 .sb.collapsed .sb-name{opacity:0;pointer-events:none}
 .sb-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--bg4);border:1px solid var(--b0);border-radius:6px;cursor:pointer;color:var(--t3);font-size:11px;margin-left:auto;flex-shrink:0;transition:color .14s,background .14s;user-select:none}
@@ -64,7 +64,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  gap:6px;
+  gap:10px;
   padding:15px 13px 13px;
   border-bottom:1px solid var(--b0);
   margin-bottom:5px;
@@ -75,8 +75,8 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 }
 
 .sb-ico{
-  width:32px;
-  height:32px;
+  width:40px;
+  height:40px;
   background:none;
   border-radius:0;
   display:flex;
