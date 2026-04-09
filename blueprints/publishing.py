@@ -422,7 +422,15 @@ def formulario():
                 writer.first_name = row["first_name"] or writer.first_name
                 writer.middle_name = row["middle_name"] or writer.middle_name
                 writer.last_names = row["last_names"] or writer.last_names
-                writer.full_name = row["full_name"] or writer.full_name
+                # Only update full_name if it doesn't conflict with another writer
+                new_full_name = row["full_name"]
+                if new_full_name and new_full_name.lower() != writer.full_name.lower():
+                    conflict = Writer.query.filter(
+                        func.lower(Writer.full_name) == new_full_name.lower(),
+                        Writer.id != writer.id
+                    ).first()
+                    if not conflict:
+                        writer.full_name = new_full_name
                 writer.writer_aka = row["writer_aka"] or writer.writer_aka
                 writer.ipi = row["ipi"] or writer.ipi
                 writer.email = row["email"] or writer.email
