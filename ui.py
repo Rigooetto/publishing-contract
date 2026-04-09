@@ -549,7 +549,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .work-detail-row,.sess-detail-row,.wr-detail-row,.wk-detail-row,.ar-detail-row{display:none}
 .work-detail-row.open,.sess-detail-row.open,.wr-detail-row.open,.wk-detail-row.open,.ar-detail-row.open{display:table-row}
 .work-detail-row td,.sess-detail-row td,.wr-detail-row td,.wk-detail-row td,.ar-detail-row td{padding:0!important;border-bottom:1px solid var(--b0)}
-.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner,.ar-detail-inner{padding:16px 20px;background:rgba(99,133,255,.03)}
+.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner,.ar-detail-inner{padding:16px 20px;background:rgba(99,133,255,.03);display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:768px){.work-detail-inner,.sess-detail-inner,.wr-detail-inner,.wk-detail-inner,.ar-detail-inner{grid-template-columns:1fr}}
 .wd-section{display:flex;flex-direction:column;gap:8px}
 .wd-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:2px}
@@ -1940,7 +1940,6 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
   </div>
   <div class="ph-actions">
     <a href="/batches" class="btn btn-sec btn-sm">Back</a>
-    <a href="/?batch_id={{ batch.id }}" class="btn btn-sec btn-sm">+ Add Work</a>
     <form method="post" action="/batches/{{ batch.id }}/generate" id="genForm" style="display:inline">
       <button type="submit" class="btn btn-primary btn-sm" id="genBtn">
         <span id="genLabel">Generate Docs</span><span class="spin" id="genSpin"></span>
