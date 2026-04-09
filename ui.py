@@ -407,11 +407,19 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-batch-works th:nth-child(2),.tbl-batch-works td:nth-child(2),
   .tbl-batch-works th:nth-child(3),.tbl-batch-works td:nth-child(3){display:none}
 
-  /* Session detail - Writer Summary: hide AKA(2), IPI(3), PRO(4), Publishing Contract(6) */
+  /* Session detail - Writer Summary: hide AKA(2), IPI(3), PRO(4), Works(5), Publishing Contract(6) */
   .tbl-batch-writers th:nth-child(2),.tbl-batch-writers td:nth-child(2),
   .tbl-batch-writers th:nth-child(3),.tbl-batch-writers td:nth-child(3),
   .tbl-batch-writers th:nth-child(4),.tbl-batch-writers td:nth-child(4),
+  .tbl-batch-writers th:nth-child(5),.tbl-batch-writers td:nth-child(5),
   .tbl-batch-writers th:nth-child(6),.tbl-batch-writers td:nth-child(6){display:none}
+
+  /* Prevent sideways scroll on session page tables */
+  .tbl-batch-works,.tbl-batch-writers,.tbl-docs{table-layout:fixed}
+  .tbl-batch-works td,.tbl-batch-works th,
+  .tbl-batch-writers td,.tbl-batch-writers th,
+  .tbl-docs td,.tbl-docs th{white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+  .tbl-wrap{overflow-x:visible}
 
   .ph-actions{flex-wrap:wrap}
 }
