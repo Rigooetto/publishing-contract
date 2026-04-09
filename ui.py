@@ -75,14 +75,13 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 }
 
 .sb-ico{
-  width:28px;
-  height:28px;
-  background:linear-gradient(135deg,var(--a),var(--ae));
-  border-radius:7px;
+  width:32px;
+  height:32px;
+  background:none;
+  border-radius:0;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:13px;
   flex-shrink:0;
   margin:0;
 }
