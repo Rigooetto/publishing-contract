@@ -381,10 +381,10 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 
 
 
-  /* Documents table: hide File(3), Generated(4), DocuSign(5), Certificate(7), Signed PDF(9) */
+  /* Documents table: hide File(3), Generated(4), DS Status(6), Certificate(7), Signed PDF(9) */
   .tbl-docs th:nth-child(3),.tbl-docs td:nth-child(3),
   .tbl-docs th:nth-child(4),.tbl-docs td:nth-child(4),
-  .tbl-docs th:nth-child(5),.tbl-docs td:nth-child(5),
+  .tbl-docs th:nth-child(6),.tbl-docs td:nth-child(6),
   .tbl-docs th:nth-child(7),.tbl-docs td:nth-child(7),
   .tbl-docs th:nth-child(9),.tbl-docs td:nth-child(9){display:none}
 
