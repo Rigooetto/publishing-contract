@@ -192,6 +192,15 @@ def _run_import(file_bytes):
         # IPI lookup takes priority
         if ipi and ipi in writer_ipi_cache:
             obj = writer_ipi_cache[ipi]
+            # Update any missing/blank fields from the CSV
+            if pro and not obj.pro:
+                obj.pro = pro
+            if first_name and not obj.first_name:
+                obj.first_name = first_name
+            if middle_name and not obj.middle_name:
+                obj.middle_name = middle_name
+            if last_names and not obj.last_names:
+                obj.last_names = last_names
             writer_cache[full_name.lower()] = obj
             return obj
         key = full_name.lower()

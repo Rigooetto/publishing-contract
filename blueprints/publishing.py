@@ -527,7 +527,10 @@ def works_list():
 
     q = (request.args.get("q") or "").strip()
     sort = (request.args.get("sort") or "newest").strip()
-    page = max(1, int(request.args.get("page") or 1))
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (ValueError, TypeError):
+        page = 1
     per_page = 50
 
     query = Work.query.options(
@@ -579,7 +582,10 @@ def batches_list():
 
     q    = (request.args.get("q") or "").strip()
     sort = (request.args.get("sort") or "newest").strip()
-    page = max(1, int(request.args.get("page") or 1))
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (ValueError, TypeError):
+        page = 1
     per_page = 50
 
     query = GenerationBatch.query
@@ -697,8 +703,15 @@ def generate_batch_documents(batch_id):
         db.session.delete(doc)
     db.session.flush()
 
+    # Snapshot which writers already had a master contract BEFORE this generation,
+    # so re-generating a session doesn't incorrectly flip the flag again.
+    writers_with_existing_master = {
+        ww.writer_id for ww in work_writers if ww.writer and ww.writer.has_master_contract
+    }
+
     zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+    try:
+      with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for writer_id, item in grouped.items():
             writer = item["writer"]
             rows = item["rows"]
@@ -790,11 +803,20 @@ def generate_batch_documents(batch_id):
             )
             db.session.add(doc_record)
 
-            if document_type == "full_contract":
+            # Only promote to master contract if they didn't already have one
+            # before this generation run (prevents re-generate from double-flipping)
+            if document_type == "full_contract" and writer_id not in writers_with_existing_master:
                 writer.has_master_contract = True
 
-    batch.status = "docs_generated"
-    db.session.commit()
+      batch.status = "docs_generated"
+      db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("GENERATE DOCS ERROR: %s", e)
+        current_app.logger.error(traceback.format_exc())
+        flash("Document generation failed: " + str(e))
+        return redirect(url_for(".batch_detail", batch_id=batch.id))
 
     zip_buffer.seek(0)
     return send_file(
@@ -847,35 +869,42 @@ def docusign_webhook():
             api_client = get_docusign_api_client()
             envelopes_api = EnvelopesApi(api_client)
 
-            signed_bytes = envelopes_api.get_document(
-                account_id=DOCUSIGN_ACCOUNT_ID,
-                envelope_id=document.docusign_envelope_id,
-                document_id="combined",
-            )
-            signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
-            signed_drive_info = upload_bytes_to_drive(
-                file_name=signed_file_name,
-                file_bytes=signed_bytes,
-                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
-                mime_type="application/pdf",
-            )
-            document.signed_pdf_drive_file_id = signed_drive_info.get("file_id")
-            document.signed_pdf_drive_web_view_link = signed_drive_info.get("web_view_link")
+            try:
+                signed_bytes = envelopes_api.get_document(
+                    account_id=DOCUSIGN_ACCOUNT_ID,
+                    envelope_id=document.docusign_envelope_id,
+                    document_id="combined",
+                )
+                signed_file_name = document.file_name.rsplit(".", 1)[0] + "_SIGNED.pdf"
+                signed_drive_info = upload_bytes_to_drive(
+                    file_name=signed_file_name,
+                    file_bytes=signed_bytes,
+                    parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                    mime_type="application/pdf",
+                )
+                document.signed_pdf_drive_file_id = signed_drive_info.get("file_id")
+                document.signed_pdf_drive_web_view_link = signed_drive_info.get("web_view_link")
+            except Exception as drive_err:
+                current_app.logger.error("DocuSign webhook: signed PDF upload failed: %s", drive_err)
 
-            certificate_bytes = envelopes_api.get_document(
-                account_id=DOCUSIGN_ACCOUNT_ID,
-                envelope_id=document.docusign_envelope_id,
-                document_id="certificate",
-            )
-            certificate_file_name = document.file_name.rsplit(".", 1)[0] + "_CERTIFICATE.pdf"
-            certificate_drive_info = upload_bytes_to_drive(
-                file_name=certificate_file_name,
-                file_bytes=certificate_bytes,
-                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
-                mime_type="application/pdf",
-            )
-            document.certificate_drive_file_id = certificate_drive_info.get("file_id")
-            document.certificate_drive_web_view_link = certificate_drive_info.get("web_view_link")
+            try:
+                certificate_bytes = envelopes_api.get_document(
+                    account_id=DOCUSIGN_ACCOUNT_ID,
+                    envelope_id=document.docusign_envelope_id,
+                    document_id="certificate",
+                )
+                certificate_file_name = document.file_name.rsplit(".", 1)[0] + "_CERTIFICATE.pdf"
+                certificate_drive_info = upload_bytes_to_drive(
+                    file_name=certificate_file_name,
+                    file_bytes=certificate_bytes,
+                    parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                    mime_type="application/pdf",
+                )
+                document.certificate_drive_file_id = certificate_drive_info.get("file_id")
+                document.certificate_drive_web_view_link = certificate_drive_info.get("web_view_link")
+            except Exception as cert_err:
+                current_app.logger.error("DocuSign webhook: certificate upload failed: %s", cert_err)
+
             document.completed_at = datetime.datetime.utcnow()
             document.status = "signed"
 
@@ -1031,7 +1060,14 @@ def upload_signed_document(document_id):
     else:
         document.batch.status = "signed_partial"
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("upload_signed_document commit error: %s", e)
+        flash("Error saving document status. Please try again.")
+        return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+
     flash("Signed file uploaded successfully.")
     return redirect(url_for(".batch_detail", batch_id=document.batch_id))
 
@@ -1041,7 +1077,10 @@ def writers_list():
         return redirect(url_for(".login"))
 
     q = (request.args.get("q") or "").strip()
-    page = max(1, int(request.args.get("page") or 1))
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (ValueError, TypeError):
+        page = 1
     writers, pagination = get_writer_directory_rows(q, page=page)
     return render_template_string(
         WRITERS_LIST_HTML,

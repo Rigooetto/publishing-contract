@@ -40,7 +40,10 @@ def artists_list():
     else:
         query = query.order_by(Artist.created_at.desc())
 
-    page = max(1, int(request.args.get("page") or 1))
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (ValueError, TypeError):
+        page = 1
     per_page = 50
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
