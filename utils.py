@@ -159,7 +159,10 @@ def auth_required():
 def find_existing_writer(selected_writer_id):
     from models import Writer
     if selected_writer_id:
-        writer = Writer.query.get(int(selected_writer_id))
+        try:
+            writer = Writer.query.get(int(selected_writer_id))
+        except (ValueError, TypeError):
+            return None
         if writer:
             return writer
     return None

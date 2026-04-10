@@ -405,75 +405,86 @@ def formulario():
         db.session.add(work)
         db.session.flush()
 
-        for row in writer_rows:
-            writer = find_existing_writer(row["selected_writer_id"])
+        try:
+            for row in writer_rows:
+                writer = find_existing_writer(row["selected_writer_id"])
 
-            if not writer and row["ipi"]:
-                writer = Writer.query.filter(
-                    func.lower(Writer.ipi) == row["ipi"].lower()
-                ).first()
-
-            if not writer and row["full_name"]:
-                writer = Writer.query.filter(
-                    func.lower(Writer.full_name) == row["full_name"].lower()
-                ).first()
-
-            if writer:
-                writer.first_name = row["first_name"] or writer.first_name
-                writer.middle_name = row["middle_name"] or writer.middle_name
-                writer.last_names = row["last_names"] or writer.last_names
-                # Only update full_name if it doesn't conflict with another writer
-                new_full_name = row["full_name"]
-                if new_full_name and new_full_name.lower() != writer.full_name.lower():
-                    conflict = Writer.query.filter(
-                        func.lower(Writer.full_name) == new_full_name.lower(),
-                        Writer.id != writer.id
+                # IPI match takes priority; only fall back to name if no IPI match found
+                if not writer and row["ipi"]:
+                    writer = Writer.query.filter(
+                        func.lower(Writer.ipi) == row["ipi"].lower()
                     ).first()
-                    if not conflict:
-                        writer.full_name = new_full_name
-                writer.writer_aka = row["writer_aka"] or writer.writer_aka
-                writer.ipi = row["ipi"] or writer.ipi
-                writer.email = row["email"] or writer.email
-                writer.phone_number = row["phone_number"] or writer.phone_number
-                writer.pro = row["pro"] or writer.pro
-                writer.address = row["address"] or writer.address
-                writer.city = row["city"] or writer.city
-                writer.state = row["state"] or writer.state
-                writer.zip_code = row["zip_code"] or writer.zip_code
-            else:
-                writer = Writer(
-                    first_name=row["first_name"],
-                    middle_name=row["middle_name"],
-                    last_names=row["last_names"],
-                    full_name=row["full_name"],
-                    writer_aka=row["writer_aka"],
-                    ipi=row["ipi"] or None,
-                    email=row["email"],
-                    phone_number=row["phone_number"],
-                    pro=row["pro"],
-                    address=row["address"],
-                    city=row["city"],
-                    state=row["state"],
-                    zip_code=row["zip_code"],
-                    has_master_contract=False,
+
+                if not writer and row["full_name"]:
+                    writer = Writer.query.filter(
+                        func.lower(Writer.full_name) == row["full_name"].lower()
+                    ).first()
+
+                if writer:
+                    writer.first_name = row["first_name"] or writer.first_name
+                    writer.middle_name = row["middle_name"] or writer.middle_name
+                    writer.last_names = row["last_names"] or writer.last_names
+                    # Only update full_name if it doesn't conflict with another writer
+                    new_full_name = row["full_name"]
+                    if new_full_name and new_full_name.lower() != writer.full_name.lower():
+                        conflict = Writer.query.filter(
+                            func.lower(Writer.full_name) == new_full_name.lower(),
+                            Writer.id != writer.id
+                        ).first()
+                        if not conflict:
+                            writer.full_name = new_full_name
+                    writer.writer_aka = row["writer_aka"] or writer.writer_aka
+                    writer.ipi = row["ipi"] or writer.ipi
+                    writer.email = row["email"] or writer.email
+                    writer.phone_number = row["phone_number"] or writer.phone_number
+                    writer.pro = row["pro"] or writer.pro
+                    writer.address = row["address"] or writer.address
+                    writer.city = row["city"] or writer.city
+                    writer.state = row["state"] or writer.state
+                    writer.zip_code = row["zip_code"] or writer.zip_code
+                else:
+                    writer = Writer(
+                        first_name=row["first_name"],
+                        middle_name=row["middle_name"],
+                        last_names=row["last_names"],
+                        full_name=row["full_name"],
+                        writer_aka=row["writer_aka"],
+                        ipi=row["ipi"] or None,
+                        email=row["email"],
+                        phone_number=row["phone_number"],
+                        pro=row["pro"],
+                        address=row["address"],
+                        city=row["city"],
+                        state=row["state"],
+                        zip_code=row["zip_code"],
+                        has_master_contract=False,
+                    )
+                    db.session.add(writer)
+                    db.session.flush()
+
+                work_writer = WorkWriter(
+                    work_id=work.id,
+                    writer_id=writer.id,
+                    writer_percentage=row["writer_percentage"],
+                    publisher=row["publisher"],
+                    publisher_ipi=row["publisher_ipi"],
+                    publisher_address=row["publisher_address"],
+                    publisher_city=row["publisher_city"],
+                    publisher_state=row["publisher_state"],
+                    publisher_zip_code=row["publisher_zip_code"],
                 )
-                db.session.add(writer)
-                db.session.flush()
+                db.session.add(work_writer)
 
-            work_writer = WorkWriter(
-                work_id=work.id,
-                writer_id=writer.id,
-                writer_percentage=row["writer_percentage"],
-                publisher=row["publisher"],
-                publisher_ipi=row["publisher_ipi"],
-                publisher_address=row["publisher_address"],
-                publisher_city=row["publisher_city"],
-                publisher_state=row["publisher_state"],
-                publisher_zip_code=row["publisher_zip_code"],
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error("Error saving work: %s", e)
+            flash("An error occurred while saving the work. Please try again.")
+            return render_template_string(
+                FORM_HTML,
+                **collect_form_context(),
+                **collect_submitted_form_data()
             )
-            db.session.add(work_writer)
-
-        db.session.commit()
 
         is_modal = request.form.get("_modal") == "1"
         if is_modal:
@@ -484,8 +495,11 @@ def formulario():
             script = (
                 "<script>"
                 "window.parent.onWorkCreated("
-                f"{work.id}, {work.title!r}, {writers_str!r}, {batch_url!r}"
-                ");"
+                + str(work.id) + ", "
+                + json.dumps(work.title) + ", "
+                + json.dumps(writers_str) + ", "
+                + json.dumps(batch_url)
+                + ");"
                 "</script>"
             )
             return make_response(script)
@@ -1320,7 +1334,13 @@ def work_edit(work_id):
                 )
                 db.session.add(ww)
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error("Error updating work: %s", e)
+            flash("An error occurred while saving. Please try again.")
+            return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
         flash("Work updated successfully.")
         return redirect(url_for(".work_detail", work_id=work.id))
 
