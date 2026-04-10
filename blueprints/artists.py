@@ -71,10 +71,15 @@ def artist_detail(artist_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
     import json
+    from models import ArtistRelease
     artist = Artist.query.get_or_404(artist_id)
-    releases = Release.query.filter(
-        Release.artists.ilike(f"%{artist.name}%")
-    ).order_by(Release.release_date.desc()).all()
+    releases = (
+        Release.query
+        .join(ArtistRelease, ArtistRelease.release_id == Release.id)
+        .filter(ArtistRelease.artist_id == artist.id)
+        .order_by(Release.release_date.desc())
+        .all()
+    )
     for r in releases:
         r.artists_list = json.loads(r.artists) if r.artists else []
         r.artist_display = ", ".join(r.artists_list)

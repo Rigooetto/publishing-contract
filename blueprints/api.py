@@ -1,6 +1,6 @@
 import datetime
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func, or_
 
 from extensions import db
@@ -169,7 +169,12 @@ def writer_modal_save(writer_id):
         WorkWriter.publisher: default_publisher,
         WorkWriter.publisher_ipi: default_publisher_ipi
     })
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("writer_modal_save error: %s", e)
+        return jsonify({"ok": False, "error": "An error occurred while saving. Please try again."})
 
     return jsonify({
         "ok": True,
@@ -196,7 +201,7 @@ def works_search():
     return jsonify([{
         "id": w.id,
         "title": w.title,
-        "writers": ", ".join(ww.writer.full_name for ww in w.work_writers)
+        "writers": ", ".join(ww.writer.full_name for ww in w.work_writers if ww.writer)
     } for w in works])
 
 
@@ -284,7 +289,10 @@ def work_quick_create():
     # --- Session ---
     batch = None
     if existing_batch_id:
-        batch = GenerationBatch.query.get(int(existing_batch_id))
+        try:
+            batch = GenerationBatch.query.get(int(existing_batch_id))
+        except (ValueError, TypeError):
+            return jsonify({"ok": False, "error": "Invalid session ID."})
         if not batch:
             return jsonify({"ok": False, "error": "Session not found."})
         if not contract_date:
@@ -331,64 +339,92 @@ def work_quick_create():
     states         = f.getlist("writer_state")
     zip_codes      = f.getlist("writer_zip_code")
 
-    writer_names_saved = []
+    # Validate split total before touching the DB
+    total_split = 0.0
     for i, fn in enumerate(first_names):
         fn = fn.strip()
         ln = (last_names_l[i] if i < len(last_names_l) else "").strip()
         if not fn or not ln:
             continue
-        mn = (middle_names[i] if i < len(middle_names) else "").strip()
-        full_name = _bfn(fn, mn, ln)
-        ipi  = (ipis[i] if i < len(ipis) else "").strip()
-        pro  = (pros[i] if i < len(pros) else "").strip()
-        pct  = parse_float(percentages[i] if i < len(percentages) else "0")
+        try:
+            total_split += float((percentages[i] if i < len(percentages) else "0") or 0)
+        except ValueError:
+            pass
+    if first_names and abs(total_split - 100.0) >= 0.001:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": f"Writer splits must total 100%. Current total: {round(total_split, 2)}%"})
 
-        writer = find_existing_writer(writer_ids[i] if i < len(writer_ids) else "")
-        if not writer and ipi:
-            writer = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
-        if not writer and full_name:
-            writer = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
+    try:
+        writer_names_saved = []
+        for i, fn in enumerate(first_names):
+            fn = fn.strip()
+            ln = (last_names_l[i] if i < len(last_names_l) else "").strip()
+            if not fn or not ln:
+                continue
+            mn = (middle_names[i] if i < len(middle_names) else "").strip()
+            full_name = _bfn(fn, mn, ln)
+            ipi  = (ipis[i] if i < len(ipis) else "").strip()
+            pro  = (pros[i] if i < len(pros) else "").strip()
+            pct  = parse_float(percentages[i] if i < len(percentages) else "0")
 
-        if writer:
-            writer.first_name   = fn or writer.first_name
-            writer.middle_name  = mn or writer.middle_name
-            writer.last_names   = ln or writer.last_names
-            writer.full_name    = full_name or writer.full_name
-            writer.ipi          = ipi or writer.ipi
-            writer.email        = (emails[i] if i < len(emails) else "").strip() or writer.email
-            writer.pro          = pro or writer.pro
-        else:
-            writer = Writer(
-                first_name=fn, middle_name=mn, last_names=ln, full_name=full_name,
-                writer_aka=(writer_akas[i] if i < len(writer_akas) else "").strip(),
-                ipi=ipi or None,
-                email=(emails[i] if i < len(emails) else "").strip(),
-                phone_number=(phones[i] if i < len(phones) else "").strip(),
-                pro=pro,
-                address=(addresses[i] if i < len(addresses) else "").strip(),
-                city=(cities[i] if i < len(cities) else "").strip(),
-                state=(states[i] if i < len(states) else "").strip(),
-                zip_code=(zip_codes[i] if i < len(zip_codes) else "").strip(),
-                has_master_contract=False,
+            writer = find_existing_writer(writer_ids[i] if i < len(writer_ids) else "")
+            # IPI match takes priority; only fall back to name if no IPI match found
+            if not writer and ipi:
+                writer = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
+            if not writer and full_name:
+                writer = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
+
+            if writer:
+                writer.first_name  = fn or writer.first_name
+                writer.middle_name = mn or writer.middle_name
+                writer.last_names  = ln or writer.last_names
+                # Only update full_name if it doesn't conflict with another writer
+                if full_name and full_name.lower() != writer.full_name.lower():
+                    conflict = Writer.query.filter(
+                        func.lower(Writer.full_name) == full_name.lower(),
+                        Writer.id != writer.id
+                    ).first()
+                    if not conflict:
+                        writer.full_name = full_name
+                writer.ipi   = ipi or writer.ipi
+                writer.email = (emails[i] if i < len(emails) else "").strip() or writer.email
+                writer.pro   = pro or writer.pro
+            else:
+                writer = Writer(
+                    first_name=fn, middle_name=mn, last_names=ln, full_name=full_name,
+                    writer_aka=(writer_akas[i] if i < len(writer_akas) else "").strip(),
+                    ipi=ipi or None,
+                    email=(emails[i] if i < len(emails) else "").strip(),
+                    phone_number=(phones[i] if i < len(phones) else "").strip(),
+                    pro=pro,
+                    address=(addresses[i] if i < len(addresses) else "").strip(),
+                    city=(cities[i] if i < len(cities) else "").strip(),
+                    state=(states[i] if i < len(states) else "").strip(),
+                    zip_code=(zip_codes[i] if i < len(zip_codes) else "").strip(),
+                    has_master_contract=False,
+                )
+                db.session.add(writer)
+                db.session.flush()
+
+            ww = WorkWriter(
+                work_id=work.id,
+                writer_id=writer.id,
+                writer_percentage=pct,
+                publisher=(publishers[i] if i < len(publishers) else "").strip(),
+                publisher_ipi=(publisher_ipis[i] if i < len(publisher_ipis) else "").strip(),
+                publisher_address=(pub_addresses[i] if i < len(pub_addresses) else DEFAULT_PUBLISHER_ADDRESS).strip(),
+                publisher_city=(pub_cities[i] if i < len(pub_cities) else DEFAULT_PUBLISHER_CITY).strip(),
+                publisher_state=(pub_states[i] if i < len(pub_states) else DEFAULT_PUBLISHER_STATE).strip(),
+                publisher_zip_code=(pub_zips[i] if i < len(pub_zips) else DEFAULT_PUBLISHER_ZIP).strip(),
             )
-            db.session.add(writer)
-            db.session.flush()
+            db.session.add(ww)
+            writer_names_saved.append(full_name)
 
-        ww = WorkWriter(
-            work_id=work.id,
-            writer_id=writer.id,
-            writer_percentage=pct,
-            publisher=(publishers[i] if i < len(publishers) else "").strip(),
-            publisher_ipi=(publisher_ipis[i] if i < len(publisher_ipis) else "").strip(),
-            publisher_address=(pub_addresses[i] if i < len(pub_addresses) else DEFAULT_PUBLISHER_ADDRESS).strip(),
-            publisher_city=(pub_cities[i] if i < len(pub_cities) else DEFAULT_PUBLISHER_CITY).strip(),
-            publisher_state=(pub_states[i] if i < len(pub_states) else DEFAULT_PUBLISHER_STATE).strip(),
-            publisher_zip_code=(pub_zips[i] if i < len(pub_zips) else DEFAULT_PUBLISHER_ZIP).strip(),
-        )
-        db.session.add(ww)
-        writer_names_saved.append(full_name)
-
-    db.session.commit()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("work_quick_create error: %s", e)
+        return jsonify({"ok": False, "error": "An error occurred while saving. Please try again."})
 
     batch_url = f"/batches/{batch.id}" if batch else None
     return jsonify({
