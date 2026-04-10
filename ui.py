@@ -2244,6 +2244,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ work.title }} - LabelMind</title>""" + _STYLE + """
+<style>@media(max-width:767px){.ph-actions{display:none}}</style>
 </head>
 <body>
 <div class="app" id="mainApp">
@@ -2262,14 +2263,9 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
   <div class="ph-actions">
     <a href="/works/{{ work.id }}/edit" class="btn btn-primary btn-sm">Edit Work</a>
     {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec btn-sm">View Session</a>{% endif %}
-
-    <form method="post"
-          action="/works/{{ work.id }}/delete"
-          style="display:inline"
-          onsubmit="return confirm('Delete this work? This will remove its writer links and generated documents.');">
+    <form method="post" action="/works/{{ work.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this work? This will remove its writer links and generated documents.');">
       <button type="submit" class="btn btn-danger btn-sm">Delete Work</button>
     </form>
-
     <a href="/works" class="btn btn-sec btn-sm">Back</a>
   </div>
 </div>
@@ -2373,6 +2369,15 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
   });
 });
 </script>
+<div class="action-bar">
+  <a href="/works/{{ work.id }}/edit" class="btn btn-primary">Edit Work</a>
+  {% if work.batch_id %}<a href="/batches/{{ work.batch_id }}" class="btn btn-sec">View Session</a>{% endif %}
+  <form method="post" action="/works/{{ work.id }}/delete" style="display:contents" onsubmit="return confirm('Delete this work? This will remove its writer links and generated documents.');">
+    <button type="submit" class="btn btn-danger">Delete</button>
+  </form>
+  <div class="ab-space"></div>
+  <a href="/works" class="btn btn-sec">Back</a>
+</div>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
