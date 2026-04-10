@@ -1489,75 +1489,6 @@ def work_detail(work_id):
 )
 
 
-@bp.route("/admin/import-catalog", methods=["GET", "POST"])
-def admin_import_catalog():
-    if auth_required():
-        return redirect(url_for(".login"))
-
-    if request.method == "POST":
-        file = request.files.get("file")
-
-        if not file:
-            return "No file uploaded", 400
-
-        import csv, io
-
-        stream = io.StringIO(file.stream.read().decode("utf-8"))
-        reader = csv.DictReader(stream)
-
-        for row in reader:
-            # --- CREATE / FIND WORK ---
-            title = row["work_title"]
-            contract_date = datetime.datetime.strptime(row["contract_date"], "%Y-%m-%d").date()
-
-            work = Work.query.filter_by(title=title).first()
-            if not work:
-                work = Work(
-                    title=title,
-                    normalized_title=normalize_title(title),
-                    contract_date=contract_date
-                )
-                db.session.add(work)
-                db.session.flush()
-
-            # --- CREATE / FIND WRITER ---
-            writer = Writer.query.filter_by(ipi=row["ipi"]).first()
-            if not writer:
-                writer = Writer(
-                    first_name=row["first_name"],
-                    middle_name=row["middle_name"],
-                    last_names=row["last_names"],
-                    full_name=row["writer_full_name"],
-                    ipi=row["ipi"],
-                    pro=row["pro"],
-                    email=row["email"],
-                    default_publisher=row["publisher"],
-                    default_publisher_ipi=row["publisher_ipi"]
-                )
-                db.session.add(writer)
-                db.session.flush()
-
-            # --- CREATE WORK WRITER ---
-            ww = WorkWriter(
-                work_id=work.id,
-                writer_id=writer.id,
-                writer_percentage=float(row["writer_percentage"]),
-                publisher=row["publisher"],
-                publisher_ipi=row["publisher_ipi"]
-            )
-            db.session.add(ww)
-
-        db.session.commit()
-
-        return "Import successful ✅"
-
-    return """
-    <h2>Import Catalog CSV</h2>
-    <form method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".csv">
-        <button type="submit">Upload</button>
-    </form>
-    """
 @bp.route("/works/<int:work_id>/delete", methods=["POST"])
 def work_delete(work_id):
     if auth_required():
@@ -1576,8 +1507,14 @@ def work_delete(work_id):
     ).delete()
 
     work_title = work.title
-    db.session.delete(work)
-    db.session.commit()
+    try:
+        db.session.delete(work)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("work_delete error: %s", e)
+        flash("Error deleting work. Please try again.")
+        return redirect(url_for(".work_detail", work_id=work_id))
 
     flash(f'Work "{work_title}" deleted successfully.')
     return redirect(url_for(".works_list"))

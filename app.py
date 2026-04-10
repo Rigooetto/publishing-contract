@@ -12,7 +12,13 @@ from config import (
 # ── App factory ───────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "change-this-secret-key")
+_secret_key = os.getenv("SECRET_KEY")
+if not _secret_key:
+    import secrets
+    _secret_key = secrets.token_hex(32)
+    import logging
+    logging.warning("SECRET_KEY env var not set — using a random key. Sessions will not persist across restarts.")
+app.secret_key = _secret_key
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
 raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
