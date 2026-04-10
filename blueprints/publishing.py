@@ -19,7 +19,7 @@ from sqlalchemy.orm import joinedload
 from babel.dates import format_date
 from docusign_esign import (
     EnvelopesApi, EnvelopeDefinition, Document as DocusignDocument,
-    Signer, SignHere, Tabs, Recipients
+    Signer, SignHere, InitialHere, Tabs, Recipients
 )
 
 from extensions import db
@@ -972,7 +972,13 @@ def send_document_docusign(document_id):
             anchor_x_offset="0",
             anchor_y_offset="0",
         )
-        signer.tabs = Tabs(sign_here_tabs=[sign_here])
+        initial_here = InitialHere(
+            anchor_string="[[DS_INITIAL_HERE]]",
+            anchor_units="pixels",
+            anchor_x_offset="0",
+            anchor_y_offset="0",
+        )
+        signer.tabs = Tabs(sign_here_tabs=[sign_here], initial_here_tabs=[initial_here])
 
         webhook_url = request.url_root.rstrip("/") + url_for(".docusign_webhook")
         event_notification = {
