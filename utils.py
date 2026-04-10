@@ -39,6 +39,16 @@ def parse_float(value):
         return 0.0
 
 
+def safe_json_loads(value, fallback=None):
+    """Parse a JSON string, returning fallback (default []) on any error."""
+    if fallback is None:
+        fallback = []
+    try:
+        return json.loads(value) if value else fallback
+    except (ValueError, TypeError):
+        return fallback
+
+
 def build_full_name(first_name, middle_name, last_names):
     return " ".join(
         part.strip() for part in [first_name, middle_name, last_names] if part and part.strip()

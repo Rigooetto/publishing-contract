@@ -36,7 +36,7 @@ TRACK_ARTIST_COLS = [
 # Composers 1–6 have split name columns; 7–8 have full name only.
 COMPOSER_COLS = [
     # (full_name_col, first_name_col, middle_name_col, last_name_col, ipi_col, split_col, pro_col)
-    ("Composer 1", "Composer 1 First Name", "Composer 1 Middle Name", "Composer 1 Last Name", "Composer 1 IPI/CAE#", "Comp 1 Split %", "omp PRO"),
+    ("Composer 1", "Composer 1 First Name", "Composer 1 Middle Name", "Composer 1 Last Name", "Composer 1 IPI/CAE#", "Comp 1 Split %", "Comp 1 PRO"),
     ("Composer 2", "Composer 2 First Name", "Composer 2 Middle Name", "Composer 2 Last Name", "Composer 2 IPI/CAE#", "Comp 2 Split %", "Comp 2 PRO"),
     ("Composer 3", "Composer 3 First Name", "Composer 3 Middle Name", "Composer 3 Last Name", "Composer 3 IPI/CAE#", "Comp 3 Split %", "Comp 3 PRO"),
     ("Composer 4", "Composer 4 First Name", "Composer 4 Middle Name", "Composer 4 Last Name", "Composer 4 IPI/CAE#", "Comp 4 Split %", "Comp 4 PRO"),

@@ -6,7 +6,7 @@ from sqlalchemy import func, or_
 
 from extensions import db
 from models import Artist, Release
-from utils import auth_required
+from utils import auth_required, safe_json_loads
 from ui import ARTISTS_LIST_HTML, ARTIST_DETAIL_HTML, ARTIST_FORM_HTML
 
 bp = Blueprint("artists", __name__)
@@ -47,14 +47,13 @@ def artists_list():
     per_page = 50
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    import json
     artists = pagination.items
     for a in artists:
         rels = a.releases.order_by(Release.release_date.desc()).all()
         a.releases_list = rels
         a.release_count = len(rels)
         for r in a.releases_list:
-            r.artists_list = json.loads(r.artists) if r.artists else []
+            r.artists_list = safe_json_loads(r.artists)
             r.artist_display = ", ".join(r.artists_list[:2])
 
     return render_template_string(ARTISTS_LIST_HTML, artists=artists, q=q, sort=sort, pagination=pagination)
@@ -73,7 +72,6 @@ def artist_new():
 def artist_detail(artist_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
-    import json
     from models import ArtistRelease
     artist = Artist.query.get_or_404(artist_id)
     releases = (
@@ -84,7 +82,7 @@ def artist_detail(artist_id):
         .all()
     )
     for r in releases:
-        r.artists_list = json.loads(r.artists) if r.artists else []
+        r.artists_list = safe_json_loads(r.artists)
         r.artist_display = ", ".join(r.artists_list)
     return render_template_string(ARTIST_DETAIL_HTML, artist=artist, releases=releases)
 
@@ -104,8 +102,14 @@ def artist_delete(artist_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
     artist = Artist.query.get_or_404(artist_id)
-    db.session.delete(artist)
-    db.session.commit()
+    try:
+        db.session.delete(artist)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("artist_delete error: %s", e)
+        flash("Error deleting artist.")
+        return redirect(url_for("artists.artist_detail", artist_id=artist_id))
     flash("Artist deleted.")
     return redirect(url_for("artists.artists_list"))
 

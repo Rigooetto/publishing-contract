@@ -8,7 +8,7 @@ from sqlalchemy import func as _func
 
 from extensions import db
 from models import Release, Track, TrackWork, GenerationBatch, Artist, ArtistRelease
-from utils import auth_required
+from utils import auth_required, safe_json_loads
 from ui import RELEASES_LIST_HTML, RELEASE_FORM_HTML, RELEASE_DETAIL_HTML
 
 bp = Blueprint("releases", __name__)
@@ -69,10 +69,10 @@ def releases_list():
 
     releases = pagination.items
     for r in releases:
-        r.artists_list = json.loads(r.artists) if r.artists else []
+        r.artists_list = safe_json_loads(r.artists)
         r.artist_display = ", ".join(r.artists_list[:3]) + (" +" + str(len(r.artists_list)-3) + " more" if len(r.artists_list) > 3 else "")
         for t in r.tracks:
-            t.artists_list = json.loads(t.artists) if t.artists else []
+            t.artists_list = safe_json_loads(t.artists)
     return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort, pagination=pagination)
 
 
@@ -93,10 +93,10 @@ def release_edit(release_id):
     r = Release.query.get_or_404(release_id)
     if request.method == "POST":
         return _save_release(r)
-    artists = json.loads(r.artists) if r.artists else []
+    artists = safe_json_loads(r.artists)
     tracks = r.tracks
     for t in tracks:
-        t.artists_list = json.loads(t.artists) if t.artists else []
+        t.artists_list = safe_json_loads(t.artists)
     batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
     return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artists=artists, batches=batches)
 
@@ -106,10 +106,10 @@ def release_detail(release_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
     r = Release.query.get_or_404(release_id)
-    r.artists_list = json.loads(r.artists) if r.artists else []
+    r.artists_list = safe_json_loads(r.artists)
     r.artist_display = ", ".join(r.artists_list)
     for t in r.tracks:
-        t.artists_list = json.loads(t.artists) if t.artists else []
+        t.artists_list = safe_json_loads(t.artists)
         t.artist_display = ", ".join(t.artists_list[:2])
     return render_template_string(RELEASE_DETAIL_HTML, release=r)
 
@@ -119,8 +119,14 @@ def release_delete(release_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
     r = Release.query.get_or_404(release_id)
-    db.session.delete(r)
-    db.session.commit()
+    try:
+        db.session.delete(r)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("release_delete error: %s", e)
+        flash("Error deleting release: " + str(e))
+        return redirect(url_for("releases.release_detail", release_id=release_id))
     flash("Release deleted.")
     return redirect(url_for("releases.releases_list"))
 
@@ -174,7 +180,10 @@ def _save_release(existing):
                 continue
             tid = track_ids[i] if i < len(track_ids) else ""
             if tid:
-                t = Track.query.get(int(tid))
+                try:
+                    t = Track.query.get(int(tid))
+                except (ValueError, TypeError):
+                    t = None
                 if not t:
                     t = Track(release_id=r.id)
                     db.session.add(t)
@@ -183,7 +192,10 @@ def _save_release(existing):
                 db.session.add(t)
 
             t.primary_title = pt.strip()
-            t.track_number = int(track_numbers[i]) if i < len(track_numbers) and track_numbers[i].strip() else None
+            try:
+                t.track_number = int(track_numbers[i]) if i < len(track_numbers) and track_numbers[i].strip() else None
+            except (ValueError, TypeError):
+                t.track_number = None
             t.duration = durations[i].strip() if i < len(durations) else ""
             t.isrc = isrcs[i].strip() or None if i < len(isrcs) else None
             t.recording_title = recording_titles[i].strip() if i < len(recording_titles) else ""
@@ -217,7 +229,11 @@ def _save_release(existing):
             wnotes = form.getlist(notes_key)
             for wi, wid in enumerate(wids):
                 if wid:
-                    tw = TrackWork(track_id=t.id, work_id=int(wid), notes=wnotes[wi] if wi < len(wnotes) else "")
+                    try:
+                        work_id = int(wid)
+                    except (ValueError, TypeError):
+                        continue
+                    tw = TrackWork(track_id=t.id, work_id=work_id, notes=wnotes[wi] if wi < len(wnotes) else "")
                     db.session.add(tw)
 
             kept_track_ids.add(t.id)

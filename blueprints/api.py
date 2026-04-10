@@ -4,10 +4,9 @@ from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func, or_
 
 from extensions import db
-import json as _json
 
 from models import Writer, Work, WorkWriter, Release, Track
-from utils import auth_required, default_publisher_for_pro, default_publisher_ipi_for_pro, build_full_name, normalize_title, build_session_name
+from utils import auth_required, default_publisher_for_pro, default_publisher_ipi_for_pro, build_full_name, normalize_title, build_session_name, safe_json_loads
 from ui import WRITER_MODAL_HTML
 
 bp = Blueprint("api", __name__)
@@ -217,12 +216,12 @@ def artists_search():
     seen = set()
     results = []
     for row in Release.query.filter(Release.artists.ilike(like_q)).limit(50).all():
-        for name in (_json.loads(row.artists) if row.artists else []):
+        for name in (safe_json_loads(row.artists)):
             if q.lower() in name.lower() and name not in seen:
                 seen.add(name)
                 results.append(name)
     for row in Track.query.filter(Track.artists.ilike(like_q)).limit(50).all():
-        for name in (_json.loads(row.artists) if row.artists else []):
+        for name in (safe_json_loads(row.artists)):
             if q.lower() in name.lower() and name not in seen:
                 seen.add(name)
                 results.append(name)
@@ -256,7 +255,7 @@ def tracks_search():
         "executive_producer": t.executive_producer or "",
         "track_label":        t.track_label or "",
         "track_p_line":       t.track_p_line or "",
-        "artists":            _json.loads(t.artists) if t.artists else [],
+        "artists":            safe_json_loads(t.artists),
     } for t in tracks])
 
 

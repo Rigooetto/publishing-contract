@@ -367,7 +367,10 @@ def formulario():
         new_session_name = (request.form.get("new_session_name") or "").strip()
 
         if existing_batch_id:
-            batch = GenerationBatch.query.get(int(existing_batch_id))
+            try:
+                batch = GenerationBatch.query.get(int(existing_batch_id))
+            except (ValueError, TypeError):
+                batch = None
             if not batch:
                 flash("Selected session was not found.")
                 return render_template_string(
