@@ -380,12 +380,15 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 
 
 
-  /* Documents table: hide File(3), Generated(4), DS Status(6), Certificate(7), Signed PDF(9) */
-  .tbl-docs th:nth-child(3),.tbl-docs td:nth-child(3),
-  .tbl-docs th:nth-child(4),.tbl-docs td:nth-child(4),
-  .tbl-docs th:nth-child(6),.tbl-docs td:nth-child(6),
-  .tbl-docs th:nth-child(7),.tbl-docs td:nth-child(7),
-  .tbl-docs th:nth-child(9),.tbl-docs td:nth-child(9){display:none}
+  /* Documents table — stacked card layout on mobile */
+  .tbl-docs{display:block;width:100%}
+  .tbl-docs thead{display:none}
+  .tbl-docs tbody{display:block}
+  .tbl-docs tr{display:block;background:var(--bg3);border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;border:1px solid var(--b0)}
+  .tbl-docs td{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-bottom:1px solid var(--b1);gap:8px}
+  .tbl-docs td:last-child{border-bottom:none}
+  .tbl-docs td::before{content:attr(data-label);color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;white-space:nowrap}
+  .tbl-docs td[data-hide-mobile]{display:none}
 
   /* View Work - writers: hide AKA(2), IPI(3), Publisher(6), Pub IPI(7) */
   .tbl-work-writers th:nth-child(2),.tbl-work-writers td:nth-child(2),
@@ -414,10 +417,9 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .tbl-batch-writers th:nth-child(6),.tbl-batch-writers td:nth-child(6){display:none}
 
   /* Prevent sideways scroll on session page tables */
-  .tbl-batch-works,.tbl-batch-writers,.tbl-docs{table-layout:fixed}
+  .tbl-batch-works,.tbl-batch-writers{table-layout:fixed}
   .tbl-batch-works td,.tbl-batch-works th,
-  .tbl-batch-writers td,.tbl-batch-writers th,
-  .tbl-docs td,.tbl-docs th{white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+  .tbl-batch-writers td,.tbl-batch-writers th{white-space:normal;word-break:break-word;overflow-wrap:anywhere}
   .tbl-wrap{overflow-x:visible}
 
   .ph-actions{flex-wrap:wrap}
@@ -2053,17 +2055,17 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
       <tbody id="generatedDocumentsBody">
         {% for doc in documents %}
         <tr data-doc-id="{{ doc.id }}">
-          <td style="font-weight:600;white-space:nowrap">{{ doc.writer_name_snapshot }}</td>
-          <td><span class="tag tag-full">{{ doc.document_type }}</span></td>
-          <td>
+          <td data-label="Writer" style="font-weight:600">{{ doc.writer_name_snapshot }}</td>
+          <td data-label="Type"><span class="tag tag-full">{{ doc.document_type }}</span></td>
+          <td data-label="File" data-hide-mobile>
             {% if doc.drive_web_view_link %}
               <a href="{{ doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ doc.file_name }}">&#128196; {{ doc.file_name | truncate(30,true,'...') }}</a>
             {% else %}
               <span class="file-link-plain">{{ doc.file_name }}</span>
             {% endif %}
           </td>
-          <td style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d %H:%M') if doc.generated_at else '--' }}</td>
-          <td>
+          <td data-label="Generated" data-hide-mobile style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d %H:%M') if doc.generated_at else '--' }}</td>
+          <td data-label="DocuSign">
             <form method="post" action="/documents/{{ doc.id }}/send-docusign" class="ds-form">
               <button type="submit" class="btn btn-sec btn-xs ds-btn">
                 <span class="ds-lbl">{% if doc.docusign_status == 'completed' %}Resend{% elif doc.docusign_status == 'sent' %}Sent{% elif doc.docusign_status == 'delivered' %}Delivered{% else %}Send{% endif %}</span>
@@ -2071,20 +2073,20 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
               </button>
             </form>
           </td>
-          <td>{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}--{% endif %}</td>
-          <td>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert</a>{% else %}--{% endif %}</td>
-          <td>
+          <td data-label="DS Status">{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}--{% endif %}</td>
+          <td data-label="Certificate" data-hide-mobile>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert</a>{% else %}--{% endif %}</td>
+          <td data-label="Upload Signed">
             <form method="post" action="/documents/{{ doc.id }}/upload-signed" enctype="multipart/form-data" class="upl-form">
               <input type="file" name="signed_file" class="upl-inp" required>
               <button type="submit" class="btn btn-success btn-xs">Upload</button>
             </form>
           </td>
-          <td>
+          <td data-label="Signed PDF">
             {% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
             {% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
             {% else %}--{% endif %}
           </td>
-          <td>{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}--{% endif %}</td>
+          <td data-label="Status">{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}--{% endif %}</td>
         </tr>
         {% endfor %}
         {% if not documents %}<tr class="empty"><td colspan="10">No documents generated yet. Click Generate Docs above.</td></tr>{% endif %}
@@ -2153,16 +2155,16 @@ function updateDocs(data) {
       ? '<a href="' + doc.certificate_drive_web_view_link + '" target="_blank" class="btn btn-sec btn-xs">Cert</a>'
       : '--';
     return '<tr data-doc-id="' + doc.id + '">'
-      + '<td style="font-weight:600;white-space:nowrap">' + esc(doc.writer_name_snapshot) + '</td>'
-      + '<td><span class="tag tag-full">' + esc(doc.document_type) + '</span></td>'
-      + '<td>' + renderFileCell(doc) + '</td>'
-      + '<td style="color:var(--t3);font-size:11.5px">' + (doc.generated_at || '--') + '</td>'
-      + '<td>' + renderDsBtn(doc) + '</td>'
-      + '<td>' + renderStatus(doc.docusign_status, 's-') + '</td>'
-      + '<td>' + certCell + '</td>'
-      + '<td><form method="post" action="/documents/' + doc.id + '/upload-signed" enctype="multipart/form-data" class="upl-form"><input type="file" name="signed_file" class="upl-inp" required><button type="submit" class="btn btn-success btn-xs">Upload</button></form></td>'
-      + '<td>' + signedCell + '</td>'
-      + '<td>' + renderStatus(doc.status, 's-') + '</td>'
+      + '<td data-label="Writer" style="font-weight:600">' + esc(doc.writer_name_snapshot) + '</td>'
+      + '<td data-label="Type"><span class="tag tag-full">' + esc(doc.document_type) + '</span></td>'
+      + '<td data-label="File" data-hide-mobile>' + renderFileCell(doc) + '</td>'
+      + '<td data-label="Generated" data-hide-mobile style="color:var(--t3);font-size:11.5px">' + (doc.generated_at || '--') + '</td>'
+      + '<td data-label="DocuSign">' + renderDsBtn(doc) + '</td>'
+      + '<td data-label="DS Status">' + renderStatus(doc.docusign_status, 's-') + '</td>'
+      + '<td data-label="Certificate" data-hide-mobile>' + certCell + '</td>'
+      + '<td data-label="Upload Signed"><form method="post" action="/documents/' + doc.id + '/upload-signed" enctype="multipart/form-data" class="upl-form"><input type="file" name="signed_file" class="upl-inp" required><button type="submit" class="btn btn-success btn-xs">Upload</button></form></td>'
+      + '<td data-label="Signed PDF">' + signedCell + '</td>'
+      + '<td data-label="Status">' + renderStatus(doc.status, 's-') + '</td>'
       + '</tr>';
   }).join('');
   bindDs();
@@ -2320,17 +2322,17 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
       <tbody>
         {% for doc in documents %}
         <tr data-doc-id="{{ doc.id }}">
-          <td style="font-weight:600;white-space:nowrap">{{ doc.writer_name_snapshot }}</td>
-          <td><span class="tag tag-full">{{ doc.document_type }}</span></td>
-          <td>
+          <td data-label="Writer" style="font-weight:600">{{ doc.writer_name_snapshot }}</td>
+          <td data-label="Type"><span class="tag tag-full">{{ doc.document_type }}</span></td>
+          <td data-label="File" data-hide-mobile>
             {% if doc.drive_web_view_link %}
               <a href="{{ doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ doc.file_name }}">&#128196; {{ doc.file_name | truncate(30,true,'...') }}</a>
             {% else %}
               <span class="file-link-plain">{{ doc.file_name }}</span>
             {% endif %}
           </td>
-          <td style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d, %Y') if doc.generated_at else '--' }}</td>
-          <td>
+          <td data-label="Generated" data-hide-mobile style="color:var(--t3);font-size:11.5px">{{ doc.generated_at.strftime('%b %d, %Y') if doc.generated_at else '--' }}</td>
+          <td data-label="DocuSign">
             <form method="post" action="/documents/{{ doc.id }}/send-docusign" class="ds-form">
               <button type="submit" class="btn btn-sec btn-xs ds-btn">
                 <span class="ds-lbl">{% if doc.docusign_status == 'completed' %}Resend{% elif doc.docusign_status == 'sent' %}Sent{% elif doc.docusign_status == 'delivered' %}Delivered{% else %}Send{% endif %}</span>
@@ -2338,14 +2340,14 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
               </button>
             </form>
           </td>
-          <td>{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}--{% endif %}</td>
-          <td>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert</a>{% else %}--{% endif %}</td>
-          <td>
+          <td data-label="DS Status">{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}--{% endif %}</td>
+          <td data-label="Certificate" data-hide-mobile>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert</a>{% else %}--{% endif %}</td>
+          <td data-label="Signed PDF">
             {% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
             {% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
             {% else %}--{% endif %}
           </td>
-          <td>{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}--{% endif %}</td>
+          <td data-label="Status">{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}--{% endif %}</td>
         </tr>
         {% endfor %}
         {% if not documents %}<tr class="empty"><td colspan="9">No documents generated yet.</td></tr>{% endif %}
