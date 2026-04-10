@@ -3996,8 +3996,9 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
         </div>
         <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
       </div>
-      <div id="cover-badge-{{ t.id }}" style="{% if not t.is_cover %}display:none;{% endif %}margin-top:8px">
-        <span class="tag" style="background:var(--bg3);color:var(--t2);font-size:12px">Cover — no publishing required</span>
+      <div id="cover-writers-{{ t.id }}" style="{% if not t.is_cover %}display:none;{% endif %}margin-top:8px">
+        <div class="wc-sec" style="margin-bottom:6px;font-size:12px;color:var(--t2)">Original Writers (Cover)</div>
+        <input class="inp" name="cover_writers[]" placeholder="e.g. John Lennon, Paul McCartney" value="{{ t.cover_writers or '' }}">
       </div>
     </div>
     <hr style="border:none;border-top:1px solid var(--b0);margin:20px 0">
@@ -4204,11 +4205,19 @@ function addTrack() {
   suggDiv.style.cssText = 'display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px';
   searchArea.appendChild(suggDiv);
   block.appendChild(searchArea);
-  var coverBadge = document.createElement('div');
-  coverBadge.id = 'cover-badge-new-' + idx;
-  coverBadge.style.cssText = 'display:none;margin-top:8px';
-  coverBadge.innerHTML = '<span class="tag" style="background:var(--bg3);color:var(--t2);font-size:12px">Cover \u2014 no publishing required</span>';
-  block.appendChild(coverBadge);
+  var coverWritersDiv = document.createElement('div');
+  coverWritersDiv.id = 'cover-writers-new-' + idx;
+  coverWritersDiv.style.cssText = 'display:none;margin-top:8px';
+  var cwLabel = document.createElement('div');
+  cwLabel.className = 'wc-sec';
+  cwLabel.style.cssText = 'margin-bottom:6px;font-size:12px;color:var(--t2)';
+  cwLabel.textContent = 'Original Writers (Cover)';
+  var cwInp = document.createElement('input');
+  cwInp.className = 'inp'; cwInp.name = 'cover_writers[]';
+  cwInp.placeholder = 'e.g. John Lennon, Paul McCartney';
+  coverWritersDiv.appendChild(cwLabel);
+  coverWritersDiv.appendChild(cwInp);
+  block.appendChild(coverWritersDiv);
 
   var hr = document.createElement('hr');
   hr.style.cssText = 'border:none;border-top:1px solid var(--b0);margin:18px 0';
@@ -4260,11 +4269,15 @@ function searchWorks(inp) {
         item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:13px';
         item.setAttribute('data-work-id', w.id);
         item.setAttribute('data-work-title', w.title);
+        item.setAttribute('data-work-writers', w.writers || '');
         item.setAttribute('data-track-id', trackId);
         item.innerHTML = '<span style="font-weight:600">' + w.title + '</span>'
           + '<span style="color:var(--t3);font-size:11px;margin-left:8px">' + (w.writers || '') + '</span>';
         item.addEventListener('click', function(){
-          linkWork(this, this.getAttribute('data-track-id'), this.getAttribute('data-work-id'), this.getAttribute('data-work-title'));
+          var wTitle = this.getAttribute('data-work-title');
+          var wWriters = this.getAttribute('data-work-writers');
+          var display = wTitle + (wWriters ? ' \u2014 ' + wWriters : '');
+          linkWork(this, this.getAttribute('data-track-id'), this.getAttribute('data-work-id'), display);
         });
         sugg.appendChild(item);
       });
@@ -4305,15 +4318,15 @@ function searchWorks(inp) {
 function toggleCoverMode(cb, trackId) {
   var linkedDiv = document.getElementById('linked-works-' + trackId);
   var searchArea = document.getElementById('work-search-area-' + trackId);
-  var badge = document.getElementById('cover-badge-' + trackId);
+  var coverWriters = document.getElementById('cover-writers-' + trackId);
   if (cb.checked) {
     if (linkedDiv) linkedDiv.style.display = 'none';
     if (searchArea) searchArea.style.display = 'none';
-    if (badge) badge.style.display = 'block';
+    if (coverWriters) coverWriters.style.display = 'block';
   } else {
     if (linkedDiv) linkedDiv.style.display = '';
     if (searchArea) searchArea.style.display = '';
-    if (badge) badge.style.display = 'none';
+    if (coverWriters) coverWriters.style.display = 'none';
   }
 }
 

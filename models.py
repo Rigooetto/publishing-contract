@@ -130,6 +130,7 @@ class Track(db.Model):
     producer = db.Column(db.String(255), default="")
     executive_producer = db.Column(db.String(255), default="")
     is_cover = db.Column(db.Boolean, default=False, nullable=True)
+    cover_writers = db.Column(db.Text, default="")             # free-text writers for cover tracks
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     track_works = db.relationship("TrackWork", backref="track", lazy=True, cascade="all, delete-orphan")
 

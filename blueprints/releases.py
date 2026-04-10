@@ -170,6 +170,7 @@ def _save_release(existing):
         recording_engineers = form.getlist("recording_engineer[]")
         executive_producers = form.getlist("executive_producer[]")
         is_covers = form.getlist("is_cover[]")
+        cover_writers_list = form.getlist("cover_writers[]")
 
         # flush to get release id for new records
         db.session.flush()
@@ -208,6 +209,7 @@ def _save_release(existing):
             t.recording_engineer = recording_engineers[i].strip() if i < len(recording_engineers) else ""
             t.executive_producer = executive_producers[i].strip() if i < len(executive_producers) else ""
             t.is_cover = (is_covers[i] == "1") if i < len(is_covers) else False
+            t.cover_writers = cover_writers_list[i].strip() if i < len(cover_writers_list) else ""
             rd = recording_dates[i].strip() if i < len(recording_dates) else ""
             t.recording_date = datetime.datetime.strptime(rd, "%Y-%m-%d").date() if rd else None
 
