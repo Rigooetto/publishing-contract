@@ -701,11 +701,6 @@ def generate_batch_documents(batch_id):
             grouped[ww.writer_id] = {"writer": ww.writer, "rows": []}
         grouped[ww.writer_id]["rows"].append(ww)
 
-    existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
-    for doc in existing_docs:
-        db.session.delete(doc)
-    db.session.flush()
-
     # Snapshot which writers already had a master contract BEFORE this generation,
     # so re-generating a session doesn't incorrectly flip the flag again.
     writers_with_existing_master = {
@@ -714,6 +709,11 @@ def generate_batch_documents(batch_id):
 
     zip_buffer = io.BytesIO()
     try:
+      existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
+      for doc in existing_docs:
+          db.session.delete(doc)
+      db.session.flush()
+
       with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for writer_id, item in grouped.items():
             writer = item["writer"]
@@ -1439,41 +1439,47 @@ def merge_writers():
     primary_pk   = primary.id
     duplicate_pk = duplicate.id
 
-    # Find work_ids the primary already owns — those duplicate links must be deleted
-    primary_work_ids = {
-        ww.work_id for ww in WorkWriter.query.filter_by(writer_id=primary_pk).all()
-    }
+    try:
+        # Find work_ids the primary already owns — those duplicate links must be deleted
+        primary_work_ids = {
+            ww.work_id for ww in WorkWriter.query.filter_by(writer_id=primary_pk).all()
+        }
 
-    # Delete conflicting WorkWriter rows (primary already covers that work)
-    if primary_work_ids:
-        WorkWriter.query.filter(
-            WorkWriter.writer_id == duplicate_pk,
-            WorkWriter.work_id.in_(primary_work_ids)
-        ).delete(synchronize_session="fetch")
+        # Delete conflicting WorkWriter rows (primary already covers that work)
+        if primary_work_ids:
+            WorkWriter.query.filter(
+                WorkWriter.writer_id == duplicate_pk,
+                WorkWriter.work_id.in_(primary_work_ids)
+            ).delete(synchronize_session="fetch")
 
-    # Repoint remaining WorkWriter rows directly — no ORM attribute assignment
-    WorkWriter.query.filter_by(writer_id=duplicate_pk).update(
-        {"writer_id": primary_pk}, synchronize_session="fetch"
-    )
+        # Repoint remaining WorkWriter rows directly — no ORM attribute assignment
+        WorkWriter.query.filter_by(writer_id=duplicate_pk).update(
+            {"writer_id": primary_pk}, synchronize_session="fetch"
+        )
 
-    # Repoint ContractDocument rows
-    ContractDocument.query.filter_by(writer_id=duplicate_pk).update(
-        {"writer_id": primary_pk}, synchronize_session="fetch"
-    )
+        # Repoint ContractDocument rows
+        ContractDocument.query.filter_by(writer_id=duplicate_pk).update(
+            {"writer_id": primary_pk}, synchronize_session="fetch"
+        )
 
-    # Push all FK changes to DB before the writer row is deleted
-    db.session.flush()
+        # Push all FK changes to DB before the writer row is deleted
+        db.session.flush()
 
-    # Fill any missing fields on primary from duplicate
-    for field in ("ipi", "email", "phone_number", "pro", "address",
-                  "city", "state", "zip_code", "default_publisher",
-                  "default_publisher_ipi", "first_name", "middle_name", "last_names"):
-        if not getattr(primary, field) and getattr(duplicate, field):
-            setattr(primary, field, getattr(duplicate, field))
+        # Fill any missing fields on primary from duplicate
+        for field in ("ipi", "email", "phone_number", "pro", "address",
+                      "city", "state", "zip_code", "default_publisher",
+                      "default_publisher_ipi", "first_name", "middle_name", "last_names"):
+            if not getattr(primary, field) and getattr(duplicate, field):
+                setattr(primary, field, getattr(duplicate, field))
 
-    dup_name = duplicate.full_name
-    db.session.delete(duplicate)
-    db.session.commit()
+        dup_name = duplicate.full_name
+        db.session.delete(duplicate)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("merge_writers error: %s", e)
+        flash("An error occurred during the merge. Please try again.")
+        return redirect(url_for(".admin_panel"))
 
     flash(f"Merged '{dup_name}' into '{primary.full_name}' successfully.")
     return redirect(url_for(".admin_panel"))
@@ -1502,19 +1508,14 @@ def work_delete(work_id):
         return redirect(url_for(".login"))
 
     work = Work.query.get_or_404(work_id)
-
-    # delete related documents first
-    ContractDocument.query.filter(
-        ContractDocument.work_id == work.id
-    ).delete(synchronize_session="fetch")
-
-    # delete related writer links
-    WorkWriter.query.filter(
-        WorkWriter.work_id == work.id
-    ).delete(synchronize_session="fetch")
-
     work_title = work.title
     try:
+        ContractDocument.query.filter(
+            ContractDocument.work_id == work.id
+        ).delete(synchronize_session="fetch")
+        WorkWriter.query.filter(
+            WorkWriter.work_id == work.id
+        ).delete(synchronize_session="fetch")
         db.session.delete(work)
         db.session.commit()
     except Exception as e:
