@@ -2171,10 +2171,27 @@ function updateDocs(data) {
   if (data.documents.length > 0) stopGenSpin();
 }
 
+var _pollTimer = null;
+var _terminalStatuses = ['completed','declined','voided'];
+
 function poll() {
   fetch('/batches/' + batchId + '/status-json', {cache: 'no-store'})
     .then(function(r) { if (r.ok) return r.json(); })
-    .then(function(d) { if (d) updateDocs(d); })
+    .then(function(d) {
+      if (!d) return;
+      updateDocs(d);
+      // stop polling once every doc with a docusign envelope is in a terminal state
+      if (d.documents && d.documents.length > 0) {
+        var allDone = d.documents.every(function(doc) {
+          if (!doc.docusign_envelope_id) return true; // no envelope, not waiting
+          return _terminalStatuses.indexOf(doc.docusign_status) !== -1;
+        });
+        if (allDone && _pollTimer) {
+          clearInterval(_pollTimer);
+          _pollTimer = null;
+        }
+      }
+    })
     .catch(function(e) { console.error(e); });
 }
 
@@ -2215,7 +2232,7 @@ document.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() { window.location.reload(); }, 5000);
     });
   }
-  setInterval(poll, 5000);
+  _pollTimer = setInterval(poll, 5000);
 });
 </script>
 <div class="action-bar">
