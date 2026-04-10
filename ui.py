@@ -3289,38 +3289,6 @@ ADMIN_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-hd">
-    <div class="card-ico">&#128228;</div>
-    <span class="card-title">Import Existing Catalog</span>
-  </div>
-  <div class="card-body">
-    <form method="post" action="/admin/import-catalog/preview" enctype="multipart/form-data">
-      <div class="field" style="margin-bottom:12px">
-        <label class="label">CSV File</label>
-        <input class="inp" type="file" name="catalog_file" accept=".csv" required>
-      </div>
-
-      <div style="color:var(--t2);font-size:12px;margin-bottom:14px">
-        Use one row per writer. Repeated work titles can be used for multi-writer works.
-      </div>
-
-      <button type="submit" class="btn btn-primary">Upload Catalog CSV</button>
-    </form>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-hd">
-    <div class="card-ico">&#8505;</div>
-    <span class="card-title">Expected CSV Columns</span>
-  </div>
-  <div class="card-body">
-    <div style="font-family:var(--fm);font-size:12px;color:var(--t2);line-height:1.8">
-      work_title, contract_date, session_name, writer_full_name, first_name, middle_name, last_names, writer_aka, ipi, email, phone_number, pro, writer_percentage, publisher, publisher_ipi, address, city, state, zip_code
-    </div>
-  </div>
-</div>
 
 <div class="card">
   <div class="card-hd">
