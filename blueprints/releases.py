@@ -222,7 +222,7 @@ def _save_release(existing):
             db.session.flush()
 
             # linked works — clear and re-link
-            TrackWork.query.filter_by(track_id=t.id).delete()
+            TrackWork.query.filter_by(track_id=t.id).delete(synchronize_session="fetch")
             work_key = f"linked_work_ids_{t.id}[]" if tid else f"linked_work_ids_new_{i+1}[]"
             notes_key = f"linked_work_notes_{t.id}[]" if tid else f"linked_work_notes_new_{i+1}[]"
             wids = form.getlist(work_key)
@@ -248,7 +248,7 @@ def _save_release(existing):
         r.num_tracks = int(manual_num) if manual_num.isdigit() else len(kept_track_ids)
 
         # --- Sync ArtistRelease join rows ---
-        ArtistRelease.query.filter_by(release_id=r.id).delete()
+        ArtistRelease.query.filter_by(release_id=r.id).delete(synchronize_session="fetch")
         for name in artists:
             name = name.strip()
             if not name:

@@ -1059,10 +1059,11 @@ def upload_signed_document(document_id):
     document.status = "signed_uploaded"
 
     batch_docs = ContractDocument.query.filter_by(batch_id=document.batch_id).all()
-    if batch_docs and all(doc.status == "signed_uploaded" for doc in batch_docs):
-        document.batch.status = "signed_complete"
-    else:
-        document.batch.status = "signed_partial"
+    if document.batch:
+        if batch_docs and all(doc.status == "signed_uploaded" for doc in batch_docs):
+            document.batch.status = "signed_complete"
+        else:
+            document.batch.status = "signed_partial"
 
     try:
         db.session.commit()
@@ -1360,7 +1361,10 @@ def work_edit(work_id):
             ww_id = (work_writer_ids[i] or "").strip()
             writer_id = (existing_writer_ids[i] or "").strip()
 
-            writer = Writer.query.get(int(writer_id)) if writer_id else None
+            try:
+                writer = Writer.query.get(int(writer_id)) if writer_id else None
+            except (ValueError, TypeError):
+                writer = None
             if not writer:
                 flash("Selected writer was not found.")
                 return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
@@ -1370,7 +1374,10 @@ def work_edit(work_id):
             publisher_ipi = (publisher_ipis[i] or "").strip()
 
             if ww_id:
-                ww = WorkWriter.query.get(int(ww_id))
+                try:
+                    ww = WorkWriter.query.get(int(ww_id))
+                except (ValueError, TypeError):
+                    ww = None
                 if not ww or ww.work_id != work.id:
                     continue
                 ww.writer_id = writer.id
@@ -1499,12 +1506,12 @@ def work_delete(work_id):
     # delete related documents first
     ContractDocument.query.filter(
         ContractDocument.work_id == work.id
-    ).delete()
+    ).delete(synchronize_session="fetch")
 
     # delete related writer links
     WorkWriter.query.filter(
         WorkWriter.work_id == work.id
-    ).delete()
+    ).delete(synchronize_session="fetch")
 
     work_title = work.title
     try:
