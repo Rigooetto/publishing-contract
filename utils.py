@@ -206,7 +206,7 @@ def render_docx_template(template_path, data, works_for_table=None):
                 row[1].text = item.get("writer_name", "")
                 row[2].text = item.get("writer_percentage", "")
                 row[3].text = item.get("publisher", "")
-                row[4].text = item.get("writer_percentage", "")
+                row[4].text = item.get("publisher_percentage", item.get("writer_percentage", ""))
             p.text = ""
             p._element.addnext(table._element)
             break
@@ -299,6 +299,8 @@ def get_batch_writer_summary(batch_id):
     work_writers = WorkWriter.query.join(Work).filter(Work.batch_id == batch_id).all()
     grouped = {}
     for ww in work_writers:
+        if not ww.writer:
+            continue
         if ww.writer_id not in grouped:
             grouped[ww.writer_id] = {"writer": ww.writer, "work_titles": set()}
         grouped[ww.writer_id]["work_titles"].add(ww.work.title)

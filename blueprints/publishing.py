@@ -723,6 +723,7 @@ def generate_batch_documents(batch_id):
                     "writer_name": writer.full_name,
                     "writer_percentage": str(round(ww.writer_percentage, 2)) + "%",
                     "publisher": ww.publisher or "",
+                    "publisher_percentage": str(round(ww.writer_percentage, 2)) + "%",
                 })
 
             first_work = rows[0].work
@@ -1223,7 +1224,18 @@ def writer_edit(writer_id):
         writer.zip_code = zip_code
         writer.has_master_contract = has_master_contract
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error("writer_edit commit error: %s", e)
+            flash("An error occurred while saving. Please try again.")
+            return render_template_string(
+                WRITER_EDIT_HTML,
+                writer=writer,
+                default_publisher_for_pro=default_publisher_for_pro,
+                default_publisher_ipi_for_pro=default_publisher_ipi_for_pro,
+            )
         flash("Writer updated successfully.")
         return redirect(url_for(".writer_detail", writer_id=writer.id))
 
@@ -1321,7 +1333,10 @@ def work_edit(work_id):
         work.contract_date = contract_date
 
         if batch_id:
-            batch = GenerationBatch.query.get(int(batch_id))
+            try:
+                batch = GenerationBatch.query.get(int(batch_id))
+            except (ValueError, TypeError):
+                batch = None
             if not batch:
                 flash("Selected session was not found.")
                 return render_template_string(WORK_EDIT_HTML, work=work, batches=batches)
