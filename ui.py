@@ -953,12 +953,7 @@ FORM_HTML = """<!DOCTYPE html>
     <div class="ab-space"></div>
     <button type="submit" class="btn btn-primary">Save Work to Session</button>
   </div>
-  {% if is_modal %}
-  <div style="padding:16px;display:flex;justify-content:flex-end;gap:10px">
-    <button type="button" class="btn btn-sec" onclick="window.parent.closeQuickWorkModal()">Cancel</button>
-    <button type="submit" class="btn btn-primary" style="color:#fff">Save Work to Session</button>
-  </div>
-  {% endif %}
+  {% if is_modal %}<div id="modal-form-end"></div>{% endif %}
 </form>
 </div>
 </main>
@@ -4340,6 +4335,20 @@ function closeQuickWorkModal() {
   document.getElementById('qwm-iframe').src = 'about:blank';
 }
 
+function qwmAddWriter() {
+  try {
+    document.getElementById('qwm-iframe').contentWindow.addWriter();
+  } catch(e) { console.warn('qwmAddWriter:', e); }
+}
+
+function qwmSave() {
+  try {
+    var iwin = document.getElementById('qwm-iframe').contentWindow;
+    var form = iwin.document.querySelector('form');
+    if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+  } catch(e) { console.warn('qwmSave:', e); }
+}
+
 // Called by the iframe after a work is saved successfully
 function onWorkCreated(workId, workTitle, workWriters, batchUrl) {
   var modal = document.getElementById('quickWorkModal');
@@ -4588,13 +4597,20 @@ document.addEventListener('focusin', function(e){
 </script>
 
 <!-- Quick Work Modal -->
-<div id="quickWorkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center">
+<div id="quickWorkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;align-items:center;justify-content:center">
   <div style="background:var(--bg1);border:1px solid var(--b0);border-radius:14px;width:92%;max-width:960px;height:88vh;display:flex;flex-direction:column;overflow:hidden;position:relative">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--b0);background:var(--bg2);flex-shrink:0">
       <span style="font-weight:700;font-size:15px;color:var(--t1)">New Work</span>
       <button type="button" onclick="closeQuickWorkModal()" style="background:transparent;border:none;color:var(--t2);font-size:22px;cursor:pointer;line-height:1">&times;</button>
     </div>
-    <iframe id="qwm-iframe" src="about:blank" style="flex:1;border:none;width:100%"></iframe>
+    <iframe id="qwm-iframe" src="about:blank" style="flex:1;border:none;width:100%;min-height:0"></iframe>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--b0);background:var(--bg2);flex-shrink:0;gap:10px">
+      <button type="button" class="btn btn-sec" onclick="qwmAddWriter()">+ Add Writer</button>
+      <div style="display:flex;gap:10px">
+        <button type="button" class="btn btn-sec" onclick="closeQuickWorkModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" style="color:#fff" onclick="qwmSave()">Save Work to Session</button>
+      </div>
+    </div>
   </div>
 </div>
 
