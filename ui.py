@@ -818,6 +818,7 @@ def _sidebar(active):
     html += "<nav class='sb-nav'>"
     html += "<a href='/reports'" + (" class='on'" if active == "reports" else "") + " title='Reports'><span class='ni'>&#128202;</span><span class='nl'>Reports</span></a>"
     html += "<a href='/pro-registration'" + (" class='on'" if active == "pro_registration" else "") + " title='PRO Registration'><span class='ni'>&#9989;</span><span class='nl'>PRO Registration</span></a>"
+    html += "<a href='/pro-audit'" + (" class='on'" if active == "pro_audit" else "") + " title='PRO Audit'><span class='ni'>&#128269;</span><span class='nl'>PRO Audit</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Admin</div>"
@@ -5646,6 +5647,211 @@ function toggleProWork(id, e) {
   }
 }
 </script>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+
+PRO_AUDIT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRO Audit - LabelMind</title>""" + _STYLE + """
+<style>
+.audit-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.audit-stat{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:14px 16px;text-align:center}
+.audit-stat .asv{font-size:26px;font-weight:700;color:var(--t1);line-height:1}
+.audit-stat .asl{font-size:11px;color:var(--t3);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.audit-stat.ok .asv{color:#4caf8a}
+.audit-stat.danger .asv{color:#e05c5c}
+.audit-stat.warn .asv{color:#f0a500}
+.pro-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;line-height:1.6}
+.pro-ascap{background:rgba(99,133,255,.15);color:#6385ff}
+.pro-bmi{background:rgba(76,175,138,.15);color:#4caf8a}
+.pro-sesac{background:rgba(240,165,0,.15);color:#f0a500}
+.iswc-tag{font-size:11px;font-family:monospace;background:var(--s2);border:1px solid var(--b0);border-radius:4px;padding:1px 6px;color:var(--t2)}
+.iswc-new{background:rgba(76,175,138,.12);border-color:#4caf8a;color:#4caf8a}
+.iswc-conflict{background:rgba(224,92,92,.12);border-color:#e05c5c;color:#e05c5c}
+.audit-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--b0)}
+.audit-tab{padding:9px 18px;font-size:13px;font-weight:500;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;text-decoration:none}
+.audit-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+.audit-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
+.audit-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("pro_audit") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128269;</div>
+    <div>
+      <div class="ph-title">PRO Audit</div>
+      <div class="ph-sub">Compare LabelMind catalog against ASCAP, BMI &amp; SESAC exports. Sync ISWC numbers and registration records.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <form method="post" action="/pro-audit/apply" onsubmit="return confirm('Apply ISWC updates and create missing registration records?')">
+      <button type="submit" class="btn btn-primary">&#128257; Sync ISWC &amp; Registrations</button>
+    </form>
+    <a href="/pro-registration" class="btn btn-sec">PRO Registration</a>
+  </div>
+</div>
+<div class="audit-stat-grid">
+  <div class="audit-stat"><div class="asv">{{ stats.db_total }}</div><div class="asl">Works in LabelMind</div></div>
+  <div class="audit-stat ok"><div class="asv">{{ stats.matched }}</div><div class="asl">Matched in PROs</div></div>
+  <div class="audit-stat danger"><div class="asv">{{ stats.unregistered }}</div><div class="asl">Unregistered</div></div>
+  <div class="audit-stat warn"><div class="asv">{{ stats.orphaned }}</div><div class="asl">PRO-only (not in DB)</div></div>
+  <div class="audit-stat"><div class="asv">{{ stats.ascap_total }}</div><div class="asl">ASCAP works</div></div>
+  <div class="audit-stat"><div class="asv">{{ stats.bmi_total }}</div><div class="asl">BMI works</div></div>
+  <div class="audit-stat"><div class="asv">{{ stats.sesac_total }}</div><div class="asl">SESAC works</div></div>
+</div>
+<div class="audit-tabs">
+  <a href="?tab=matched"      class="audit-tab {% if tab=='matched' %}on{% endif %}">Registered <span class="cnt">{{ stats.matched }}</span></a>
+  <a href="?tab=unregistered" class="audit-tab {% if tab=='unregistered' %}on{% endif %}">Unregistered <span class="cnt">{{ stats.unregistered }}</span></a>
+  <a href="?tab=orphaned"     class="audit-tab {% if tab=='orphaned' %}on{% endif %}">PRO-Only (not in DB) <span class="cnt">{{ stats.orphaned }}</span></a>
+</div>
+{% if tab == 'matched' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works matched in at least one PRO</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">Green ISWC = will be written on Sync &bull; Red = conflict, review manually</span>
+  </div>
+  {% if matched %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:200px">Work Title</th>
+      <th>ISWC (DB)</th>
+      <th>ASCAP</th>
+      <th>BMI</th>
+      <th>SESAC</th>
+    </tr></thead>
+    <tbody>
+    {% for e in matched %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td>
+        {% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+        {% elif e.iswc_conflict %}<span class="iswc-tag iswc-conflict" title="Conflict: {{ e.iswcs_found|join(', ') }}">conflict &#9888;</span>
+        {% elif e.suggested_iswc %}<span class="iswc-tag iswc-new" title="Will be written on Sync">{{ e.suggested_iswc }} &#8593;</span>
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% if e.ascap %}
+          <span class="pro-badge pro-ascap">ASCAP</span> <span style="font-size:11px;color:var(--t3)">#{{ e.ascap.work_id }}</span>
+          {% if e.ascap.iswc %}<br><span class="iswc-tag" style="margin-top:3px;display:inline-block">{{ e.ascap.iswc }}</span>{% endif %}
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% if e.bmi %}
+          <span class="pro-badge pro-bmi">BMI</span> <span style="font-size:11px;color:var(--t3)">#{{ e.bmi.work_id }}</span>
+          {% if e.bmi.iswc %}<br><span class="iswc-tag" style="margin-top:3px;display:inline-block">{{ e.bmi.iswc }}</span>{% endif %}
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% if e.sesac %}
+          <span class="pro-badge pro-sesac">SESAC</span> <span style="font-size:11px;color:var(--t3)">#{{ e.sesac.work_id }}</span>
+          {% if e.sesac.iswc %}<br><span class="iswc-tag" style="margin-top:3px;display:inline-block">{{ e.sesac.iswc }}</span>{% endif %}
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No matches found.</div>
+  {% endif %}
+</div>
+{% elif tab == 'unregistered' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works in LabelMind not found in any PRO export</span>
+    <span style="font-size:12px;color:#e05c5c;margin-left:8px">These need to be registered with ASCAP, BMI, or SESAC</span>
+  </div>
+  {% if unregistered %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:220px">Work Title</th>
+      <th>LabelMind ID</th>
+      <th>ISWC (DB)</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+    </tr></thead>
+    <tbody>
+    {% for e in unregistered %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td style="font-size:12px;color:var(--t3);font-family:monospace">LM{{ '%06d' % e.work.id }}</td>
+      <td>{% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in e.work.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">
+        {% if e.work.contract_date %}{{ e.work.contract_date.strftime('%m/%d/%Y') }}{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are accounted for in at least one PRO. &#9989;</div>
+  {% endif %}
+</div>
+{% elif tab == 'orphaned' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works found in PRO exports but not in LabelMind</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">May be legacy registrations, title spelling differences, or works not yet entered</span>
+  </div>
+  {% if orphaned %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th>PRO</th>
+      <th style="min-width:220px">Title (as filed)</th>
+      <th>PRO Work #</th>
+      <th>ISWC</th>
+      <th>Reg. Date</th>
+      <th>Status</th>
+    </tr></thead>
+    <tbody>
+    {% for o in orphaned %}
+    <tr>
+      <td><span class="pro-badge pro-{{ o.pro|lower }}">{{ o.pro }}</span></td>
+      <td style="font-weight:500;color:var(--t1)">{{ o.title }}</td>
+      <td style="font-size:12px;color:var(--t3);font-family:monospace">{{ o.work_id }}</td>
+      <td>{% if o.iswc %}<span class="iswc-tag">{{ o.iswc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ o.reg_date }}</td>
+      <td style="font-size:11px;color:var(--t3)">{{ o.reg_status }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No PRO-only entries found.</div>
+  {% endif %}
+</div>
+{% endif %}
+</div></main></div>
 """ + _SB_JS + """
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>

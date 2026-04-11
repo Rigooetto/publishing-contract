@@ -42,6 +42,7 @@ from blueprints.api import bp as api_bp
 from blueprints.artists import bp as artists_bp
 from blueprints.catalog_import import bp as catalog_import_bp
 from blueprints.reports import bp as reports_bp
+from blueprints.audit import bp as audit_bp
 
 app.register_blueprint(publishing_bp)
 app.register_blueprint(releases_bp)
@@ -49,6 +50,7 @@ app.register_blueprint(api_bp)
 app.register_blueprint(artists_bp)
 app.register_blueprint(catalog_import_bp)
 app.register_blueprint(reports_bp)
+app.register_blueprint(audit_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
