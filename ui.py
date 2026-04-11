@@ -1019,40 +1019,40 @@ function writerTpl(i, data) {
   h += '<div class="wc-sec">Identity</div>';
   h += '<div class="g g4" style="gap:10px">';
   h += '<div class="field ac-wrap"><label class="label">First Name</label>';
-  h += '<input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="new-password" value="' + (data.first_name || '') + '">';
+  h += '<input class="inp wfn" name="lm_wfn" placeholder="First" autocomplete="new-password" value="' + (data.first_name || '') + '">';
   h += '<div class="ac-box wsug"></div></div>';
 
   h += '<div class="field"><label class="label">Middle Name</label>';
-  h += '<input class="inp wmn" name="writer_middle_name" placeholder="Middle" autocomplete="new-password" value="' + (data.middle_name || '') + '"></div>';
+  h += '<input class="inp wmn" name="lm_wmn" placeholder="Middle" autocomplete="new-password" value="' + (data.middle_name || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Last Name(s)</label>';
-  h += '<input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="new-password" value="' + (data.last_names || '') + '"></div>';
+  h += '<input class="inp wln" name="lm_wln" placeholder="Last Name" autocomplete="new-password" value="' + (data.last_names || '') + '"></div>';
 
   h += '<div class="field"><label class="label">AKA / Stage</label>';
-  h += '<input class="inp waka" name="writer_aka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
+  h += '<input class="inp waka" name="lm_waka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
   h += '</div>';
    h += '<div class="wc-sec">Writer Address</div>';
   h += '<div class="g g4a" style="gap:10px">';
   h += '<div class="field"><label class="label">Street</label>';
-  h += '<input class="inp waddr" name="writer_address" placeholder="Street Address" value="' + (data.address || '') + '"></div>';
+  h += '<input class="inp waddr" name="lm_waddr" placeholder="Street Address" autocomplete="new-password" value="' + (data.address || '') + '"></div>';
 
   h += '<div class="field"><label class="label">City</label>';
-  h += '<input class="inp wcity" name="writer_city" placeholder="City" value="' + (data.city || '') + '"></div>';
+  h += '<input class="inp wcity" name="lm_wcty" placeholder="City" autocomplete="new-password" value="' + (data.city || '') + '"></div>';
 
   h += '<div class="field"><label class="label">State</label>';
-  h += '<input class="inp wst" name="writer_state" placeholder="ST" value="' + (data.state || '') + '"></div>';
+  h += '<input class="inp wst" name="lm_wst" placeholder="ST" autocomplete="new-password" value="' + (data.state || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Zip</label>';
-  h += '<input class="inp wzip" name="writer_zip_code" placeholder="Zip" value="' + (data.zip_code || '') + '"></div>';
+  h += '<input class="inp wzip" name="lm_wzip" placeholder="Zip" autocomplete="new-password" value="' + (data.zip_code || '') + '"></div>';
   h += '</div>';
 
   h += '<div class="wc-sec">Contact</div>';
   h += '<div class="g g2" style="gap:10px">';
   h += '<div class="field"><label class="label">Email</label>';
-  h += '<input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email" value="' + (data.email || '') + '"></div>';
+  h += '<input class="inp wem" name="lm_wem" placeholder="writer@email.com" type="text" autocomplete="new-password" value="' + (data.email || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Phone Number</label>';
-  h += '<input class="inp wphone" name="writer_phone_number" placeholder="Phone Number" value="' + (data.phone_number || '') + '"></div>';
+  h += '<input class="inp wphone" name="lm_wph" placeholder="Phone Number" autocomplete="new-password" value="' + (data.phone_number || '') + '"></div>';
   h += '</div>';
 
   h += '<div class="wc-sec">Publishing</div>';
