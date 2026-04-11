@@ -1,5 +1,6 @@
 import csv
 import datetime
+import glob
 import io
 import json
 import os
@@ -16,21 +17,29 @@ bp = Blueprint("mechanical_audit", __name__)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "mechanical_catalogs")
+_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "template")
+_UPLOAD_DIR   = os.path.join(os.path.dirname(__file__), "..", "uploads", "mechanical_catalogs")
 
+# Required columns (uppercased) to validate uploads
 _REQUIRED_COLS = {
     "mlc": {"PRIMARY TITLE", "MLC SONG CODE"},
-    "mri": {"SONG TITLE", "MRI SONG ID"},
+    "mri": {"SONG TITLE", "MRI ID"},
 }
 
 _ACCEPTED_EXTS = {".csv", ".xlsx", ".xls"}
 
 
-# ── File I/O helpers ──────────────────────────────────────────────────────────
+def _find_template(pattern):
+    """Find the newest file in template dir matching a glob pattern."""
+    matches = sorted(glob.glob(os.path.join(_TEMPLATE_DIR, pattern)))
+    return matches[-1] if matches else ""
 
-def _normalize_headers(row):
-    """Strip whitespace and trailing * from every header key."""
-    return {re.sub(r"\s*\*+\s*$", "", str(k or "")).strip(): v for k, v in row.items()}
+
+# ── File I/O ──────────────────────────────────────────────────────────────────
+
+def _norm_key(k):
+    """Strip trailing * and whitespace, uppercase — for consistent header lookup."""
+    return re.sub(r"\s*\*+\s*$", "", str(k or "")).strip().upper()
 
 
 def _rows_from_xlsx(content_bytes):
@@ -40,7 +49,7 @@ def _rows_from_xlsx(content_bytes):
     raw = list(ws.iter_rows(values_only=True))
     if not raw:
         return []
-    headers = [re.sub(r"\s*\*+\s*$", "", str(h or "")).strip() for h in raw[0]]
+    headers = [_norm_key(h) for h in raw[0]]
     return [dict(zip(headers, row)) for row in raw[1:]]
 
 
@@ -50,21 +59,17 @@ def _rows_from_xls(content_bytes):
     ws = wb.sheet_by_index(0)
     if ws.nrows == 0:
         return []
-    headers = [re.sub(r"\s*\*+\s*$", "", str(ws.cell_value(0, c))).strip()
-               for c in range(ws.ncols)]
-    return [
-        dict(zip(headers, [ws.cell_value(r, c) for c in range(ws.ncols)]))
-        for r in range(1, ws.nrows)
-    ]
+    headers = [_norm_key(ws.cell_value(0, c)) for c in range(ws.ncols)]
+    return [dict(zip(headers, [ws.cell_value(r, c) for c in range(ws.ncols)]))
+            for r in range(1, ws.nrows)]
 
 
 def _rows_from_csv(content_str):
     reader = csv.DictReader(io.StringIO(content_str))
-    return [_normalize_headers(row) for row in reader]
+    return [{_norm_key(k): v for k, v in row.items()} for row in reader]
 
 
 def _read_file(content_bytes, filename):
-    """Dispatch to the right reader based on file extension."""
     ext = os.path.splitext(filename.lower())[1]
     if ext == ".xlsx":
         return _rows_from_xlsx(content_bytes)
@@ -76,16 +81,28 @@ def _read_file(content_bytes, filename):
 # ── Upload metadata ───────────────────────────────────────────────────────────
 
 def _uploaded_path(source):
-    """Return path for the saved file (we store the original extension in meta)."""
     meta = _read_meta(source)
     if meta and meta.get("ext"):
-        return os.path.join(_UPLOAD_DIR, f"{source}_catalog{meta['ext']}")
-    # Fallback: check for any supported extension
-    for ext in (".xlsx", ".xls", ".csv"):
+        p = os.path.join(_UPLOAD_DIR, f"{source}_catalog{meta['ext']}")
+        if os.path.exists(p):
+            return p
+    for ext in _ACCEPTED_EXTS:
         p = os.path.join(_UPLOAD_DIR, f"{source}_catalog{ext}")
         if os.path.exists(p):
             return p
     return ""
+
+
+def _active_path(source):
+    up = _uploaded_path(source)
+    if up:
+        return up
+    # Fall back to bundled template files
+    patterns = {
+        "mlc": "mlc_work_report*.csv",
+        "mri": "Music Reports*.csv",
+    }
+    return _find_template(patterns.get(source, ""))
 
 
 def _meta_path(source):
@@ -114,7 +131,7 @@ def _write_meta(source, original_name, ext, work_count):
         }, f)
 
 
-# ── CSV parsers ───────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _norm(title):
     t = (title or "").lower().strip()
@@ -122,94 +139,107 @@ def _norm(title):
     return re.sub(r"\s+", " ", t).strip()
 
 
-def _str(val):
+def _s(val):
     return str(val).strip() if val is not None else ""
 
 
+def _parse_date(raw, *fmts):
+    for fmt in fmts:
+        try:
+            return datetime.datetime.strptime(raw.strip(), fmt).date()
+        except (ValueError, AttributeError):
+            pass
+    return datetime.date.today()
+
+
+# ── CSV parsers ───────────────────────────────────────────────────────────────
+
 def _parse_mlc():
-    """Return {norm_title: {title, mlc_song_code, members_id, iswc, writers, publisher, artist}}"""
-    path = _uploaded_path("mlc")
+    """
+    Actual MLC work report export columns (after uppercasing):
+    MLC SONG CODE, PRIMARY TITLE, ISWC, MEMBER SONG IDS, ARTISTS,
+    PARTY ID, PARTY NAME, PARTY IPI, PARTY ROLE, COLLECTIBLE SHARE, ...
+    Multiple rows per work (one per party).
+    """
+    path = _active_path("mlc")
     if not path or not os.path.exists(path):
         return {}
-    with open(path, "rb") as f:
-        content = f.read()
-    rows = _read_file(content, path)
 
-    works = {}
+    with open(path, "rb") as f:
+        rows = _read_file(f.read(), path)
+
+    by_code = {}   # keyed by MLC Song Code (most reliable)
     for row in rows:
-        title    = _str(row.get("PRIMARY TITLE", ""))
-        mlc_code = _str(row.get("MLC SONG CODE", ""))
-        iswc     = _str(row.get("ISWC", ""))
-        members_id = _str(row.get("MEMBERS SONG ID", ""))
-        w_first  = _str(row.get("WRITER FIRST NAME", ""))
-        w_last   = _str(row.get("WRITER LAST NAME", ""))
-        publisher = _str(row.get("PUBLISHER NAME", ""))
-        artist   = _str(row.get("RECORDING ARTIST NAME", ""))
+        title    = _s(row.get("PRIMARY TITLE", ""))
+        mlc_code = _s(row.get("MLC SONG CODE", ""))
+        iswc     = _s(row.get("ISWC", ""))
+        artists  = _s(row.get("ARTISTS", ""))
+        party    = _s(row.get("PARTY NAME", ""))
+        role     = _s(row.get("PARTY ROLE", "")).lower()
         if not title:
             continue
-        key = _norm(title)
-        if key not in works:
-            works[key] = dict(title=title, mlc_song_code=mlc_code, members_id=members_id,
-                              iswc=iswc, writers=[], publisher=publisher, artist=artist)
-        # Update key fields if first row was empty
-        if mlc_code and not works[key]["mlc_song_code"]:
-            works[key]["mlc_song_code"] = mlc_code
-        if iswc and not works[key]["iswc"]:
-            works[key]["iswc"] = iswc
-        if artist and not works[key]["artist"]:
-            works[key]["artist"] = artist
-        if publisher and not works[key]["publisher"]:
-            works[key]["publisher"] = publisher
-        writer_name = " ".join(filter(None, [w_first, w_last]))
-        if writer_name and writer_name not in works[key]["writers"]:
-            works[key]["writers"].append(writer_name)
-    return works
+
+        key = mlc_code if mlc_code else _norm(title)
+        if key not in by_code:
+            by_code[key] = dict(title=title, mlc_song_code=mlc_code,
+                                iswc=iswc, writers=[], publisher="", artist=artists)
+        w = by_code[key]
+        if iswc and not w["iswc"]:
+            w["iswc"] = iswc
+        if artists and not w["artist"]:
+            w["artist"] = artists
+
+        is_writer    = "composer" in role or ("writer" in role and "publisher" not in role)
+        is_publisher = "publisher" in role or "administrator" in role
+
+        if is_writer and party and party not in w["writers"]:
+            w["writers"].append(party)
+        elif is_publisher and not w["publisher"]:
+            w["publisher"] = party
+
+    # Re-index by normalized title for DB matching
+    return {_norm(v["title"]): v for v in by_code.values()}
 
 
 def _parse_mri():
-    """Return {norm_title: {title, mri_song_id, publishers_id, iswc, writers, publisher, artist}}"""
-    path = _uploaded_path("mri")
+    """
+    Actual Music Reports / Songdex portal export columns (after uppercasing):
+    MRI ID, SONG TITLE, PUBLISHER(S), COMPOSER(S), US SHARE, REVISED SHARE,
+    NOT OUR SONG, LAST UPDATED
+    One row per work.
+    """
+    path = _active_path("mri")
     if not path or not os.path.exists(path):
         return {}
+
     with open(path, "rb") as f:
-        content = f.read()
-    rows = _read_file(content, path)
+        rows = _read_file(f.read(), path)
 
     works = {}
     for row in rows:
-        title      = _str(row.get("SONG TITLE", ""))
-        mri_id     = _str(row.get("MRI SONG ID", ""))
-        iswc       = _str(row.get("ISWC", ""))
-        pub_id     = _str(row.get("PUBLISHER'S SONG ID", ""))
-        c_first    = _str(row.get("COMPOSER FIRST NAME", ""))
-        c_last     = _str(row.get("COMPOSER LAST NAME", ""))
-        publisher  = _str(row.get("PUBLISHER NAME", ""))
-        artist     = _str(row.get("RECORDING ARTIST NAME", ""))
+        title     = _s(row.get("SONG TITLE", ""))
+        mri_id    = _s(row.get("MRI ID", ""))
+        publisher = _s(row.get("PUBLISHER(S)", ""))
+        composer  = _s(row.get("COMPOSER(S)", ""))
         if not title:
             continue
         key = _norm(title)
         if key not in works:
-            works[key] = dict(title=title, mri_song_id=mri_id, publishers_id=pub_id,
-                              iswc=iswc, writers=[], publisher=publisher, artist=artist)
-        if mri_id and not works[key]["mri_song_id"]:
-            works[key]["mri_song_id"] = mri_id
-        if iswc and not works[key]["iswc"]:
-            works[key]["iswc"] = iswc
-        if artist and not works[key]["artist"]:
-            works[key]["artist"] = artist
-        if publisher and not works[key]["publisher"]:
-            works[key]["publisher"] = publisher
-        writer_name = " ".join(filter(None, [c_first, c_last]))
-        if writer_name and writer_name not in works[key]["writers"]:
-            works[key]["writers"].append(writer_name)
+            works[key] = dict(title=title, mri_song_id=mri_id, iswc="",
+                              writers=[], publisher=publisher, artist="")
+        w = works[key]
+        if mri_id and not w["mri_song_id"]:
+            w["mri_song_id"] = mri_id
+        if composer and composer not in w["writers"]:
+            w["writers"].append(composer)
     return works
 
 
 # ── Audit builder ─────────────────────────────────────────────────────────────
 
 def _build_audit():
-    mlc  = _parse_mlc()
-    mri  = _parse_mri()
+    mlc = _parse_mlc()
+    mri = _parse_mri()
 
     all_works = Work.query.order_by(Work.title).all()
     db_keys   = {_norm(w.title): w for w in all_works}
@@ -222,20 +252,14 @@ def _build_audit():
         m = mlc.get(key)
         r = mri.get(key)
 
-        # Collect ISWC suggestions
-        iswcs = set(filter(None, [
-            (m or {}).get("iswc"),
-            (r or {}).get("iswc"),
-        ]))
+        iswcs = set(filter(None, [(m or {}).get("iswc"), (r or {}).get("iswc")]))
         iswc_conflict  = len(iswcs) > 1
         suggested_iswc = next(iter(iswcs), "") if not w.iswc else ""
 
-        entry = dict(
-            work=w, mlc=m, mri=r,
-            suggested_iswc=suggested_iswc,
-            iswc_conflict=iswc_conflict,
-            iswcs_found=iswcs,
-        )
+        entry = dict(work=w, mlc=m, mri=r,
+                     suggested_iswc=suggested_iswc,
+                     iswc_conflict=iswc_conflict,
+                     iswcs_found=iswcs)
         if m or r:
             matched.append(entry)
         else:
@@ -268,21 +292,13 @@ def mechanical_audit():
         orphaned=len(orphaned),
     )
 
-    upload_meta = {
-        "mlc": _read_meta("mlc"),
-        "mri": _read_meta("mri"),
-    }
-
+    upload_meta = {"mlc": _read_meta("mlc"), "mri": _read_meta("mri")}
     tab = request.args.get("tab", "matched")
 
     return render_template_string(
         MECHANICAL_AUDIT_HTML,
-        matched=matched,
-        unregistered=unregistered,
-        orphaned=orphaned,
-        stats=stats,
-        tab=tab,
-        upload_meta=upload_meta,
+        matched=matched, unregistered=unregistered, orphaned=orphaned,
+        stats=stats, tab=tab, upload_meta=upload_meta,
     )
 
 
@@ -295,9 +311,8 @@ def upload_catalog():
     file   = request.files.get("file")
 
     if source not in ("mlc", "mri"):
-        flash("Invalid source specified.", "error")
+        flash("Invalid source.", "error")
         return redirect(url_for("mechanical_audit.mechanical_audit"))
-
     if not file or not file.filename:
         flash("No file selected.", "error")
         return redirect(url_for("mechanical_audit.mechanical_audit"))
@@ -308,8 +323,6 @@ def upload_catalog():
         return redirect(url_for("mechanical_audit.mechanical_audit"))
 
     content_bytes = file.read()
-
-    # Parse and validate
     try:
         rows = _read_file(content_bytes, file.filename)
     except Exception as e:
@@ -320,7 +333,6 @@ def upload_catalog():
         flash("The uploaded file appears to be empty.", "error")
         return redirect(url_for("mechanical_audit.mechanical_audit"))
 
-    # Validate required columns
     actual_cols = set(rows[0].keys())
     required    = _REQUIRED_COLS[source]
     if not required.issubset(actual_cols):
@@ -329,25 +341,22 @@ def upload_catalog():
               f"Make sure this is a {source.upper()} catalog export.", "error")
         return redirect(url_for("mechanical_audit.mechanical_audit"))
 
-    # Count unique titles
-    title_col   = "PRIMARY TITLE" if source == "mlc" else "SONG TITLE"
-    work_count  = len({_str(r.get(title_col, "")) for r in rows
-                       if _str(r.get(title_col, ""))})
+    title_col  = "PRIMARY TITLE" if source == "mlc" else "SONG TITLE"
+    work_count = len({_s(r.get(title_col, "")) for r in rows
+                      if _s(r.get(title_col, ""))})
 
-    # Remove old file(s) for this source
+    # Remove old files for this source
     for old_ext in _ACCEPTED_EXTS:
         old = os.path.join(_UPLOAD_DIR, f"{source}_catalog{old_ext}")
         if os.path.exists(old):
             os.remove(old)
 
-    # Save new file
     os.makedirs(_UPLOAD_DIR, exist_ok=True)
-    dest = os.path.join(_UPLOAD_DIR, f"{source}_catalog{ext}")
-    with open(dest, "wb") as f_out:
+    with open(os.path.join(_UPLOAD_DIR, f"{source}_catalog{ext}"), "wb") as f_out:
         f_out.write(content_bytes)
 
     _write_meta(source, file.filename, ext, work_count)
-    flash(f"{source.upper()} catalog updated — {work_count} works loaded from {file.filename}.", "success")
+    flash(f"{source.upper()} catalog updated — {work_count} works loaded.", "success")
     return redirect(url_for("mechanical_audit.mechanical_audit"))
 
 
@@ -358,17 +367,13 @@ def apply_sync():
 
     matched, _u, _o, _m, _r = _build_audit()
 
-    iswc_updated   = 0
-    mri_updated    = 0
-    mlc_created    = 0
-    skipped_iswc   = 0
+    iswc_updated = mri_updated = mlc_created = skipped_iswc = 0
 
     for entry in matched:
         w = entry["work"]
         m = entry["mlc"]
         r = entry["mri"]
 
-        # ── ISWC ─────────────────────────────────────────────────────────────
         if not w.iswc:
             if entry["iswc_conflict"]:
                 skipped_iswc += 1
@@ -376,12 +381,10 @@ def apply_sync():
                 w.iswc = entry["suggested_iswc"]
                 iswc_updated += 1
 
-        # ── MRI Song ID → Work.mri_song_id ───────────────────────────────────
         if r and r.get("mri_song_id") and not w.mri_song_id:
             w.mri_song_id = r["mri_song_id"]
             mri_updated += 1
 
-        # ── MLC Song Code → ProRegistration(pro="MLC") ───────────────────────
         if m and m.get("mlc_song_code"):
             exists = ProRegistration.query.filter_by(work_id=w.id, pro="MLC").first()
             if exists:
@@ -390,8 +393,7 @@ def apply_sync():
                     mlc_created += 1
             else:
                 db.session.add(ProRegistration(
-                    work_id=w.id,
-                    pro="MLC",
+                    work_id=w.id, pro="MLC",
                     mlc_song_code=m["mlc_song_code"],
                     registered_at=datetime.date.today(),
                     registered_by="MLC CSV Import",
@@ -403,17 +405,13 @@ def apply_sync():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        flash(f"Error applying changes: {e}", "error")
+        flash(f"Error: {e}", "error")
         return redirect(url_for("mechanical_audit.mechanical_audit"))
 
     parts = []
-    if iswc_updated:
-        parts.append(f"{iswc_updated} ISWC numbers written")
-    if mri_updated:
-        parts.append(f"{mri_updated} MRI Song IDs written")
-    if mlc_created:
-        parts.append(f"{mlc_created} MLC Song Codes saved")
-    if skipped_iswc:
-        parts.append(f"{skipped_iswc} works skipped (ISWC conflict — review manually)")
+    if iswc_updated: parts.append(f"{iswc_updated} ISWC numbers written")
+    if mri_updated:  parts.append(f"{mri_updated} MRI Song IDs written")
+    if mlc_created:  parts.append(f"{mlc_created} MLC Song Codes saved")
+    if skipped_iswc: parts.append(f"{skipped_iswc} works skipped (ISWC conflict)")
     flash(", ".join(parts) + "." if parts else "Nothing to update.", "success")
     return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched"))

@@ -820,6 +820,7 @@ def _sidebar(active):
     html += "<a href='/pro-registration'" + (" class='on'" if active == "pro_registration" else "") + " title='PRO Registration'><span class='ni'>&#9989;</span><span class='nl'>PRO Registration</span></a>"
     html += "<a href='/pro-audit'" + (" class='on'" if active == "pro_audit" else "") + " title='PRO Audit'><span class='ni'>&#128269;</span><span class='nl'>PRO Audit</span></a>"
     html += "<a href='/mechanical-audit'" + (" class='on'" if active == "mechanical_audit" else "") + " title='Mechanical Audit'><span class='ni'>&#127926;</span><span class='nl'>Mechanical Audit</span></a>"
+    html += "<a href='/neighboring-rights-audit'" + (" class='on'" if active == "neighboring_rights_audit" else "") + " title='Neighboring Rights Audit'><span class='ni'>&#127911;</span><span class='nl'>Neighboring Rights</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Admin</div>"
@@ -6244,6 +6245,274 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
 function updateLabelM(src) {
   var input = document.getElementById('file-' + src);
   var lbl   = document.getElementById('lbl-' + src);
+  if (input.files && input.files.length > 0) lbl.textContent = input.files[0].name;
+}
+(function(){
+  var s = document.getElementById('uploadSection');
+  if (s && !s.querySelector('.um-file')) s.setAttribute('open','');
+})();
+</script>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+
+NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neighboring Rights Audit - LabelMind</title>""" + _STYLE + """
+<style>
+.audit-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.audit-stat{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:14px 16px;text-align:center}
+.audit-stat .asv{font-size:26px;font-weight:700;color:var(--t1);line-height:1}
+.audit-stat .asl{font-size:11px;color:var(--t3);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.audit-stat.ok .asv{color:#4caf8a}
+.audit-stat.danger .asv{color:#e05c5c}
+.audit-stat.warn .asv{color:#f0a500}
+.sx-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(99,133,255,.15);color:#6385ff;line-height:1.6}
+.isrc-tag{font-size:11px;font-family:monospace;background:var(--s2);border:1px solid var(--b0);border-radius:4px;padding:1px 6px;color:var(--t2)}
+.sxid-tag{font-size:11px;font-family:monospace;background:rgba(99,133,255,.1);border:1px solid rgba(99,133,255,.25);border-radius:4px;padding:1px 6px;color:#6385ff}
+.audit-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--b0)}
+.audit-tab{padding:9px 18px;font-size:13px;font-weight:500;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;text-decoration:none}
+.audit-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+.audit-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
+.audit-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
+.upload-card{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:16px;margin-bottom:20px}
+.upload-card-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.upload-card-title{font-size:13px;font-weight:600;color:var(--t1)}
+.upload-meta{font-size:11px;color:var(--t3);margin-bottom:10px;min-height:24px}
+.upload-meta .um-file{color:var(--t2);font-weight:500}
+.upload-drop{border:1.5px dashed var(--b0);border-radius:8px;padding:10px 12px;text-align:center;font-size:12px;color:var(--t3);cursor:pointer;transition:border-color .15s,background .15s;position:relative;max-width:480px}
+.upload-drop:hover,.upload-drop.drag{border-color:var(--accent);background:rgba(99,133,255,.05);color:var(--t2)}
+.upload-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-section summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--t2);padding:10px 14px;background:var(--s1);border:1px solid var(--b0);border-radius:8px;margin-bottom:14px;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.upload-section summary::-webkit-details-marker{display:none}
+.upload-section summary::after{content:"\u25BC";font-size:10px;color:var(--t3)}
+.upload-section[open] summary::after{content:"\u25B2"}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("neighboring_rights_audit") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127911;</div>
+    <div>
+      <div class="ph-title">Neighboring Rights Audit</div>
+      <div class="ph-sub">Compare LabelMind track catalog against SoundExchange registered recordings.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/mechanical-audit" class="btn btn-sec">Mechanical Audit</a>
+    <a href="/pro-audit" class="btn btn-sec">PRO Audit</a>
+  </div>
+</div>
+
+<details class="upload-section" id="uploadSection">
+  <summary>
+    <span>&#128196; Upload SoundExchange Catalog Report
+      <span style="font-size:11px;font-weight:400;color:var(--t3);margin-left:10px">
+        {% if upload_meta %}
+          {{ upload_meta.track_count }} tracks &bull; uploaded {{ upload_meta.uploaded_at }} &bull; {{ upload_meta.original_name }}
+        {% else %}
+          No upload yet &mdash; using bundled catalog file
+        {% endif %}
+      </span>
+    </span>
+  </summary>
+  <div class="upload-card" style="margin-top:0">
+    <div class="upload-card-hd">
+      <span class="sx-badge">SoundExchange</span>
+      <span class="upload-card-title">Rights Owner Catalog Export</span>
+    </div>
+    <div class="upload-meta">
+      {% if upload_meta %}
+        <div class="um-file">&#128196; {{ upload_meta.original_name }}</div>
+        <div>{{ upload_meta.track_count }} tracks &bull; uploaded {{ upload_meta.uploaded_at }}</div>
+      {% else %}
+        <div>Download from SoundExchange portal &rarr; My Catalog &rarr; Rights Owner &rarr; Export</div>
+      {% endif %}
+    </div>
+    <form method="post" action="/neighboring-rights-audit/upload" enctype="multipart/form-data">
+      <div class="upload-drop" id="drop-sx"
+           ondragover="event.preventDefault();this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="event.preventDefault();this.classList.remove('drag');document.getElementById('file-sx').files=event.dataTransfer.files;updateLabelNR()">
+        <input type="file" name="file" id="file-sx" accept=".csv,.xlsx,.xls"
+               onchange="updateLabelNR()">
+        <div style="font-size:18px;margin-bottom:4px">&#128229;</div>
+        <div id="lbl-sx">Drop .csv / .xlsx / .xls here or click to browse</div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px"
+              onclick="return document.getElementById('file-sx').files.length>0||alert('Please select a file first.')||false">
+        Upload SoundExchange Report
+      </button>
+    </form>
+  </div>
+</details>
+
+<div class="audit-stat-grid">
+  <div class="audit-stat"><div class="asv">{{ stats.db_total }}</div><div class="asl">Tracks in LabelMind</div></div>
+  <div class="audit-stat ok"><div class="asv">{{ stats.matched }}</div><div class="asl">Matched in SX</div></div>
+  <div class="audit-stat danger"><div class="asv">{{ stats.unregistered }}</div><div class="asl">Not in SX</div></div>
+  <div class="audit-stat warn"><div class="asv">{{ stats.orphaned }}</div><div class="asl">SX-only (not in DB)</div></div>
+  <div class="audit-stat"><div class="asv">{{ stats.sx_total }}</div><div class="asl">SoundExchange tracks</div></div>
+</div>
+
+<div class="audit-tabs">
+  <a href="?tab=matched"      class="audit-tab {% if tab=='matched' %}on{% endif %}">Registered in SX <span class="cnt">{{ stats.matched }}</span></a>
+  <a href="?tab=unregistered" class="audit-tab {% if tab=='unregistered' %}on{% endif %}">Not Registered <span class="cnt">{{ stats.unregistered }}</span></a>
+  <a href="?tab=orphaned"     class="audit-tab {% if tab=='orphaned' %}on{% endif %}">SX-Only (not in DB) <span class="cnt">{{ stats.orphaned }}</span></a>
+</div>
+
+{% if tab == 'matched' %}
+<div class="card">
+  <div class="card-hd"><span class="card-title">Tracks matched in SoundExchange</span></div>
+  {% if matched %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:180px">Track Title</th>
+      <th style="min-width:140px">Artist</th>
+      <th>Release</th>
+      <th>ISRC</th>
+      <th>SXID</th>
+      <th>Effective %</th>
+      <th>Hold</th>
+    </tr></thead>
+    <tbody>
+    {% for e in matched %}
+    <tr>
+      <td style="font-weight:500;color:var(--t1)">
+        {{ e.track.primary_title }}
+        {% if e.track.track_number %}<span style="font-size:11px;color:var(--t3);margin-left:4px">#{{ e.track.track_number }}</span>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">{{ e.sx.artist }}</td>
+      <td style="font-size:12px;color:var(--t3)">
+        {% if e.release %}<a href="/releases/{{ e.release.id }}" style="color:var(--t2)">{{ e.release.title }}</a>{% else %}&mdash;{% endif %}
+      </td>
+      <td>{% if e.track.isrc %}<span class="isrc-tag">{{ e.track.isrc }}</span>{% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td>{% if e.sx.sxid %}<span class="sxid-tag">{{ e.sx.sxid }}</span>{% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ e.sx.effective_pct }}%</td>
+      <td style="font-size:12px">
+        {% if e.sx.hold == 'Yes' %}<span style="color:#e05c5c;font-weight:600">Yes</span>
+        {% else %}<span style="color:#4caf8a">No</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No matches found. Upload a SoundExchange catalog export to begin.</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'unregistered' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Tracks in LabelMind not found in SoundExchange</span>
+    <span style="font-size:12px;color:#e05c5c;margin-left:8px">These recordings may need to be submitted as Rights Owner</span>
+  </div>
+  {% if unregistered %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:180px">Track Title</th>
+      <th style="min-width:140px">Artist(s)</th>
+      <th>Release</th>
+      <th>ISRC</th>
+      <th>Genre</th>
+    </tr></thead>
+    <tbody>
+    {% for e in unregistered %}
+    <tr>
+      <td style="font-weight:500;color:var(--t1)">
+        {{ e.track.primary_title }}
+        {% if e.track.track_number %}<span style="font-size:11px;color:var(--t3);margin-left:4px">#{{ e.track.track_number }}</span>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% set artists = e.track.artists %}
+        {% if artists %}
+          {% set artist_list = artists | from_json if artists != '[]' else [] %}
+          {{ artist_list | join(', ') if artist_list else '&mdash;' }}
+        {% else %}&mdash;{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">
+        {% if e.release %}<a href="/releases/{{ e.release.id }}" style="color:var(--t2)">{{ e.release.title }}</a>{% else %}&mdash;{% endif %}
+      </td>
+      <td>{% if e.track.isrc %}<span class="isrc-tag">{{ e.track.isrc }}</span>
+          {% else %}<span style="color:#e05c5c;font-size:11px">No ISRC</span>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">{{ e.track.genre or '&mdash;' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All tracks are registered with SoundExchange. &#9989;</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'orphaned' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Tracks in SoundExchange not matched in LabelMind</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">May be legacy registrations or ISRC / title differences</span>
+  </div>
+  {% if orphaned %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:180px">Track Title (as filed)</th>
+      <th style="min-width:140px">Artist</th>
+      <th>ISRC</th>
+      <th>SXID</th>
+      <th>Effective %</th>
+      <th>Registrant</th>
+    </tr></thead>
+    <tbody>
+    {% for o in orphaned %}
+    <tr>
+      <td style="font-weight:500;color:var(--t1)">{{ o.title }}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ o.artist or '&mdash;' }}</td>
+      <td>{% if o.isrc %}<span class="isrc-tag">{{ o.isrc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td>{% if o.sxid %}<span class="sxid-tag">{{ o.sxid }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ o.effective_pct }}%</td>
+      <td style="font-size:12px;color:var(--t3)">{{ o.registrant }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No SoundExchange-only entries found.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+</div></main></div>
+<script>
+function updateLabelNR() {
+  var input = document.getElementById('file-sx');
+  var lbl   = document.getElementById('lbl-sx');
   if (input.files && input.files.length > 0) lbl.textContent = input.files[0].name;
 }
 (function(){
