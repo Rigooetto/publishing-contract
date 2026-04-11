@@ -819,6 +819,7 @@ def _sidebar(active):
     html += "<a href='/reports'" + (" class='on'" if active == "reports" else "") + " title='Reports'><span class='ni'>&#128202;</span><span class='nl'>Reports</span></a>"
     html += "<a href='/pro-registration'" + (" class='on'" if active == "pro_registration" else "") + " title='PRO Registration'><span class='ni'>&#9989;</span><span class='nl'>PRO Registration</span></a>"
     html += "<a href='/pro-audit'" + (" class='on'" if active == "pro_audit" else "") + " title='PRO Audit'><span class='ni'>&#128269;</span><span class='nl'>PRO Audit</span></a>"
+    html += "<a href='/mechanical-audit'" + (" class='on'" if active == "mechanical_audit" else "") + " title='Mechanical Audit'><span class='ni'>&#127926;</span><span class='nl'>Mechanical Audit</span></a>"
     html += "</nav>"
 
     html += "<div class='sb-sec'>Admin</div>"
@@ -5943,6 +5944,311 @@ function updateLabel(pro) {
     var hasUploads = s.querySelector('.um-file');
     if (!hasUploads) s.setAttribute('open','');
   }
+})();
+</script>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+
+MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mechanical Audit - LabelMind</title>""" + _STYLE + """
+<style>
+.audit-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.audit-stat{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:14px 16px;text-align:center}
+.audit-stat .asv{font-size:26px;font-weight:700;color:var(--t1);line-height:1}
+.audit-stat .asl{font-size:11px;color:var(--t3);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.audit-stat.ok .asv{color:#4caf8a}
+.audit-stat.danger .asv{color:#e05c5c}
+.audit-stat.warn .asv{color:#f0a500}
+.mech-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;line-height:1.6}
+.mech-mlc{background:rgba(99,133,255,.15);color:#6385ff}
+.mech-mri{background:rgba(76,175,138,.15);color:#4caf8a}
+.iswc-tag{font-size:11px;font-family:monospace;background:var(--s2);border:1px solid var(--b0);border-radius:4px;padding:1px 6px;color:var(--t2)}
+.iswc-new{background:rgba(76,175,138,.12);border-color:#4caf8a;color:#4caf8a}
+.iswc-conflict{background:rgba(224,92,92,.12);border-color:#e05c5c;color:#e05c5c}
+.code-tag{font-size:11px;font-family:monospace;background:rgba(99,133,255,.1);border:1px solid rgba(99,133,255,.25);border-radius:4px;padding:1px 6px;color:#6385ff}
+.audit-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--b0)}
+.audit-tab{padding:9px 18px;font-size:13px;font-weight:500;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;text-decoration:none}
+.audit-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+.audit-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
+.audit-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
+.upload-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+@media(max-width:600px){.upload-grid2{grid-template-columns:1fr}}
+.upload-card{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:16px}
+.upload-card-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.upload-card-title{font-size:13px;font-weight:600;color:var(--t1)}
+.upload-meta{font-size:11px;color:var(--t3);margin-bottom:10px;min-height:28px;line-height:1.5}
+.upload-meta .um-file{color:var(--t2);font-weight:500}
+.upload-drop{border:1.5px dashed var(--b0);border-radius:8px;padding:10px 12px;text-align:center;font-size:12px;color:var(--t3);cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+.upload-drop:hover,.upload-drop.drag{border-color:var(--accent);background:rgba(99,133,255,.05);color:var(--t2)}
+.upload-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-drop .ud-icon{font-size:18px;margin-bottom:4px}
+.upload-section summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--t2);padding:10px 14px;background:var(--s1);border:1px solid var(--b0);border-radius:8px;margin-bottom:14px;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.upload-section summary::-webkit-details-marker{display:none}
+.upload-section summary::after{content:"\u25BC";font-size:10px;color:var(--t3)}
+.upload-section[open] summary::after{content:"\u25B2"}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("mechanical_audit") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127926;</div>
+    <div>
+      <div class="ph-title">Mechanical Audit</div>
+      <div class="ph-sub">Compare LabelMind catalog against MLC and Music Reports registered works. Sync MLC Song Codes and MRI Song IDs.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <form method="post" action="/mechanical-audit/apply" onsubmit="return confirm('Sync MLC / MRI IDs and ISWC numbers into LabelMind?')">
+      <button type="submit" class="btn btn-primary">&#128257; Sync IDs &amp; ISWC</button>
+    </form>
+    <a href="/pro-audit" class="btn btn-sec">PRO Audit</a>
+  </div>
+</div>
+
+<details class="upload-section" id="uploadSection">
+  <summary>
+    <span>&#128196; Upload Monthly Catalog Reports
+      <span style="font-size:11px;font-weight:400;color:var(--t3);margin-left:10px">
+        {% set any_uploaded = upload_meta.mlc or upload_meta.mri %}
+        {% if any_uploaded %}
+          Last updated:
+          {% if upload_meta.mlc %}MLC {{ upload_meta.mlc.uploaded_at }}{% endif %}
+          {% if upload_meta.mri %}&nbsp;&bull;&nbsp;Music Reports {{ upload_meta.mri.uploaded_at }}{% endif %}
+        {% else %}
+          No uploads yet
+        {% endif %}
+      </span>
+    </span>
+  </summary>
+  <div class="upload-grid2">
+    {% for src_key, src_label, badge_cls, hint in [
+        ('mlc', 'The MLC', 'mech-mlc', 'Download from portal.themlc.com &rarr; My Catalog &rarr; Export'),
+        ('mri', 'Music Reports', 'mech-mri', 'Download from portal.musicreports.com &rarr; Catalog &rarr; Export')
+    ] %}
+    {% set meta = upload_meta[src_key] %}
+    <div class="upload-card">
+      <div class="upload-card-hd">
+        <span class="mech-badge {{ badge_cls }}">{{ src_label }}</span>
+        <span class="upload-card-title">Registered Works Export</span>
+      </div>
+      <div class="upload-meta">
+        {% if meta %}
+          <div class="um-file">&#128196; {{ meta.original_name }}</div>
+          <div>{{ meta.work_count }} works &bull; uploaded {{ meta.uploaded_at }}</div>
+        {% else %}
+          <div>No file uploaded yet &mdash; {{ hint|safe }}</div>
+        {% endif %}
+      </div>
+      <form method="post" action="/mechanical-audit/upload" enctype="multipart/form-data" id="form-{{ src_key }}">
+        <input type="hidden" name="source" value="{{ src_key }}">
+        <div class="upload-drop" id="drop-{{ src_key }}"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="event.preventDefault();this.classList.remove('drag');document.getElementById('file-{{ src_key }}').files=event.dataTransfer.files;updateLabelM('{{ src_key }}')">
+          <input type="file" name="file" id="file-{{ src_key }}" accept=".csv,.xlsx,.xls"
+                 onchange="updateLabelM('{{ src_key }}')">
+          <div class="ud-icon">&#128229;</div>
+          <div id="lbl-{{ src_key }}">Drop .csv / .xlsx / .xls here or click to browse</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;margin-top:8px;text-align:center"
+                onclick="return document.getElementById('file-{{ src_key }}').files.length>0||alert('Please select a file first.')||false">
+          Upload {{ src_label }} Report
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+
+<div class="audit-stat-grid">
+  <div class="audit-stat"><div class="asv">{{ stats.db_total }}</div><div class="asl">Works in LabelMind</div></div>
+  <div class="audit-stat ok"><div class="asv">{{ stats.matched }}</div><div class="asl">Matched</div></div>
+  <div class="audit-stat danger"><div class="asv">{{ stats.unregistered }}</div><div class="asl">Unregistered</div></div>
+  <div class="audit-stat warn"><div class="asv">{{ stats.orphaned }}</div><div class="asl">Source-only (not in DB)</div></div>
+  <div class="audit-stat"><div class="asv">{{ stats.mlc_total }}</div><div class="asl">MLC works</div></div>
+  <div class="audit-stat"><div class="asv">{{ stats.mri_total }}</div><div class="asl">MRI works</div></div>
+</div>
+
+<div class="audit-tabs">
+  <a href="?tab=matched"      class="audit-tab {% if tab=='matched' %}on{% endif %}">Registered <span class="cnt">{{ stats.matched }}</span></a>
+  <a href="?tab=unregistered" class="audit-tab {% if tab=='unregistered' %}on{% endif %}">Unregistered <span class="cnt">{{ stats.unregistered }}</span></a>
+  <a href="?tab=orphaned"     class="audit-tab {% if tab=='orphaned' %}on{% endif %}">Source-Only (not in DB) <span class="cnt">{{ stats.orphaned }}</span></a>
+</div>
+
+{% if tab == 'matched' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works matched in MLC and/or Music Reports</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">Green ISWC = will be written on Sync &bull; IDs in blue will be saved</span>
+  </div>
+  {% if matched %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:200px">Work Title</th>
+      <th>ISWC (DB)</th>
+      <th>MLC Song Code</th>
+      <th>MRI Song ID (DB)</th>
+      <th>MLC</th>
+      <th>Music Reports</th>
+    </tr></thead>
+    <tbody>
+    {% for e in matched %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td>
+        {% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+        {% elif e.iswc_conflict %}<span class="iswc-tag iswc-conflict" title="Conflict: {{ e.iswcs_found|join(', ') }}">conflict &#9888;</span>
+        {% elif e.suggested_iswc %}<span class="iswc-tag iswc-new" title="Will be written on Sync">{{ e.suggested_iswc }} &#8593;</span>
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% set mlc_reg = e.work.pro_registrations | selectattr("pro","equalto","MLC") | list %}
+        {% if mlc_reg %}<span class="code-tag">{{ mlc_reg[0].mlc_song_code or '&mdash;' }}</span>
+        {% elif e.mlc and e.mlc.mlc_song_code %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mlc.mlc_song_code }} &#8593;</span>
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% if e.work.mri_song_id %}<span class="code-tag">{{ e.work.mri_song_id }}</span>
+        {% elif e.mri and e.mri.mri_song_id %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mri.mri_song_id }} &#8593;</span>
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% if e.mlc %}
+          <span class="mech-badge mech-mlc">MLC</span>
+          {% if e.mlc.artist %}<br><span style="font-size:11px;color:var(--t3)">{{ e.mlc.artist }}</span>{% endif %}
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+      <td>
+        {% if e.mri %}
+          <span class="mech-badge mech-mri">MRI</span>
+          {% if e.mri.artist %}<br><span style="font-size:11px;color:var(--t3)">{{ e.mri.artist }}</span>{% endif %}
+        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No matches found. Upload MLC and Music Reports exports to begin.</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'unregistered' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works in LabelMind not found in MLC or Music Reports</span>
+    <span style="font-size:12px;color:#e05c5c;margin-left:8px">These need to be registered for mechanical royalties</span>
+  </div>
+  {% if unregistered %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:220px">Work Title</th>
+      <th>LabelMind ID</th>
+      <th>ISWC</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+    </tr></thead>
+    <tbody>
+    {% for e in unregistered %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td style="font-size:12px;color:var(--t3);font-family:monospace">LM{{ '%06d' % e.work.id }}</td>
+      <td>{% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in e.work.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">
+        {% if e.work.contract_date %}{{ e.work.contract_date.strftime('%m/%d/%Y') }}{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are registered for mechanicals. &#9989;</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'orphaned' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works found in MLC / Music Reports but not in LabelMind</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">May be legacy registrations or title spelling differences</span>
+  </div>
+  {% if orphaned %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th>Source</th>
+      <th style="min-width:200px">Title (as filed)</th>
+      <th style="min-width:150px">Writer(s)</th>
+      <th>MLC Song Code / MRI ID</th>
+      <th>ISWC</th>
+      <th>Artist</th>
+    </tr></thead>
+    <tbody>
+    {% for o in orphaned %}
+    <tr>
+      <td><span class="mech-badge mech-{{ o.source|lower }}">{{ o.source }}</span></td>
+      <td>
+        <div style="font-weight:500;color:var(--t1)">{{ o.title }}</div>
+        {% if o.publisher %}<div style="font-size:11px;color:var(--t3);margin-top:2px">{{ o.publisher }}</div>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% if o.writers %}{{ o.writers | join(', ') }}{% else %}<span style="color:var(--t3)">&mdash;</span>{% endif %}
+      </td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">
+        {% if o.source == 'MLC' %}{{ o.mlc_song_code or '&mdash;' }}
+        {% else %}{{ o.mri_song_id or '&mdash;' }}{% endif %}
+      </td>
+      <td>{% if o.iswc %}<span class="iswc-tag">{{ o.iswc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ o.artist or '&mdash;' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No source-only entries found.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+</div></main></div>
+<script>
+function updateLabelM(src) {
+  var input = document.getElementById('file-' + src);
+  var lbl   = document.getElementById('lbl-' + src);
+  if (input.files && input.files.length > 0) lbl.textContent = input.files[0].name;
+}
+(function(){
+  var s = document.getElementById('uploadSection');
+  if (s && !s.querySelector('.um-file')) s.setAttribute('open','');
 })();
 </script>
 """ + _SB_JS + """
