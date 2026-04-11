@@ -5527,10 +5527,10 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
             <div class="wd-label">Work Info</div>
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
               <span style="color:var(--t3)">Title</span><span style="color:var(--t1);font-weight:600">{{ w.title }}</span>
-              <span style="color:var(--t3)">AKA</span><span style="color:var(--t2)">{{ w.aka_title or \'\xe2\x80\x94\' }}</span>
-              <span style="color:var(--t3)">ISWC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w.iswc or \'\xe2\x80\x94\' }}</span>
-              <span style="color:var(--t3)">Duration</span><span style="color:var(--t2)">{{ w._first_track.duration if w._first_track and w._first_track.duration else \'\xe2\x80\x94\' }}</span>
-              <span style="color:var(--t3)">Recording Title</span><span style="color:var(--t2)">{{ w._first_track.recording_title if w._first_track and w._first_track.recording_title else (w._first_track.primary_title if w._first_track else \'\xe2\x80\x94\') }}</span>
+              {% if w.aka_title %}<span style="color:var(--t3)">AKA</span><span style="color:var(--t2)">{{ w.aka_title }}</span>{% endif %}
+              <span style="color:var(--t3)">ISWC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w.iswc or '' }}</span>
+              <span style="color:var(--t3)">Duration</span><span style="color:var(--t2)">{{ w._first_track.duration if w._first_track and w._first_track.duration else '' }}</span>
+              <span style="color:var(--t3)">Recording Title</span><span style="color:var(--t2)">{{ w._first_track.recording_title if w._first_track and w._first_track.recording_title else (w._first_track.primary_title if w._first_track else '') }}</span>
             </div>
           </div>
           <div class="wd-section">
@@ -5541,11 +5541,11 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
               {% for ww in w.work_writers %}
               <tr>
                 <td style="font-weight:600">{{ ww.writer.full_name }}</td>
-                <td style="font-family:var(--fm)">{{ ww.writer.ipi or \'\xe2\x80\x94\' }}</td>
-                <td>{{ ww.writer.pro or \'\xe2\x80\x94\' }}</td>
+                <td style="font-family:var(--fm)">{{ ww.writer.ipi or '' }}</td>
+                <td>{{ ww.writer.pro or '' }}</td>
                 <td style="color:var(--a);font-weight:700">{{ "%.2f"|format(ww.writer_percentage) }}%</td>
-                <td style="font-size:11px;color:var(--t2)">{{ ww.publisher or \'\xe2\x80\x94\' }}</td>
-                <td style="font-family:var(--fm);font-size:11px;color:var(--t3)">{{ ww.publisher_ipi or \'\xe2\x80\x94\' }}</td>
+                <td style="font-size:11px;color:var(--t2)">{{ ww.publisher or '' }}</td>
+                <td style="font-family:var(--fm);font-size:11px;color:var(--t3)">{{ ww.publisher_ipi or '' }}</td>
               </tr>
               {% endfor %}
               </tbody>
@@ -5556,10 +5556,10 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
             {% if w._first_release %}
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
               <span style="color:var(--t3)">Release Type</span><span style="color:var(--t2)">{{ w._first_release.release_type }}</span>
-              <span style="color:var(--t3)">Release Date</span><span style="color:var(--t2)">{{ w._first_release.release_date.strftime(\'%m/%d/%Y\') if w._first_release.release_date else \'\xe2\x80\x94\' }}</span>
-              <span style="color:var(--t3)">Record Label</span><span style="color:var(--t2)">{{ w._first_track.track_label or \'\xe2\x80\x94\' }}</span>
-              <span style="color:var(--t3)">ISRC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_track.isrc or \'\xe2\x80\x94\' }}</span>
-              <span style="color:var(--t3)">UPC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_release.upc or \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">Release Date</span><span style="color:var(--t2)">{{ w._first_release.release_date.strftime('%m/%d/%Y') if w._first_release.release_date else '' }}</span>
+              <span style="color:var(--t3)">Record Label</span><span style="color:var(--t2)">{{ w._first_track.track_label or '' }}</span>
+              <span style="color:var(--t3)">ISRC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_track.isrc or '' }}</span>
+              <span style="color:var(--t3)">UPC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_release.upc or '' }}</span>
             </div>
             {% if w._tracks|length > 1 %}
             <div style="font-size:11px;color:var(--t3);margin-top:8px">+{{ w._tracks|length - 1 }} more recording(s)</div>
