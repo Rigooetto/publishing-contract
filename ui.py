@@ -5497,13 +5497,20 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
   <table class="tbl" style="width:100%">
     <thead><tr>
       <th style="width:36px"><input type="checkbox" id="chkAll" onclick="document.querySelectorAll(\'.work-chk\').forEach(function(c){c.checked=this.checked;},this)"></th>
-      <th>Work Title</th><th>Writers</th><th>Publisher</th><th>Contract Date</th>
+      <th>Work Title</th>
+      <th>Writers</th>
+      <th>Publisher</th>
+      <th>Contract Date</th>
     </tr></thead>
     <tbody>
     {% for w in unregistered %}
-    <tr>
-      <td><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="work-chk"></td>
-      <td><a href="/works/{{ w.id }}" style="color:var(--t1);font-weight:500">{{ w.title }}</a></td>
+    <tr class="work-row" data-pro-work="{{ w.id }}" onclick="toggleProWork({{ w.id }}, event)" style="cursor:pointer">
+      <td onclick="event.stopPropagation()"><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="work-chk"></td>
+      <td>
+        <span class="expand-chevron">&#9658;</span>
+        <span style="font-weight:600">{{ w.title }}</span>
+        {% if w.aka_title %}<div style="font-size:11px;color:var(--t3);margin-left:16px;margin-top:2px">AKA: {{ w.aka_title }}</div>{% endif %}
+      </td>
       <td style="font-size:12px;color:var(--t2)">
         {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
         {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
@@ -5512,6 +5519,57 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
         {% for ww in w.work_writers %}{% if ww.publisher in [\'Songs of Afinarte\',\'Melodies of Afinarte\',\'Music of Afinarte\'] %}<span style="display:block">{{ ww.publisher }}</span>{% endif %}{% endfor %}
       </td>
       <td style="font-size:12px;color:var(--t3)">{{ w.contract_date.strftime(\'%m/%d/%Y\') if w.contract_date else \'\xe2\x80\x94\' }}</td>
+    </tr>
+    <tr class="work-detail-row" id="pro-detail-{{ w.id }}">
+      <td colspan="5">
+        <div class="work-detail-inner" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="wd-section">
+            <div class="wd-label">Work Info</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+              <span style="color:var(--t3)">Title</span><span style="color:var(--t1);font-weight:600">{{ w.title }}</span>
+              <span style="color:var(--t3)">AKA</span><span style="color:var(--t2)">{{ w.aka_title or \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">ISWC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w.iswc or \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">Duration</span><span style="color:var(--t2)">{{ w._first_track.duration if w._first_track and w._first_track.duration else \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">Recording Title</span><span style="color:var(--t2)">{{ w._first_track.recording_title if w._first_track and w._first_track.recording_title else (w._first_track.primary_title if w._first_track else \'\xe2\x80\x94\') }}</span>
+            </div>
+          </div>
+          <div class="wd-section">
+            <div class="wd-label">Writers &amp; Publishers</div>
+            <table class="wd-writers-tbl" style="width:100%">
+              <thead><tr><th>Writer</th><th>IPI</th><th>PRO</th><th>Share</th><th>Publisher</th><th>Pub IPI</th></tr></thead>
+              <tbody>
+              {% for ww in w.work_writers %}
+              <tr>
+                <td style="font-weight:600">{{ ww.writer.full_name }}</td>
+                <td style="font-family:var(--fm)">{{ ww.writer.ipi or \'\xe2\x80\x94\' }}</td>
+                <td>{{ ww.writer.pro or \'\xe2\x80\x94\' }}</td>
+                <td style="color:var(--a);font-weight:700">{{ "%.2f"|format(ww.writer_percentage) }}%</td>
+                <td style="font-size:11px;color:var(--t2)">{{ ww.publisher or \'\xe2\x80\x94\' }}</td>
+                <td style="font-family:var(--fm);font-size:11px;color:var(--t3)">{{ ww.publisher_ipi or \'\xe2\x80\x94\' }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="wd-section">
+            <div class="wd-label">Recording &amp; Release</div>
+            {% if w._first_release %}
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+              <span style="color:var(--t3)">Release Type</span><span style="color:var(--t2)">{{ w._first_release.release_type }}</span>
+              <span style="color:var(--t3)">Release Date</span><span style="color:var(--t2)">{{ w._first_release.release_date.strftime(\'%m/%d/%Y\') if w._first_release.release_date else \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">Record Label</span><span style="color:var(--t2)">{{ w._first_track.track_label or \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">ISRC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_track.isrc or \'\xe2\x80\x94\' }}</span>
+              <span style="color:var(--t3)">UPC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_release.upc or \'\xe2\x80\x94\' }}</span>
+            </div>
+            {% if w._tracks|length > 1 %}
+            <div style="font-size:11px;color:var(--t3);margin-top:8px">+{{ w._tracks|length - 1 }} more recording(s)</div>
+            {% endif %}
+            {% else %}
+            <div style="font-size:12px;color:var(--t3)">No linked release</div>
+            {% endif %}
+          </div>
+        </div>
+      </td>
     </tr>
     {% endfor %}
     </tbody>
@@ -5573,6 +5631,21 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
 </div>
 {% endif %}
 </div></main></div>
+<script>
+function toggleProWork(id, e) {
+  if (e && e.target && (e.target.type === 'checkbox' || e.target.tagName === 'A')) return;
+  var row = document.getElementById('pro-detail-' + id);
+  var hdr = document.querySelector('[data-pro-work="' + id + '"]');
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.work-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.work-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) {
+    row.classList.add('open');
+    hdr.classList.add('open');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+</script>
 """ + _SB_JS + """
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>

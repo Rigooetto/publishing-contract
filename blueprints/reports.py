@@ -17,6 +17,17 @@ bp = Blueprint("reports", __name__)
 AFINARTE_PUBLISHERS = ["Songs of Afinarte", "Melodies of Afinarte", "Music of Afinarte"]
 
 
+def _attach_track_info(work):
+    """Attach first linked track + release data to a Work instance for display."""
+    tracks = (Track.query
+              .join(TrackWork, TrackWork.track_id == Track.id)
+              .filter(TrackWork.work_id == work.id)
+              .all())
+    work._tracks = tracks
+    work._first_track = tracks[0] if tracks else None
+    work._first_release = tracks[0].release if tracks and tracks[0].release else None
+
+
 def _is_controlled(publisher_name):
     if not publisher_name:
         return False
@@ -126,11 +137,14 @@ def pro_registration():
         registered = pagination.items
         for w in registered:
             w.registrations = ProRegistration.query.filter_by(work_id=w.id).order_by(ProRegistration.registered_at.desc()).all()
+            _attach_track_info(w)
         unregistered_count = unregistered_q.count()
         unregistered = []
     else:
         pagination = unregistered_q.paginate(page=page, per_page=per_page, error_out=False)
         unregistered = pagination.items
+        for w in unregistered:
+            _attach_track_info(w)
         registered = []
         unregistered_count = pagination.total
 
