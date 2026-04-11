@@ -1019,14 +1019,14 @@ function writerTpl(i, data) {
   h += '<div class="wc-sec">Identity</div>';
   h += '<div class="g g4" style="gap:10px">';
   h += '<div class="field ac-wrap"><label class="label">First Name</label>';
-  h += '<input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="off" value="' + (data.first_name || '') + '">';
+  h += '<input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="new-password" value="' + (data.first_name || '') + '">';
   h += '<div class="ac-box wsug"></div></div>';
 
   h += '<div class="field"><label class="label">Middle Name</label>';
-  h += '<input class="inp wmn" name="writer_middle_name" placeholder="Middle" autocomplete="off" value="' + (data.middle_name || '') + '"></div>';
+  h += '<input class="inp wmn" name="writer_middle_name" placeholder="Middle" autocomplete="new-password" value="' + (data.middle_name || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Last Name(s)</label>';
-  h += '<input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="off" value="' + (data.last_names || '') + '"></div>';
+  h += '<input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="new-password" value="' + (data.last_names || '') + '"></div>';
 
   h += '<div class="field"><label class="label">AKA / Stage</label>';
   h += '<input class="inp waka" name="writer_aka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
@@ -2603,7 +2603,7 @@ function addExistingWriterRow() {
   tr.innerHTML = `
     <td>
       <div class="ac-wrap" style="min-width:220px">
-        <input class="inp new-writer-search" type="text" placeholder="Search existing writer...">
+        <input class="inp new-writer-search" type="text" placeholder="Search existing writer..." autocomplete="new-password">
         <div class="ac-box new-writer-sug"></div>
       </div>
       <input type="hidden" name="work_writer_id" value="">
@@ -3342,14 +3342,14 @@ ADMIN_HTML = """<!DOCTYPE html>
       <div class="g g2" style="margin-bottom:14px">
         <div class="field">
           <label class="label">Primary Writer (keep this one)</label>
-          <input class="inp" type="text" id="mergeSearch1" placeholder="Search by name..." autocomplete="off">
+          <input class="inp" type="text" id="mergeSearch1" placeholder="Search by name..." autocomplete="new-password">
           <input type="hidden" name="primary_writer_id" id="primaryWriterId" required>
           <div id="mergeDrop1" style="display:none;position:relative;z-index:100;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);margin-top:2px;max-height:180px;overflow-y:auto"></div>
           <div id="primaryLabel" style="font-size:12px;color:var(--ag);margin-top:4px"></div>
         </div>
         <div class="field">
           <label class="label">Duplicate Writer (delete this one)</label>
-          <input class="inp" type="text" id="mergeSearch2" placeholder="Search by name..." autocomplete="off">
+          <input class="inp" type="text" id="mergeSearch2" placeholder="Search by name..." autocomplete="new-password">
           <input type="hidden" name="duplicate_writer_id" id="duplicateWriterId" required>
           <div id="mergeDrop2" style="display:none;position:relative;z-index:100;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);margin-top:2px;max-height:180px;overflow-y:auto"></div>
           <div id="duplicateLabel" style="font-size:12px;color:var(--ar);margin-top:4px"></div>
@@ -3984,7 +3984,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       <div id="work-search-area-{{ t.id }}" {% if t.is_cover %}style="display:none"{% endif %}>
         <div class="inp-wrap" style="margin-top:8px">
           <span class="inp-ico">&#128395;</span>
-          <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
+          <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)" autocomplete="new-password">
         </div>
         <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
       </div>
@@ -4029,7 +4029,7 @@ function addArtist(containerId) {
   row.className = 'artist-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
   var inp = document.createElement('input'); inp.className = 'inp';
-  inp.name = name; inp.placeholder = 'Additional artist'; inp.style.flex = '1';
+  inp.name = name; inp.placeholder = 'Additional artist'; inp.style.flex = '1'; inp.autocomplete = 'new-password';
   var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-xs';
   btn.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
   btn.textContent = 'X';
@@ -4186,7 +4186,7 @@ function addTrack() {
   searchArea.id = 'work-search-area-new-' + idx;
   var searchWrap = document.createElement('div'); searchWrap.className = 'inp-wrap'; searchWrap.style.marginTop = '8px';
   var searchIco = document.createElement('span'); searchIco.className = 'inp-ico'; searchIco.textContent = '\u266B';
-  var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp';
+  var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp'; searchInp.setAttribute('autocomplete','new-password');
   searchInp.placeholder = 'Search works to link...';
   searchInp.setAttribute('data-track-new', idx);
   searchInp.setAttribute('oninput', 'searchWorks(this)');
@@ -4439,6 +4439,7 @@ function _ensureArtistSugg(inp) {
 var _artistSuggCounter = 0;
 function setupArtistInput(inp) {
   if (inp.dataset.asuggId) return; // already wired
+  inp.autocomplete = 'new-password';
   inp.dataset.asuggId = ++_artistSuggCounter;
   inp.addEventListener('input', function() {
     var q = inp.value.trim();
