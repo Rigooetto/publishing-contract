@@ -1203,6 +1203,17 @@ function setupWriter(r) {
   var spl = r.querySelector('.wspl');
   var pro = r.querySelector('.wpro');
 
+  // Block Safari Contacts suggestions: start readonly, remove on first focus
+  [fn, mn, ln].forEach(function(inp) {
+    if (inp && !inp.value) {
+      inp.setAttribute('readonly', 'readonly');
+      inp.addEventListener('focus', function unblock() {
+        inp.removeAttribute('readonly');
+        inp.removeEventListener('focus', unblock);
+      });
+    }
+  });
+
   function search() {
     var q = fullName(r);
     if (q.length < 2) { hideSug(r); resetNew(r); return; }
@@ -1236,6 +1247,18 @@ function setupWriter(r) {
   document.addEventListener('click', function(e) {
     if (![fn, mn, ln, sug].some(function(el) { return el.contains(e.target); })) {
       hideSug(r);
+    }
+  });
+
+  // Block Safari Contacts on address/contact fields too
+  ['.waddr','.wcity','.wst','.wzip','.wem','.wphone'].forEach(function(sel) {
+    var el = r.querySelector(sel);
+    if (el && !el.value) {
+      el.setAttribute('readonly', 'readonly');
+      el.addEventListener('focus', function unblock() {
+        el.removeAttribute('readonly');
+        el.removeEventListener('focus', unblock);
+      });
     }
   });
 }
