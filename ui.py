@@ -6150,6 +6150,13 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No matches found. Upload MLC and Music Reports exports to begin.</div>
   {% endif %}
@@ -6188,6 +6195,13 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
     {% endfor %}
     </tbody>
   </table>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
   </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are registered for mechanicals. &#9989;</div>
@@ -6233,6 +6247,13 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
     {% endfor %}
     </tbody>
   </table>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} entries &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
   </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No source-only entries found.</div>
@@ -6417,6 +6438,13 @@ NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} tracks &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No matches found. Upload a SoundExchange catalog export to begin.</div>
   {% endif %}
@@ -6458,6 +6486,13 @@ NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} tracks &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
+  </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All tracks are registered with SoundExchange. &#9989;</div>
   {% endif %}
@@ -6495,6 +6530,13 @@ NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
     {% endfor %}
     </tbody>
   </table>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+    <span>{{ pagination.total }} entries &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:6px">
+      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    </div>
   </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No SoundExchange-only entries found.</div>

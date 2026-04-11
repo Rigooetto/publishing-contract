@@ -156,6 +156,28 @@ def upload_bytes_to_drive(file_name, file_bytes, parent_folder_id, mime_type):
     }
 
 
+# ── List pagination ───────────────────────────────────────────────────────────
+
+class ListPagination:
+    """Mimics SQLAlchemy pagination so templates can use the same controls."""
+    def __init__(self, items, page, per_page):
+        self.total    = len(items)
+        self.page     = page
+        self.per_page = per_page
+        self.pages    = max(1, (self.total + per_page - 1) // per_page)
+        self.page     = max(1, min(page, self.pages))
+        start         = (self.page - 1) * per_page
+        self.items    = items[start:start + per_page]
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+        self.prev_num = self.page - 1
+        self.next_num = self.page + 1
+
+
+def paginate_list(items, page, per_page=50):
+    return ListPagination(items, page, per_page)
+
+
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 def auth_required():

@@ -10,7 +10,7 @@ from flask import Blueprint, render_template_string, request, redirect, url_for,
 
 from extensions import db
 from models import Work, ProRegistration
-from utils import auth_required
+from utils import auth_required, paginate_list
 from ui import MECHANICAL_AUDIT_HTML
 
 bp = Blueprint("mechanical_audit", __name__)
@@ -293,12 +293,23 @@ def mechanical_audit():
     )
 
     upload_meta = {"mlc": _read_meta("mlc"), "mri": _read_meta("mri")}
-    tab = request.args.get("tab", "matched")
+    tab  = request.args.get("tab", "matched")
+    page = request.args.get("page", 1, type=int)
+
+    if tab == "matched":
+        pagination = paginate_list(matched, page)
+        matched = pagination.items
+    elif tab == "unregistered":
+        pagination = paginate_list(unregistered, page)
+        unregistered = pagination.items
+    else:
+        pagination = paginate_list(orphaned, page)
+        orphaned = pagination.items
 
     return render_template_string(
         MECHANICAL_AUDIT_HTML,
         matched=matched, unregistered=unregistered, orphaned=orphaned,
-        stats=stats, tab=tab, upload_meta=upload_meta,
+        stats=stats, tab=tab, upload_meta=upload_meta, pagination=pagination,
     )
 
 
