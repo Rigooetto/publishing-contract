@@ -9,7 +9,7 @@ from sqlalchemy import func as _func
 from extensions import db
 from models import (Work, WorkWriter, ProRegistration, PublisherConfig,
                     Release, Track, TrackWork)
-from utils import auth_required
+from utils import auth_required, role_required, FULL_ACCESS_ROLES
 from ui import REPORTS_INDEX_HTML, PUBLISHER_CONFIG_HTML, PRO_REGISTRATION_HTML
 
 bp = Blueprint("reports", __name__)
@@ -40,6 +40,9 @@ def _is_controlled(publisher_name):
 def publisher_config():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     if request.method == "POST":
         names = request.form.getlist("publisher_name[]")
         pros = request.form.getlist("pro[]")
@@ -100,6 +103,9 @@ def publisher_config():
 def pro_registration():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     tab = request.args.get("tab", "unregistered")
     q = (request.args.get("q") or "").strip()
@@ -161,6 +167,9 @@ def pro_registration():
 def pro_registration_mark():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     work_ids = request.form.getlist("work_ids[]")
     pro = request.form.get("pro", "").strip()
     pro_work_number = request.form.get("pro_work_number", "").strip()
@@ -202,6 +211,9 @@ def pro_registration_mark():
 def pro_registration_delete(reg_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     reg = ProRegistration.query.get_or_404(reg_id)
     db.session.delete(reg)
     db.session.commit()
@@ -215,6 +227,9 @@ def pro_registration_delete(reg_id):
 def reports_index():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     work_count = (Work.query
                   .join(WorkWriter, WorkWriter.work_id == Work.id)
                   .filter(WorkWriter.publisher.in_(AFINARTE_PUBLISHERS))
@@ -229,6 +244,9 @@ def reports_index():
 def export_mlc():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     try:
         import openpyxl
         from openpyxl import load_workbook
@@ -319,6 +337,9 @@ def export_mlc():
 def export_music_reports():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     try:
         import xlwt
 
@@ -436,6 +457,9 @@ def export_music_reports():
 def export_soundexchange():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     try:
         from openpyxl import load_workbook
 

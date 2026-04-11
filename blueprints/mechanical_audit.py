@@ -10,7 +10,7 @@ from flask import Blueprint, render_template_string, request, redirect, url_for,
 
 from extensions import db
 from models import Work, ProRegistration
-from utils import auth_required, paginate_list
+from utils import auth_required, paginate_list, role_required, FULL_ACCESS_ROLES
 from ui import MECHANICAL_AUDIT_HTML
 
 bp = Blueprint("mechanical_audit", __name__)
@@ -280,6 +280,9 @@ def _build_audit():
 def mechanical_audit():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     matched, unregistered, orphaned, mlc, mri = _build_audit()
 
@@ -317,6 +320,9 @@ def mechanical_audit():
 def upload_catalog():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     source = request.form.get("source", "").lower().strip()
     file   = request.files.get("file")
@@ -375,6 +381,9 @@ def upload_catalog():
 def apply_sync():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     matched, _u, _o, _m, _r = _build_audit()
 

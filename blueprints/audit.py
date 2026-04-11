@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 
 from extensions import db
 from models import Work, ProRegistration
-from utils import auth_required
+from utils import auth_required, role_required, FULL_ACCESS_ROLES
 from ui import PRO_AUDIT_HTML
 
 bp = Blueprint("audit", __name__)
@@ -230,6 +230,9 @@ def _build_audit():
 def pro_audit():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     matched, unregistered, orphaned, ascap, bmi, sesac = _build_audit()
 
@@ -266,6 +269,9 @@ def pro_audit():
 def upload_catalog():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     pro  = request.form.get("pro", "").lower().strip()
     file = request.files.get("file")
@@ -315,6 +321,9 @@ def upload_catalog():
 def apply_iswc():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     matched, _unregistered, _orphaned, _a, _b, _s = _build_audit()
 

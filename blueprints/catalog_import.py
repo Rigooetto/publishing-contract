@@ -16,7 +16,7 @@ from flask import Blueprint, request, redirect, url_for, flash, render_template_
 
 from extensions import db
 from models import Release, Track, Artist, ArtistRelease, Work, Writer, WorkWriter, TrackWork
-from utils import auth_required
+from utils import auth_required, role_required, FULL_ACCESS_ROLES
 from ui import CATALOG_IMPORT_HTML, CATALOG_IMPORT_RESULT_HTML
 
 bp = Blueprint("catalog_import", __name__)
@@ -426,6 +426,9 @@ def _run_import(file_bytes):
 def catalog_import_form():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
     return render_template_string(CATALOG_IMPORT_HTML)
 
 
@@ -433,6 +436,9 @@ def catalog_import_form():
 def catalog_import_run():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     f = request.files.get("catalog_file")
     if not f or not f.filename:

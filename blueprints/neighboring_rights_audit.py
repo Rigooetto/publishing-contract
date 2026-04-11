@@ -9,7 +9,7 @@ import re
 from flask import Blueprint, render_template_string, request, redirect, url_for, flash
 
 from models import Track, Release
-from utils import auth_required, paginate_list
+from utils import auth_required, paginate_list, role_required, FULL_ACCESS_ROLES
 from ui import NEIGHBORING_RIGHTS_AUDIT_HTML
 
 bp = Blueprint("neighboring_rights_audit", __name__)
@@ -242,6 +242,9 @@ def _build_audit():
 def neighboring_rights_audit():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     matched, unregistered, orphaned, sx_total = _build_audit()
 
@@ -283,6 +286,9 @@ def neighboring_rights_audit():
 def upload_catalog():
     if auth_required():
         return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
 
     file = request.files.get("file")
 

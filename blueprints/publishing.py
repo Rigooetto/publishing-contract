@@ -61,15 +61,34 @@ _import_preview_store: dict = {}
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
-    if not (TEAM_USERNAME and TEAM_PASSWORD):
+    from models import User as UserModel
+    has_users = UserModel.query.first() is not None
+
+    if not has_users and not (TEAM_USERNAME and TEAM_PASSWORD):
         return redirect(url_for(".formulario"))
+
     if request.method == "POST":
-        username = request.form.get("username", "")
+        username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        if username == TEAM_USERNAME and password == TEAM_PASSWORD:
-            session["logged_in"] = True
-            return redirect(url_for(".formulario"))
+
+        if has_users:
+            user = UserModel.query.filter_by(username=username, is_active=True).first()
+            if user and user.check_password(password):
+                session.clear()
+                session["user_id"]  = user.id
+                session["username"] = user.username
+                session["role"]     = user.role
+                return redirect(url_for(".formulario"))
+        else:
+            if username == TEAM_USERNAME and password == TEAM_PASSWORD:
+                session.clear()
+                session["logged_in"] = True
+                session["username"]  = username
+                session["role"]      = "admin"
+                return redirect(url_for(".formulario"))
+
         flash("Incorrect username or password.")
+
     return render_template_string(LOGIN_HTML)
 
 
@@ -393,7 +412,7 @@ def formulario():
             batch = GenerationBatch(
                 session_name=build_session_name(new_session_name),
                 contract_date=contract_date,
-                created_by="",
+                created_by=session.get("username", ""),
                 status="draft",
             )
             db.session.add(batch)

@@ -45,6 +45,7 @@ from blueprints.reports import bp as reports_bp
 from blueprints.audit import bp as audit_bp
 from blueprints.mechanical_audit import bp as mechanical_audit_bp
 from blueprints.neighboring_rights_audit import bp as neighboring_rights_audit_bp
+from blueprints.users import bp as users_bp
 
 app.register_blueprint(publishing_bp)
 app.register_blueprint(releases_bp)
@@ -55,12 +56,19 @@ app.register_blueprint(reports_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(mechanical_audit_bp)
 app.register_blueprint(neighboring_rights_audit_bp)
+app.register_blueprint(users_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
 @app.context_processor
 def inject_globals():
-    return {"team_auth_enabled": bool(TEAM_USERNAME and TEAM_PASSWORD)}
+    from flask import session
+    return {
+        "team_auth_enabled":  bool(TEAM_USERNAME and TEAM_PASSWORD),
+        "current_role":       session.get("role", ""),
+        "current_username":   session.get("username", ""),
+        "current_user_id":    session.get("user_id"),
+    }
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 

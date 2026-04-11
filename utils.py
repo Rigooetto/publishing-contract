@@ -180,10 +180,27 @@ def paginate_list(items, page, per_page=50):
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
+FULL_ACCESS_ROLES = {"admin", "label_manager", "publishing_manager"}
+
+
 def auth_required():
-    if not (TEAM_USERNAME and TEAM_PASSWORD):
+    """Returns True if the request requires login and the user is not authenticated."""
+    if session.get("user_id") or session.get("logged_in"):
         return False
-    return not session.get("logged_in")
+    if TEAM_USERNAME and TEAM_PASSWORD:
+        return True
+    try:
+        from models import User
+        return User.query.first() is not None
+    except Exception:
+        return False
+
+
+def role_required(roles):
+    """Returns True if the current user's role is not in the allowed set.
+    Call auth_required() first — this only checks the role, not login state."""
+    role = session.get("role", "admin")  # legacy team sessions treated as admin
+    return role not in roles
 
 
 # ── Writer helpers ─────────────────────────────────────────────────────────────

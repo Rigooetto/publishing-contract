@@ -814,6 +814,7 @@ def _sidebar(active):
     html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#127899;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
+    html += "{% if current_role in ('admin', 'label_manager', 'publishing_manager') %}"
     html += "<div class='sb-sec'>Reporting</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/reports'" + (" class='on'" if active == "reports" else "") + " title='Reports'><span class='ni'>&#128202;</span><span class='nl'>Reports</span></a>"
@@ -822,13 +823,26 @@ def _sidebar(active):
     html += "<a href='/mechanical-audit'" + (" class='on'" if active == "mechanical_audit" else "") + " title='Mechanical Audit'><span class='ni'>&#127926;</span><span class='nl'>Mechanical Audit</span></a>"
     html += "<a href='/neighboring-rights-audit'" + (" class='on'" if active == "neighboring_rights_audit" else "") + " title='Neighboring Rights Audit'><span class='ni'>&#127911;</span><span class='nl'>Neighboring Rights</span></a>"
     html += "</nav>"
-
     html += "<div class='sb-sec'>Admin</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/admin'" + (" class='on'" if active == "admin" else "") + " title='Admin Panel'><span class='ni'>&#128736;</span><span class='nl'>Admin Panel</span></a>"
     html += "</nav>"
+    html += "{% endif %}"
 
-    html += "<div class='sb-foot'><b>LabelMind</b>Music Publishing Contracts<br>2026 LabelMind.ai</div>"
+    html += "{% if current_role == 'admin' %}"
+    html += "<div class='sb-sec'>Team</div>"
+    html += "<nav class='sb-nav'>"
+    html += "<a href='/users'" + (" class='on'" if active == "users_list" else "") + " title='User Management'><span class='ni'>&#128101;</span><span class='nl'>Users</span></a>"
+    html += "</nav>"
+    html += "{% endif %}"
+
+    html += "<div class='sb-foot'>"
+    html += "{% if current_username %}"
+    html += "<div style='font-size:12px;color:var(--t2);margin-bottom:3px'>&#128100; {{ current_username }}</div>"
+    html += "<div style='font-size:10px;color:var(--t3);text-transform:capitalize;margin-bottom:6px'>{{ current_role | replace('_',' ') }}</div>"
+    html += "<a href='/logout' style='font-size:11px;color:var(--t3);text-decoration:none;display:block;margin-bottom:10px'>Sign out &rarr;</a>"
+    html += "{% endif %}"
+    html += "<b>LabelMind</b> Music Publishing<br>2026 LabelMind.ai</div>"
     html += "</aside>"
     return html
 
@@ -6562,5 +6576,165 @@ function updateLabelNR() {
   <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ================================================================
+# SETUP (first-run admin creation)
+# ================================================================
+
+SETUP_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Setup - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="login-wrap"><div class="login-card" style="max-width:440px">
+<div class="login-logo">
+  <div class="login-logo-ico">&#127925;</div>
+  <span class="login-logo-name">LabelMind</span>
+</div>
+<div class="login-h">Create Admin Account</div>
+<div class="login-sub">Set up the first administrator for your team</div>
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<form method="post">
+<div class="login-field"><label class="label">Username *</label>
+<input class="inp" name="username" required autocomplete="username" placeholder="e.g. ivan.sandoval"></div>
+<div class="login-field"><label class="label">Email</label>
+<input class="inp" name="email" type="email" placeholder="you@afinarte.com"></div>
+<div class="login-field"><label class="label">Password *</label>
+<input class="inp" type="password" name="password" required placeholder="Min 8 characters"></div>
+<div class="login-field"><label class="label">Confirm Password *</label>
+<input class="inp" type="password" name="confirm_password" required placeholder="Repeat password"></div>
+<button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px">Create Admin Account</button>
+</form>
+</div></div>
+</body></html>"""
+
+
+# ================================================================
+# USER MANAGEMENT
+# ================================================================
+
+USERS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Users - LabelMind</title>""" + _STYLE + """
+<style>
+.upload-section summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--t2);padding:10px 14px;background:var(--s1);border:1px solid var(--b0);border-radius:8px;margin-bottom:14px;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.upload-section summary::-webkit-details-marker{display:none}
+.upload-section summary::after{content:"\u25BC";font-size:10px;color:var(--t3)}
+.upload-section[open] summary::after{content:"\u25B2"}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("users_list") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128101;</div>
+    <div>
+      <div class="ph-title">User Management</div>
+      <div class="ph-sub">Create accounts and control what each team member can access.</div>
+    </div>
+  </div>
+</div>
+<details class="upload-section" id="createSection">
+  <summary><span>&#10133; Add New User</span></summary>
+  <div class="card" style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0">
+    <form method="post" action="/users/create">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div><label class="label">Username *</label>
+        <input class="inp" name="username" required placeholder="e.g. jane.doe"></div>
+        <div><label class="label">Email</label>
+        <input class="inp" name="email" type="email" placeholder="user@afinarte.com"></div>
+        <div><label class="label">Role *</label>
+        <select class="inp" name="role">
+          <option value="ar">A&amp;R</option>
+          <option value="label_manager">Label Manager</option>
+          <option value="publishing_manager">Publishing Manager</option>
+          <option value="admin">Admin</option>
+        </select></div>
+        <div><label class="label">Password *</label>
+        <input class="inp" type="password" name="password" required placeholder="Min 8 characters"></div>
+      </div>
+      <button type="submit" class="btn btn-primary">Create User</button>
+    </form>
+  </div>
+</details>
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Team Members</span>
+    <span style="font-size:12px;color:var(--t3)">{{ users | length }} user{{ 's' if users | length != 1 else '' }}</span>
+  </div>
+  {% if users %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th>Username</th><th>Email</th><th style="min-width:230px">Role</th>
+      <th>Status</th><th style="min-width:240px">Reset Password</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for u in users %}
+    <tr>
+      <td style="font-weight:500">{{ u.username }}
+        {% if u.id == current_user_id %}<span style="font-size:10px;color:var(--t3);margin-left:4px">(you)</span>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">{{ u.email or '&mdash;' }}</td>
+      <td>
+        <form method="post" action="/users/{{ u.id }}/role" style="display:flex;gap:6px;align-items:center">
+          <select name="role" class="inp" style="padding:4px 8px;font-size:12px;width:auto">
+            <option value="ar"{% if u.role=='ar' %} selected{% endif %}>A&amp;R</option>
+            <option value="label_manager"{% if u.role=='label_manager' %} selected{% endif %}>Label Manager</option>
+            <option value="publishing_manager"{% if u.role=='publishing_manager' %} selected{% endif %}>Publishing Manager</option>
+            <option value="admin"{% if u.role=='admin' %} selected{% endif %}>Admin</option>
+          </select>
+          <button type="submit" class="btn btn-sec btn-sm">Save</button>
+        </form>
+      </td>
+      <td>{% if u.is_active %}<span style="color:#4caf8a;font-size:12px;font-weight:600">&#9679; Active</span>
+          {% else %}<span style="color:#e05c5c;font-size:12px;font-weight:600">&#9679; Inactive</span>{% endif %}</td>
+      <td>
+        <form method="post" action="/users/{{ u.id }}/password" style="display:flex;gap:6px;align-items:center">
+          <input type="password" name="new_password" placeholder="New password" class="inp"
+                 style="padding:4px 8px;font-size:12px;width:130px">
+          <button type="submit" class="btn btn-sec btn-sm">Reset</button>
+        </form>
+      </td>
+      <td>{% if u.id != current_user_id %}
+        <form method="post" action="/users/{{ u.id }}/toggle">
+          <button type="submit" class="btn btn-sm {% if u.is_active %}btn-danger{% else %}btn-sec{% endif %}">
+            {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+          </button>
+        </form>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No users yet.</div>
+  {% endif %}
+</div>
+</div></main></div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item on"><span>&#128101;</span><small>Writers</small></a>
 </div>
 </body></html>"""
