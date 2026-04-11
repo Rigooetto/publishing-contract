@@ -92,6 +92,11 @@ def pro_registration():
 
     tab = request.args.get("tab", "unregistered")
     q = (request.args.get("q") or "").strip()
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (ValueError, TypeError):
+        page = 1
+    per_page = 50
 
     registered_work_ids = db.session.query(ProRegistration.work_id).distinct()
 
@@ -113,15 +118,29 @@ def pro_registration():
         unregistered_q = unregistered_q.filter(_func.lower(Work.title).like(like_q))
         registered_q = registered_q.filter(_func.lower(Work.title).like(like_q))
 
-    unregistered = unregistered_q.order_by(Work.created_at.desc()).all()
-    registered = registered_q.order_by(Work.title).all()
+    unregistered_q = unregistered_q.order_by(Work.created_at.desc())
+    registered_q = registered_q.order_by(Work.title)
 
-    for w in registered:
-        w.registrations = ProRegistration.query.filter_by(work_id=w.id).order_by(ProRegistration.registered_at.desc()).all()
+    if tab == "registered":
+        pagination = registered_q.paginate(page=page, per_page=per_page, error_out=False)
+        registered = pagination.items
+        for w in registered:
+            w.registrations = ProRegistration.query.filter_by(work_id=w.id).order_by(ProRegistration.registered_at.desc()).all()
+        unregistered_count = unregistered_q.count()
+        unregistered = []
+    else:
+        pagination = unregistered_q.paginate(page=page, per_page=per_page, error_out=False)
+        unregistered = pagination.items
+        registered = []
+        unregistered_count = pagination.total
+
+    registered_count = registered_q.count()
 
     today = datetime.date.today().strftime("%Y-%m-%d")
     return render_template_string(PRO_REGISTRATION_HTML,
-        unregistered=unregistered, registered=registered, tab=tab, q=q, today=today)
+        unregistered=unregistered, registered=registered,
+        unregistered_count=unregistered_count, registered_count=registered_count,
+        pagination=pagination, tab=tab, q=q, today=today)
 
 
 @bp.route("/pro-registration/mark", methods=["POST"])

@@ -5454,9 +5454,9 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
 </div>
 <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
   <a href="/pro-registration?tab=unregistered{% if q %}&amp;q={{ q }}{% endif %}"
-     class="pill {% if tab == \'unregistered\' %}on{% endif %}">Unregistered ({{ unregistered|length }})</a>
+     class="pill {% if tab == \'unregistered\' %}on{% endif %}">Unregistered ({{ unregistered_count }})</a>
   <a href="/pro-registration?tab=registered{% if q %}&amp;q={{ q }}{% endif %}"
-     class="pill {% if tab == \'registered\' %}on{% endif %}">Registered ({{ registered|length }})</a>
+     class="pill {% if tab == \'registered\' %}on{% endif %}">Registered ({{ registered_count }})</a>
   <form method="get" style="margin-left:auto;display:flex;gap:8px">
     <input type="hidden" name="tab" value="{{ tab }}">
     <input class="inp" name="q" value="{{ q }}" placeholder="Search worksâ¦" style="width:200px">
@@ -5517,11 +5517,16 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
-  <div style="padding:14px 16px">
+  <div style="padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <button type="submit" class="btn btn-primary"
       onclick="var c=document.querySelectorAll(\'.work-chk:checked\').length;var p=document.querySelector(\'[name=pro]\').value;if(!c){alert(\'Select at least one work.\');return false;}if(!p){alert(\'Select a PRO.\');return false;}return true;">
       Mark Selected as Registered
     </button>
+    {% if pagination.pages > 1 %}
+    <span style="font-size:12px;color:var(--t3)">{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_prev %}<a href="?tab=unregistered&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=unregistered&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    {% endif %}
   </div>
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All controlled works have been registered. &#9989;</div>
@@ -5555,6 +5560,13 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
+  {% if pagination.pages > 1 %}
+  <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--b0)">
+    <span style="font-size:12px;color:var(--t3)">{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_prev %}<a href="?tab=registered&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=registered&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+  </div>
+  {% endif %}
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No registered works yet.</div>
   {% endif %}
