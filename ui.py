@@ -5522,7 +5522,7 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
     </tr>
     <tr class="work-detail-row" id="pro-detail-{{ w.id }}">
       <td colspan="5">
-        <div class="work-detail-inner" style="grid-template-columns:1.2fr 2.8fr 1fr;padding-left:36px">
+        <div class="work-detail-inner" style="grid-template-columns:1.2fr 2.8fr 1fr;padding-left:12px">
           <div class="wd-section">
             <div class="wd-label">Work Info</div>
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
