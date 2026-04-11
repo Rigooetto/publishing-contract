@@ -896,7 +896,7 @@ FORM_HTML = """<!DOCTYPE html>
   </div>
   <div class="split-badge sb-inc" id="splitBadge"><span class="sb-dot"></span>Incomplete</div>
 </div>
-<form method="post" id="workForm">
+<form method="post" id="workForm" autocomplete="off">
   <input type="hidden" name="force_create" value="{{ force_create or '' }}">
   <input type="hidden" name="_modal" value="{{ '1' if is_modal else '' }}">
   <div class="card">
@@ -2460,7 +2460,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<form method="post" id="workEditForm">
+<form method="post" id="workEditForm" autocomplete="off">
   <div class="card">
     <div class="card-hd"><div class="card-ico">&#128395;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
@@ -3565,7 +3565,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 # ================================================================
 
 WRITER_MODAL_HTML = """
-<form id="writerModalForm" onsubmit="saveWriterModal(event, {{ writer.id }})">
+<form id="writerModalForm" autocomplete="off" onsubmit="saveWriterModal(event, {{ writer.id }})">
   <div class="g g4" style="margin-bottom:12px">
     <div class="field">
       <label class="label">First Name</label>
@@ -3851,7 +3851,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<form method="post" id="releaseForm">
+<form method="post" id="releaseForm" autocomplete="off">
 
 <!-- RELEASE INFO -->
 <div class="card" style="overflow:visible">
