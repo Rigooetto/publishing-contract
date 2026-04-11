@@ -5683,6 +5683,22 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
 .audit-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
 .audit-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
 .audit-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
+.upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:700px){.upload-grid{grid-template-columns:1fr}}
+.upload-card{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:16px}
+.upload-card-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.upload-card-title{font-size:13px;font-weight:600;color:var(--t1)}
+.upload-meta{font-size:11px;color:var(--t3);margin-bottom:10px;min-height:28px;line-height:1.5}
+.upload-meta .um-file{color:var(--t2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.upload-meta .um-date{color:var(--t3)}
+.upload-drop{border:1.5px dashed var(--b0);border-radius:8px;padding:10px 12px;text-align:center;font-size:12px;color:var(--t3);cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+.upload-drop:hover,.upload-drop.drag{border-color:var(--accent);background:rgba(99,133,255,.05);color:var(--t2)}
+.upload-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-drop .ud-icon{font-size:18px;margin-bottom:4px}
+.upload-section summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--t2);padding:10px 14px;background:var(--s1);border:1px solid var(--b0);border-radius:8px;margin-bottom:14px;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.upload-section summary::-webkit-details-marker{display:none}
+.upload-section summary::after{content:"&#9660;";font-size:10px;color:var(--t3)}
+.upload-section[open] summary::after{content:"&#9650;"}
 </style>
 </head>
 <body>
@@ -5709,6 +5725,59 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
     <a href="/pro-registration" class="btn btn-sec">PRO Registration</a>
   </div>
 </div>
+<details class="upload-section" id="uploadSection">
+  <summary>
+    <span>&#128196; Upload Monthly Catalog Reports
+      <span style="font-size:11px;font-weight:400;color:var(--t3);margin-left:10px">
+        {% set any_uploaded = upload_meta.ascap or upload_meta.bmi or upload_meta.sesac %}
+        {% if any_uploaded %}
+          Last updated:
+          {% if upload_meta.ascap %}ASCAP {{ upload_meta.ascap.uploaded_at }}{% endif %}
+          {% if upload_meta.bmi %}&nbsp;&bull;&nbsp;BMI {{ upload_meta.bmi.uploaded_at }}{% endif %}
+          {% if upload_meta.sesac %}&nbsp;&bull;&nbsp;SESAC {{ upload_meta.sesac.uploaded_at }}{% endif %}
+        {% else %}
+          No uploads yet &mdash; using bundled catalog files
+        {% endif %}
+      </span>
+    </span>
+  </summary>
+  <div class="upload-grid">
+    {% for pro_key, pro_label, badge_cls in [('ascap','ASCAP','pro-ascap'),('bmi','BMI','pro-bmi'),('sesac','SESAC','pro-sesac')] %}
+    {% set meta = upload_meta[pro_key] %}
+    <div class="upload-card">
+      <div class="upload-card-hd">
+        <span class="pro-badge {{ badge_cls }}">{{ pro_label }}</span>
+        <span class="upload-card-title">Catalog Export</span>
+      </div>
+      <div class="upload-meta">
+        {% if meta %}
+          <div class="um-file">&#128196; {{ meta.original_name }}</div>
+          <div class="um-date">{{ meta.work_count }} works &bull; uploaded {{ meta.uploaded_at }}</div>
+        {% else %}
+          <div style="color:var(--t3)">Using bundled file &mdash; upload latest export to refresh</div>
+        {% endif %}
+      </div>
+      <form method="post" action="/pro-audit/upload" enctype="multipart/form-data" id="form-{{ pro_key }}">
+        <input type="hidden" name="pro" value="{{ pro_key }}">
+        <div class="upload-drop" id="drop-{{ pro_key }}"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="event.preventDefault();this.classList.remove('drag');document.getElementById('file-{{ pro_key }}').files=event.dataTransfer.files;updateLabel('{{ pro_key }}')">
+          <input type="file" name="file" id="file-{{ pro_key }}" accept=".csv"
+                 onchange="updateLabel('{{ pro_key }}')">
+          <div class="ud-icon">&#128229;</div>
+          <div id="lbl-{{ pro_key }}">Drop .csv here or click to browse</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;margin-top:8px;text-align:center"
+                onclick="return document.getElementById('file-{{ pro_key }}').files.length>0||alert('Please select a file first.')||false">
+          Upload {{ pro_label }} Report
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+
 <div class="audit-stat-grid">
   <div class="audit-stat"><div class="asv">{{ stats.db_total }}</div><div class="asl">Works in LabelMind</div></div>
   <div class="audit-stat ok"><div class="asv">{{ stats.matched }}</div><div class="asl">Matched in PROs</div></div>
@@ -5859,6 +5928,23 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
 </div>
 {% endif %}
 </div></main></div>
+<script>
+function updateLabel(pro) {
+  var input = document.getElementById('file-' + pro);
+  var lbl   = document.getElementById('lbl-' + pro);
+  if (input.files && input.files.length > 0) {
+    lbl.textContent = input.files[0].name;
+  }
+}
+// Auto-open upload section if no files uploaded yet
+(function(){
+  var s = document.getElementById('uploadSection');
+  if (s) {
+    var hasUploads = s.querySelector('.um-file');
+    if (!hasUploads) s.setAttribute('open','');
+  }
+})();
+</script>
 """ + _SB_JS + """
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
