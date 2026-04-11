@@ -131,6 +131,15 @@ def _s(val):
     return str(val).strip() if val is not None else ""
 
 
+def _artist_names(track):
+    """Return a comma-separated artist string from Track.artists JSON field."""
+    try:
+        names = json.loads(track.artists or "[]")
+        return ", ".join(n for n in names if n)
+    except Exception:
+        return track.artists or ""
+
+
 # ── SoundExchange parser ──────────────────────────────────────────────────────
 
 def _parse_sx():
@@ -200,7 +209,8 @@ def _build_audit():
         if sx is None:
             sx = sx_by_title.get(_norm(t.primary_title))
 
-        entry = dict(track=t, release=t.release, sx=sx)
+        entry = dict(track=t, release=t.release, sx=sx,
+                     artist_names=_artist_names(t))
 
         if sx:
             matched.append(entry)

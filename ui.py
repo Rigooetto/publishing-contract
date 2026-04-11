@@ -6445,13 +6445,7 @@ NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
         {{ e.track.primary_title }}
         {% if e.track.track_number %}<span style="font-size:11px;color:var(--t3);margin-left:4px">#{{ e.track.track_number }}</span>{% endif %}
       </td>
-      <td style="font-size:12px;color:var(--t2)">
-        {% set artists = e.track.artists %}
-        {% if artists %}
-          {% set artist_list = artists | from_json if artists != '[]' else [] %}
-          {{ artist_list | join(', ') if artist_list else '&mdash;' }}
-        {% else %}&mdash;{% endif %}
-      </td>
+      <td style="font-size:12px;color:var(--t2)">{{ e.artist_names or '&mdash;' }}</td>
       <td style="font-size:12px;color:var(--t3)">
         {% if e.release %}<a href="/releases/{{ e.release.id }}" style="color:var(--t2)">{{ e.release.title }}</a>{% else %}&mdash;{% endif %}
       </td>
