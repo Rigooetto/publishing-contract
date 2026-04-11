@@ -5826,6 +5826,7 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
     <thead><tr>
       <th>PRO</th>
       <th style="min-width:220px">Title (as filed)</th>
+      <th style="min-width:160px">Writer(s)</th>
       <th>PRO Work #</th>
       <th>ISWC</th>
       <th>Reg. Date</th>
@@ -5835,7 +5836,13 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
     {% for o in orphaned %}
     <tr>
       <td><span class="pro-badge pro-{{ o.pro|lower }}">{{ o.pro }}</span></td>
-      <td style="font-weight:500;color:var(--t1)">{{ o.title }}</td>
+      <td>
+        <div style="font-weight:500;color:var(--t1)">{{ o.title }}</div>
+        {% if o.publisher %}<div style="font-size:11px;color:var(--t3);margin-top:2px">{{ o.publisher }}</div>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% if o.writers %}{{ o.writers | join(\', \') }}{% else %}<span style="color:var(--t3)">&mdash;</span>{% endif %}
+      </td>
       <td style="font-size:12px;color:var(--t3);font-family:monospace">{{ o.work_id }}</td>
       <td>{% if o.iswc %}<span class="iswc-tag">{{ o.iswc }}</span>
           {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>

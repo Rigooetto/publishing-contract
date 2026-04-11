@@ -40,7 +40,7 @@ def _parse_date(raw, *fmts):
 
 
 def _parse_ascap():
-    """Return {norm_title: {title, work_id, iswc, reg_date, reg_status}}."""
+    """Return {norm_title: {title, work_id, iswc, reg_date, reg_status, writers, publisher}}."""
     works = {}
     if not os.path.exists(ASCAP_CSV):
         return works
@@ -52,12 +52,20 @@ def _parse_ascap():
             iswc    = row.get("ISWC Number", "").strip().strip('"')
             reg_date   = row.get("Registration Date", "").strip()
             reg_status = row.get("Registration Status", "").strip()
+            name    = row.get("Interested Parties", "").strip()
+            role    = row.get("Role", "").strip().upper()
             if not title or not work_id:
                 continue
             key = _norm(title)
             if key not in works:
                 works[key] = dict(title=title, work_id=work_id, iswc=iswc,
-                                  reg_date=reg_date, reg_status=reg_status)
+                                  reg_date=reg_date, reg_status=reg_status,
+                                  writers=[], publisher="")
+            if role in ("C", "A", "CA", "AR"):
+                if name and name not in works[key]["writers"]:
+                    works[key]["writers"].append(name)
+            elif role in ("E", "AM") and not works[key]["publisher"]:
+                works[key]["publisher"] = name
     return works
 
 
@@ -73,12 +81,20 @@ def _parse_bmi():
             iswc    = row.get("ISWCNumber", "").strip()
             reg_date   = row.get("RegistrationDate", "").strip()
             reg_status = row.get("SongviewStatus", "").strip()
+            name    = row.get("Participant", "").strip()
+            kind    = row.get("WtrPubIndicator", "").strip().upper()
             if not title or not work_id:
                 continue
             key = _norm(title)
             if key not in works:
                 works[key] = dict(title=title, work_id=work_id, iswc=iswc,
-                                  reg_date=reg_date, reg_status=reg_status)
+                                  reg_date=reg_date, reg_status=reg_status,
+                                  writers=[], publisher="")
+            if kind == "W":
+                if name and name not in works[key]["writers"]:
+                    works[key]["writers"].append(name)
+            elif kind == "P" and not works[key]["publisher"]:
+                works[key]["publisher"] = name
     return works
 
 
@@ -93,12 +109,20 @@ def _parse_sesac():
             work_id = row.get("Song #", "").strip()
             iswc    = row.get("ISWC #", "").strip()
             reg_date = row.get("Reg. Date", "").strip()
+            name     = row.get("Name", "").strip()
+            kind     = row.get("Publisher/Writer", "").strip().upper()
             if not title or not work_id:
                 continue
             key = _norm(title)
             if key not in works:
                 works[key] = dict(title=title, work_id=work_id, iswc=iswc,
-                                  reg_date=reg_date, reg_status="")
+                                  reg_date=reg_date, reg_status="",
+                                  writers=[], publisher="")
+            if kind == "W":
+                if name and name not in works[key]["writers"]:
+                    works[key]["writers"].append(name)
+            elif kind == "P" and not works[key]["publisher"]:
+                works[key]["publisher"] = name
     return works
 
 
