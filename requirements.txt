@@ -11,3 +11,6 @@ docusign-esign>=4.0.0
 pyjwt>=2.8.0
 cryptography>=42.0.0
 
+openpyxl
+xlwt
+xlrd

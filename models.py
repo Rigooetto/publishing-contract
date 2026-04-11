@@ -46,9 +46,15 @@ class Work(db.Model):
     batch_id = db.Column(db.Integer, db.ForeignKey("generation_batch.id"), nullable=True)
     contract_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    # PRO / catalog registration fields
+    iswc = db.Column(db.String(20), default="")           # e.g. T-123456789-0
+    mri_song_id = db.Column(db.String(50), default="")    # assigned by Music Reports portal
+    aka_title = db.Column(db.String(255), default="")
+    aka_title_type_code = db.Column(db.String(5), default="")  # AT, OT, FT, etc.
     batch = db.relationship("GenerationBatch", foreign_keys=[batch_id], lazy="select")
     work_writers = db.relationship("WorkWriter", backref="work", lazy=True, cascade="all, delete-orphan")
     contract_documents = db.relationship("ContractDocument", backref="work", lazy=True, cascade="all, delete-orphan")
+    pro_registrations = db.relationship("ProRegistration", backref="work", lazy=True, cascade="all, delete-orphan")
 
 
 class WorkWriter(db.Model):
@@ -63,6 +69,11 @@ class WorkWriter(db.Model):
     publisher_state = db.Column(db.String(100), default="")
     publisher_zip_code = db.Column(db.String(20), default="")
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    # PRO registration fields
+    writer_role_code = db.Column(db.String(5), default="CA")   # C, A, CA, AR, etc.
+    territory_controlled = db.Column(db.String(50), default="World")
+    administrator_name = db.Column(db.String(255), default="")
+    administrator_ipi = db.Column(db.String(50), default="")
     writer = db.relationship("Writer", backref="work_links")
 
 
@@ -131,6 +142,7 @@ class Track(db.Model):
     executive_producer = db.Column(db.String(255), default="")
     is_cover = db.Column(db.Boolean, default=False, nullable=True)
     cover_writers = db.Column(db.Text, default="")             # free-text writers for cover tracks
+    country_of_recording = db.Column(db.String(100), default="")  # SoundExchange
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     track_works = db.relationship("TrackWork", backref="track", lazy=True, cascade="all, delete-orphan")
 
@@ -164,3 +176,34 @@ class Artist(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     releases = db.relationship("Release", secondary="artist_release", backref="linked_artists", lazy="dynamic")
+
+
+# ── Phase 3 — PRO Registration & Reports ─────────────────────────────────────
+
+class ProRegistration(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    work_id = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False, index=True)
+    pro = db.Column(db.String(20), nullable=False)          # BMI, ASCAP, SESAC
+    pro_work_number = db.Column(db.String(100), default="") # assigned by PRO
+    mlc_song_code = db.Column(db.String(20), default="")    # assigned by MLC portal
+    registered_at = db.Column(db.Date, nullable=False, default=datetime.datetime.utcnow)
+    registered_by = db.Column(db.String(255), default="")
+    notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+
+class PublisherConfig(db.Model):
+    """One row per Afinarte publisher entity — used to populate report headers."""
+    id = db.Column(db.Integer, primary_key=True)
+    publisher_name = db.Column(db.String(255), nullable=False, unique=True)
+    pro = db.Column(db.String(20), default="")              # BMI, ASCAP, SESAC
+    publisher_ipi = db.Column(db.String(50), default="")
+    mlc_publisher_number = db.Column(db.String(20), default="")
+    address = db.Column(db.String(255), default="")
+    city = db.Column(db.String(100), default="")
+    state = db.Column(db.String(10), default="")
+    zip_code = db.Column(db.String(20), default="")
+    contact_email = db.Column(db.String(255), default="")
+    contact_phone = db.Column(db.String(50), default="")
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

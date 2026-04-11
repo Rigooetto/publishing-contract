@@ -814,6 +814,12 @@ def _sidebar(active):
     html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#127899;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
 
+    html += "<div class='sb-sec'>Reporting</div>"
+    html += "<nav class='sb-nav'>"
+    html += "<a href='/reports'" + (" class='on'" if active == "reports" else "") + " title='Reports'><span class='ni'>&#128202;</span><span class='nl'>Reports</span></a>"
+    html += "<a href='/pro-registration'" + (" class='on'" if active == "pro_registration" else "") + " title='PRO Registration'><span class='ni'>&#9989;</span><span class='nl'>PRO Registration</span></a>"
+    html += "</nav>"
+
     html += "<div class='sb-sec'>Admin</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/admin'" + (" class='on'" if active == "admin" else "") + " title='Admin Panel'><span class='ni'>&#128736;</span><span class='nl'>Admin Panel</span></a>"
@@ -5258,6 +5264,307 @@ CATALOG_IMPORT_RESULT_HTML = """<!DOCTYPE html>
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ── Phase 3: Reports Pages ─────────────────────────────────────────────────────
+
+REPORTS_INDEX_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reports - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("reports") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128202;</div>
+    <div><div class="ph-title">Reports</div><div class="ph-sub">Export catalog data for MLC, Music Reports, and SoundExchange</div></div>
+  </div>
+  <div class="ph-actions">
+    <a href="/publisher-config" class="btn btn-sec">Publisher Config</a>
+    <a href="/pro-registration" class="btn btn-sec">PRO Registration</a>
+  </div>
+</div>
+<div class="g g2" style="gap:14px">
+  <div class="card">
+    <div class="card-hd"><span style="font-size:18px;margin-right:4px">&#128203;</span><span class="card-title">MLC Bulk Work Registration</span></div>
+    <div class="card-body" style="padding:16px">
+      <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Exports all controlled works (Songs / Melodies / Music of Afinarte) in the MLC portal bulk upload format. One row per writer per work.</p>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:14px"><strong style="color:var(--t2)">{{ work_count }}</strong> controlled works in catalog</div>
+      <a href="/reports/export/mlc" class="btn btn-primary" style="width:100%;text-align:center;display:block">Download MLC Export (.xlsx)</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span style="font-size:18px;margin-right:4px">&#127925;</span><span class="card-title">Music Reports Catalog</span></div>
+    <div class="card-body" style="padding:16px">
+      <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Exports controlled works in Music Reports (MRI) format including composer, publisher, territory, and linked recording data.</p>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:14px"><strong style="color:var(--t2)">{{ work_count }}</strong> controlled works in catalog</div>
+      <a href="/reports/export/music-reports" class="btn btn-primary" style="width:100%;text-align:center;display:block">Download Music Reports Export (.xls)</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span style="font-size:18px;margin-right:4px">&#128266;</span><span class="card-title">SoundExchange ISRC Ingest</span></div>
+    <div class="card-body" style="padding:16px">
+      <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Exports <strong style="color:var(--t1)">all releases</strong> (controlled and uncontrolled) with ISRC, artist, genre, and duration for SoundExchange.</p>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:14px"><strong style="color:var(--t2)">{{ release_count }}</strong> releases in catalog</div>
+      <a href="/reports/export/soundexchange" class="btn btn-primary" style="width:100%;text-align:center;display:block">Download SoundExchange Export (.xlsx)</a>
+    </div>
+  </div>
+  <div class="card" style="border:1px dashed var(--b0);opacity:.55">
+    <div class="card-hd"><span style="font-size:18px;margin-right:4px">&#128200;</span><span class="card-title" style="color:var(--t2)">Regalias Digitales</span></div>
+    <div class="card-body" style="padding:16px">
+      <p style="font-size:13px;color:var(--t3);margin-bottom:14px">Template coming soon. Once the format is defined this export will be available here.</p>
+      <div class="btn btn-sec" style="width:100%;text-align:center;opacity:.5;cursor:default;pointer-events:none">Coming Soon</div>
+    </div>
+  </div>
+</div>
+<div style="margin-top:12px"><a href="/pro-registration" class="btn btn-sec">PRO Registration Queue &rarr;</a></div>
+</div></main></div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+PUBLISHER_CONFIG_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Publisher Config - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("reports") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#127970;</div>
+    <div><div class="ph-title">Publisher Configuration</div><div class="ph-sub">Set up your Afinarte publisher entities for report exports</div></div>
+  </div>
+</div>
+<form method="post" autocomplete="off">
+{% for pc in configs %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-hd">
+    <span style="font-size:14px;font-weight:700;color:var(--t1)">{{ pc.publisher_name }}</span>
+    <span style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(99,133,255,.15);color:#6385ff;font-weight:700">Afinarte Publisher</span>
+  </div>
+  <div style="padding:16px">
+    <input type="hidden" name="pub_id[]" value="{{ pc.id }}">
+    <input type="hidden" name="publisher_name[]" value="{{ pc.publisher_name }}">
+    <div class="g g3" style="gap:12px;margin-bottom:12px">
+      <div class="field"><label class="label">PRO Affiliation</label>
+        <select class="inp" name="pro[]">
+          <option value="">-- Select --</option>
+          {% for p in ['BMI','ASCAP','SESAC'] %}<option value="{{ p }}" {% if pc.pro == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label class="label">Publisher IPI #</label>
+        <input class="inp" name="publisher_ipi[]" value="{{ pc.publisher_ipi or \'\' }}" placeholder="e.g. 00123456789">
+      </div>
+      <div class="field"><label class="label">MLC Publisher #</label>
+        <input class="inp" name="mlc_publisher_number[]" value="{{ pc.mlc_publisher_number or \'\' }}" placeholder="e.g. P12345">
+      </div>
+    </div>
+    <div class="g g3" style="gap:12px;margin-bottom:12px">
+      <div class="field" style="grid-column:span 2"><label class="label">Mailing Address</label>
+        <input class="inp" name="address[]" value="{{ pc.address or \'\' }}" placeholder="Street Address">
+      </div>
+      <div class="field"><label class="label">City</label>
+        <input class="inp" name="city[]" value="{{ pc.city or \'\' }}" placeholder="City">
+      </div>
+    </div>
+    <div class="g g3" style="gap:12px;margin-bottom:12px">
+      <div class="field"><label class="label">State</label>
+        <input class="inp" name="state[]" value="{{ pc.state or \'\' }}" placeholder="CA">
+      </div>
+      <div class="field"><label class="label">Zip</label>
+        <input class="inp" name="zip_code[]" value="{{ pc.zip_code or \'\' }}" placeholder="90001">
+      </div>
+      <div class="field"><label class="label">Contact Email</label>
+        <input class="inp" name="contact_email[]" value="{{ pc.contact_email or \'\' }}" placeholder="publishing@afinarte.com">
+      </div>
+    </div>
+    <div class="g g2" style="gap:12px">
+      <div class="field"><label class="label">Contact Phone</label>
+        <input class="inp" name="contact_phone[]" value="{{ pc.contact_phone or \'\' }}" placeholder="(555) 555-5555">
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+<div class="action-bar">
+  <button type="submit" class="btn btn-primary">Save All</button>
+  <a href="/reports" class="btn btn-sec">Back to Reports</a>
+</div>
+</form>
+</div></main></div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+PRO_REGISTRATION_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRO Registration - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("pro_registration") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#9989;</div>
+    <div><div class="ph-title">PRO Registration</div><div class="ph-sub">Track controlled works registered with BMI, ASCAP, or SESAC</div></div>
+  </div>
+  <div class="ph-actions"><a href="/reports" class="btn btn-sec">Back to Reports</a></div>
+</div>
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+  <a href="/pro-registration?tab=unregistered{% if q %}&amp;q={{ q }}{% endif %}"
+     class="pill {% if tab == \'unregistered\' %}on{% endif %}">Unregistered ({{ unregistered|length }})</a>
+  <a href="/pro-registration?tab=registered{% if q %}&amp;q={{ q }}{% endif %}"
+     class="pill {% if tab == \'registered\' %}on{% endif %}">Registered ({{ registered|length }})</a>
+  <form method="get" style="margin-left:auto;display:flex;gap:8px">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input class="inp" name="q" value="{{ q }}" placeholder="Search worksâ¦" style="width:200px">
+    <button class="btn btn-sec" type="submit">Search</button>
+  </form>
+</div>
+{% if tab == \'unregistered\' %}
+<form method="post" action="/pro-registration/mark" id="markForm">
+<div class="card">
+  <div class="card-hd"><span class="card-title">Unregistered Controlled Works</span>
+    <span style="font-size:11px;color:var(--t3);margin-left:8px">(publisher = Songs / Melodies / Music of Afinarte)</span>
+  </div>
+  {% if unregistered %}
+  <div style="padding:14px 16px;border-bottom:1px solid var(--b0);display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div class="field" style="min-width:130px"><label class="label">PRO *</label>
+      <select class="inp" name="pro" required>
+        <option value="">-- Select PRO --</option>
+        <option>BMI</option><option>ASCAP</option><option>SESAC</option>
+      </select>
+    </div>
+    <div class="field"><label class="label">Registration Date</label>
+      <input class="inp" type="date" name="registered_at" value="{{ today }}">
+    </div>
+    <div class="field"><label class="label">Registered By</label>
+      <input class="inp" name="registered_by" value="Omar">
+    </div>
+    <div class="field" style="min-width:160px"><label class="label">PRO Work # <span style="color:var(--t3)">(optional)</span></label>
+      <input class="inp" name="pro_work_number" placeholder="Assigned by PRO after submission">
+    </div>
+    <div class="field" style="min-width:130px"><label class="label">MLC Song Code <span style="color:var(--t3)">(optional)</span></label>
+      <input class="inp" name="mlc_song_code" placeholder="e.g. H12345">
+    </div>
+    <div class="field" style="min-width:160px"><label class="label">Notes</label>
+      <input class="inp" name="notes" placeholder="Optional">
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="width:36px"><input type="checkbox" id="chkAll" onclick="document.querySelectorAll(\'.work-chk\').forEach(function(c){c.checked=this.checked;},this)"></th>
+      <th>Work Title</th><th>Writers</th><th>Publisher</th><th>Contract Date</th>
+    </tr></thead>
+    <tbody>
+    {% for w in unregistered %}
+    <tr>
+      <td><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="work-chk"></td>
+      <td><a href="/works/{{ w.id }}" style="color:var(--t1);font-weight:500">{{ w.title }}</a></td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers %}{% if ww.publisher in [\'Songs of Afinarte\',\'Melodies of Afinarte\',\'Music of Afinarte\'] %}<span style="display:block">{{ ww.publisher }}</span>{% endif %}{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">{{ w.contract_date.strftime(\'%m/%d/%Y\') if w.contract_date else \'\xe2\x80\x94\' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="padding:14px 16px">
+    <button type="submit" class="btn btn-primary"
+      onclick="var c=document.querySelectorAll(\'.work-chk:checked\').length;var p=document.querySelector(\'[name=pro]\').value;if(!c){alert(\'Select at least one work.\');return false;}if(!p){alert(\'Select a PRO.\');return false;}return true;">
+      Mark Selected as Registered
+    </button>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All controlled works have been registered. &#9989;</div>
+  {% endif %}
+</div>
+</form>
+{% else %}
+<div class="card">
+  <div class="card-hd"><span class="card-title">Registered Works</span></div>
+  {% if registered %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th>Work Title</th><th>PRO</th><th>PRO Work #</th><th>MLC Code</th><th>Date</th><th>By</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for w in registered %}{% for reg in w.registrations %}
+    <tr>
+      {% if loop.first %}<td rowspan="{{ w.registrations|length }}" style="vertical-align:top;font-weight:500;padding-top:12px">
+        <a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>{% endif %}
+      <td><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(99,133,255,.15);color:#6385ff">{{ reg.pro }}</span></td>
+      <td style="font-size:12px;color:var(--t2)">{{ reg.pro_work_number or \'\xe2\x80\x94\' }}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ reg.mlc_song_code or \'\xe2\x80\x94\' }}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ reg.registered_at.strftime(\'%m/%d/%Y\') }}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ reg.registered_by or \'\xe2\x80\x94\' }}</td>
+      <td><form method="post" action="/pro-registration/{{ reg.id }}/delete"
+            onsubmit="return confirm(\'Remove this registration record?\')" style="margin:0">
+          <button type="submit" class="btn btn-danger btn-xs">Remove</button></form></td>
+    </tr>
+    {% endfor %}{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No registered works yet.</div>
+  {% endif %}
+</div>
+{% endif %}
+</div></main></div>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
 </div>
