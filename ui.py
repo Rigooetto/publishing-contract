@@ -896,7 +896,7 @@ FORM_HTML = """<!DOCTYPE html>
   </div>
   <div class="split-badge sb-inc" id="splitBadge"><span class="sb-dot"></span>Incomplete</div>
 </div>
-<form method="post" id="workForm" autocomplete="off">
+<form method="post" id="workForm">
   <input type="hidden" name="force_create" value="{{ force_create or '' }}">
   <input type="hidden" name="_modal" value="{{ '1' if is_modal else '' }}">
   <div class="card">
@@ -1019,40 +1019,40 @@ function writerTpl(i, data) {
   h += '<div class="wc-sec">Identity</div>';
   h += '<div class="g g4" style="gap:10px">';
   h += '<div class="field ac-wrap"><label class="label">First Name</label>';
-  h += '<input class="inp wfn" name="lm_wfn" placeholder="First" autocomplete="new-password" value="' + (data.first_name || '') + '">';
+  h += '<input class="inp wfn" name="writer_first_name" placeholder="First" autocomplete="off" value="' + (data.first_name || '') + '">';
   h += '<div class="ac-box wsug"></div></div>';
 
   h += '<div class="field"><label class="label">Middle Name</label>';
-  h += '<input class="inp wmn" name="lm_wmn" placeholder="Middle" autocomplete="new-password" value="' + (data.middle_name || '') + '"></div>';
+  h += '<input class="inp wmn" name="writer_middle_name" placeholder="Middle" autocomplete="off" value="' + (data.middle_name || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Last Name(s)</label>';
-  h += '<input class="inp wln" name="lm_wln" placeholder="Last Name" autocomplete="new-password" value="' + (data.last_names || '') + '"></div>';
+  h += '<input class="inp wln" name="writer_last_names" placeholder="Last Name" autocomplete="off" value="' + (data.last_names || '') + '"></div>';
 
   h += '<div class="field"><label class="label">AKA / Stage</label>';
-  h += '<input class="inp waka" name="lm_waka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
+  h += '<input class="inp waka" name="writer_aka" placeholder="Stage Name" value="' + (data.writer_aka || '') + '"></div>';
   h += '</div>';
    h += '<div class="wc-sec">Writer Address</div>';
   h += '<div class="g g4a" style="gap:10px">';
   h += '<div class="field"><label class="label">Street</label>';
-  h += '<input class="inp waddr" name="lm_waddr" placeholder="Street Address" autocomplete="new-password" value="' + (data.address || '') + '"></div>';
+  h += '<input class="inp waddr" name="writer_address" placeholder="Street Address" value="' + (data.address || '') + '"></div>';
 
   h += '<div class="field"><label class="label">City</label>';
-  h += '<input class="inp wcity" name="lm_wcty" placeholder="City" autocomplete="new-password" value="' + (data.city || '') + '"></div>';
+  h += '<input class="inp wcity" name="writer_city" placeholder="City" value="' + (data.city || '') + '"></div>';
 
   h += '<div class="field"><label class="label">State</label>';
-  h += '<input class="inp wst" name="lm_wst" placeholder="ST" autocomplete="new-password" value="' + (data.state || '') + '"></div>';
+  h += '<input class="inp wst" name="writer_state" placeholder="ST" value="' + (data.state || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Zip</label>';
-  h += '<input class="inp wzip" name="lm_wzip" placeholder="Zip" autocomplete="new-password" value="' + (data.zip_code || '') + '"></div>';
+  h += '<input class="inp wzip" name="writer_zip_code" placeholder="Zip" value="' + (data.zip_code || '') + '"></div>';
   h += '</div>';
 
   h += '<div class="wc-sec">Contact</div>';
   h += '<div class="g g2" style="gap:10px">';
   h += '<div class="field"><label class="label">Email</label>';
-  h += '<input class="inp wem" name="lm_wem" placeholder="writer@email.com" type="text" autocomplete="new-password" value="' + (data.email || '') + '"></div>';
+  h += '<input class="inp wem" name="writer_email" placeholder="writer@email.com" type="email" value="' + (data.email || '') + '"></div>';
 
   h += '<div class="field"><label class="label">Phone Number</label>';
-  h += '<input class="inp wphone" name="lm_wph" placeholder="Phone Number" autocomplete="new-password" value="' + (data.phone_number || '') + '"></div>';
+  h += '<input class="inp wphone" name="writer_phone_number" placeholder="Phone Number" value="' + (data.phone_number || '') + '"></div>';
   h += '</div>';
 
   h += '<div class="wc-sec">Publishing</div>';
@@ -1203,17 +1203,6 @@ function setupWriter(r) {
   var spl = r.querySelector('.wspl');
   var pro = r.querySelector('.wpro');
 
-  // Block Safari Contacts suggestions: start readonly, remove on first focus
-  [fn, mn, ln].forEach(function(inp) {
-    if (inp && !inp.value) {
-      inp.setAttribute('readonly', 'readonly');
-      inp.addEventListener('focus', function unblock() {
-        inp.removeAttribute('readonly');
-        inp.removeEventListener('focus', unblock);
-      });
-    }
-  });
-
   function search() {
     var q = fullName(r);
     if (q.length < 2) { hideSug(r); resetNew(r); return; }
@@ -1247,18 +1236,6 @@ function setupWriter(r) {
   document.addEventListener('click', function(e) {
     if (![fn, mn, ln, sug].some(function(el) { return el.contains(e.target); })) {
       hideSug(r);
-    }
-  });
-
-  // Block Safari Contacts on address/contact fields too
-  ['.waddr','.wcity','.wst','.wzip','.wem','.wphone'].forEach(function(sel) {
-    var el = r.querySelector(sel);
-    if (el && !el.value) {
-      el.setAttribute('readonly', 'readonly');
-      el.addEventListener('focus', function unblock() {
-        el.removeAttribute('readonly');
-        el.removeEventListener('focus', unblock);
-      });
     }
   });
 }
@@ -2460,7 +2437,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<form method="post" id="workEditForm" autocomplete="off">
+<form method="post" id="workEditForm">
   <div class="card">
     <div class="card-hd"><div class="card-ico">&#128395;</div><span class="card-title">Work Information</span></div>
     <div class="card-body">
@@ -2626,7 +2603,7 @@ function addExistingWriterRow() {
   tr.innerHTML = `
     <td>
       <div class="ac-wrap" style="min-width:220px">
-        <input class="inp new-writer-search" type="text" placeholder="Search existing writer..." autocomplete="new-password">
+        <input class="inp new-writer-search" type="text" placeholder="Search existing writer...">
         <div class="ac-box new-writer-sug"></div>
       </div>
       <input type="hidden" name="work_writer_id" value="">
@@ -3365,14 +3342,14 @@ ADMIN_HTML = """<!DOCTYPE html>
       <div class="g g2" style="margin-bottom:14px">
         <div class="field">
           <label class="label">Primary Writer (keep this one)</label>
-          <input class="inp" type="text" id="mergeSearch1" placeholder="Search by name..." autocomplete="new-password">
+          <input class="inp" type="text" id="mergeSearch1" placeholder="Search by name..." autocomplete="off">
           <input type="hidden" name="primary_writer_id" id="primaryWriterId" required>
           <div id="mergeDrop1" style="display:none;position:relative;z-index:100;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);margin-top:2px;max-height:180px;overflow-y:auto"></div>
           <div id="primaryLabel" style="font-size:12px;color:var(--ag);margin-top:4px"></div>
         </div>
         <div class="field">
           <label class="label">Duplicate Writer (delete this one)</label>
-          <input class="inp" type="text" id="mergeSearch2" placeholder="Search by name..." autocomplete="new-password">
+          <input class="inp" type="text" id="mergeSearch2" placeholder="Search by name..." autocomplete="off">
           <input type="hidden" name="duplicate_writer_id" id="duplicateWriterId" required>
           <div id="mergeDrop2" style="display:none;position:relative;z-index:100;background:var(--bg3);border:1px solid var(--b0);border-radius:var(--rs);margin-top:2px;max-height:180px;overflow-y:auto"></div>
           <div id="duplicateLabel" style="font-size:12px;color:var(--ar);margin-top:4px"></div>
@@ -3565,7 +3542,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 # ================================================================
 
 WRITER_MODAL_HTML = """
-<form id="writerModalForm" autocomplete="off" onsubmit="saveWriterModal(event, {{ writer.id }})">
+<form id="writerModalForm" onsubmit="saveWriterModal(event, {{ writer.id }})">
   <div class="g g4" style="margin-bottom:12px">
     <div class="field">
       <label class="label">First Name</label>
@@ -3851,7 +3828,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<form method="post" id="releaseForm" autocomplete="off">
+<form method="post" id="releaseForm">
 
 <!-- RELEASE INFO -->
 <div class="card" style="overflow:visible">
@@ -4007,7 +3984,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       <div id="work-search-area-{{ t.id }}" {% if t.is_cover %}style="display:none"{% endif %}>
         <div class="inp-wrap" style="margin-top:8px">
           <span class="inp-ico">&#128395;</span>
-          <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)" autocomplete="new-password">
+          <input class="inp work-search-inp" placeholder="Search works to link..." data-track-id="{{ t.id }}" oninput="searchWorks(this)">
         </div>
         <div class="work-suggestions" id="work-sugg-{{ t.id }}" style="display:none;background:var(--bg4);border:1px solid var(--b0);border-radius:var(--rs);overflow:hidden;margin-top:4px"></div>
       </div>
@@ -4052,7 +4029,7 @@ function addArtist(containerId) {
   row.className = 'artist-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
   var inp = document.createElement('input'); inp.className = 'inp';
-  inp.name = name; inp.placeholder = 'Additional artist'; inp.style.flex = '1'; inp.autocomplete = 'new-password';
+  inp.name = name; inp.placeholder = 'Additional artist'; inp.style.flex = '1';
   var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-xs';
   btn.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
   btn.textContent = 'X';
@@ -4209,7 +4186,7 @@ function addTrack() {
   searchArea.id = 'work-search-area-new-' + idx;
   var searchWrap = document.createElement('div'); searchWrap.className = 'inp-wrap'; searchWrap.style.marginTop = '8px';
   var searchIco = document.createElement('span'); searchIco.className = 'inp-ico'; searchIco.textContent = '\u266B';
-  var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp'; searchInp.setAttribute('autocomplete','new-password');
+  var searchInp = document.createElement('input'); searchInp.className = 'inp work-search-inp';
   searchInp.placeholder = 'Search works to link...';
   searchInp.setAttribute('data-track-new', idx);
   searchInp.setAttribute('oninput', 'searchWorks(this)');
@@ -4462,7 +4439,6 @@ function _ensureArtistSugg(inp) {
 var _artistSuggCounter = 0;
 function setupArtistInput(inp) {
   if (inp.dataset.asuggId) return; // already wired
-  inp.autocomplete = 'new-password';
   inp.dataset.asuggId = ++_artistSuggCounter;
   inp.addEventListener('input', function() {
     var q = inp.value.trim();
