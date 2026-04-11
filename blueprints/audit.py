@@ -156,8 +156,9 @@ def _build_audit():
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @bp.route("/pro-audit")
-@auth_required
 def pro_audit():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
     matched, unregistered, orphaned, ascap, bmi, sesac = _build_audit()
 
     stats = dict(
@@ -184,8 +185,9 @@ def pro_audit():
 
 
 @bp.route("/pro-audit/apply", methods=["POST"])
-@auth_required
 def apply_iswc():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
     """
     For every DB work matched in a PRO CSV:
       1. Write ISWC if the work has none and there is no conflict.
