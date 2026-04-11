@@ -2,14 +2,13 @@ import csv
 import datetime
 import json
 import os
-import re
 
 from flask import Blueprint, render_template_string, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 
 from extensions import db
 from models import Work, ProRegistration
-from utils import auth_required, role_required, FULL_ACCESS_ROLES
+from utils import auth_required, role_required, FULL_ACCESS_ROLES, normalize_for_match
 from ui import PRO_AUDIT_HTML
 
 bp = Blueprint("audit", __name__)
@@ -75,10 +74,7 @@ def _write_meta(pro, original_name, work_count):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _norm(title):
-    t = (title or "").lower().strip()
-    t = re.sub(r"[^\w\s]", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
+    return normalize_for_match(title)
 
 
 def _parse_date(raw, *fmts):
@@ -204,11 +200,19 @@ def _build_audit():
         iswc_conflict  = len(iswcs_found) > 1
         suggested_iswc = next(iter(iswcs_found), "") if not w.iswc else ""
 
+        # Detect title spelling differences (accents/ñ) between DB and PRO source
+        pro_titles = [
+            src["title"] for src in [a, b, s]
+            if src and src.get("title") and src["title"] != w.title
+        ]
+        suggested_title = pro_titles[0] if pro_titles else ""
+
         entry = dict(
             work=w, ascap=a, bmi=b, sesac=s,
             suggested_iswc=suggested_iswc,
             iswc_conflict=iswc_conflict,
             iswcs_found=iswcs_found,
+            suggested_title=suggested_title,
         )
         if a or b or s:
             matched.append(entry)
@@ -376,4 +380,31 @@ def apply_iswc():
     if skipped_iswc:
         parts.append(f"{skipped_iswc} works skipped (ISWC conflict — review manually)")
     flash(", ".join(parts) + "." if parts else "Nothing to update.", "success")
+    return redirect(url_for("audit.pro_audit", tab="matched"))
+
+
+@bp.route("/pro-audit/apply-title", methods=["POST"])
+def apply_title():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    work_id       = request.form.get("work_id", type=int)
+    new_title     = (request.form.get("new_title") or "").strip()
+    if not work_id or not new_title:
+        flash("Invalid request.", "error")
+        return redirect(url_for("audit.pro_audit", tab="matched"))
+
+    work = Work.query.get_or_404(work_id)
+    old_title = work.title
+    work.title = new_title
+    work.normalized_title = _norm(new_title)
+    try:
+        db.session.commit()
+        flash(f'Title updated: "{old_title}" → "{new_title}".', "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error: {e}", "error")
     return redirect(url_for("audit.pro_audit", tab="matched"))

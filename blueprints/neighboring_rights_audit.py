@@ -9,7 +9,7 @@ import re
 from flask import Blueprint, render_template_string, request, redirect, url_for, flash
 
 from models import Track, Release
-from utils import auth_required, paginate_list, role_required, FULL_ACCESS_ROLES
+from utils import auth_required, paginate_list, role_required, FULL_ACCESS_ROLES, normalize_for_match
 from ui import NEIGHBORING_RIGHTS_AUDIT_HTML
 
 bp = Blueprint("neighboring_rights_audit", __name__)
@@ -122,9 +122,7 @@ def _write_meta(original_name, ext, track_count):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _norm(title):
-    t = (title or "").lower().strip()
-    t = re.sub(r"[^\w\s]", " ", t)
-    return re.sub(r"\s+", " ", t).strip()
+    return normalize_for_match(title)
 
 
 def _s(val):

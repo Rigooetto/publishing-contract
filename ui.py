@@ -822,6 +822,7 @@ def _sidebar(active):
     html += "<a href='/pro-audit'" + (" class='on'" if active == "pro_audit" else "") + " title='PRO Audit'><span class='ni'>&#128269;</span><span class='nl'>PRO Audit</span></a>"
     html += "<a href='/mechanical-audit'" + (" class='on'" if active == "mechanical_audit" else "") + " title='Mechanical Audit'><span class='ni'>&#127926;</span><span class='nl'>Mechanical Audit</span></a>"
     html += "<a href='/neighboring-rights-audit'" + (" class='on'" if active == "neighboring_rights_audit" else "") + " title='Neighboring Rights Audit'><span class='ni'>&#127911;</span><span class='nl'>Neighboring Rights</span></a>"
+    html += "<a href='/title-review'" + (" class='on'" if active == "title_review" else "") + " title='Title Review'><span class='ni'>&#9997;</span><span class='nl'>Title Review</span></a>"
     html += "</nav>"
     html += "<div class='sb-sec'>Admin</div>"
     html += "<nav class='sb-nav'>"
@@ -5876,7 +5877,20 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
     <tbody>
     {% for e in matched %}
     <tr>
-      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td style="font-weight:500">
+        <a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a>
+        {% if e.suggested_title %}
+        <div style="margin-top:4px">
+          <span style="font-size:11px;color:#f0a500">&#9998; PRO has: <em>{{ e.suggested_title }}</em></span>
+          <form method="post" action="/pro-audit/apply-title" style="display:inline;margin-left:6px">
+            <input type="hidden" name="work_id" value="{{ e.work.id }}">
+            <input type="hidden" name="new_title" value="{{ e.suggested_title }}">
+            <button type="submit" class="btn btn-sm" style="font-size:10px;padding:1px 7px;background:rgba(240,165,0,.15);color:#f0a500;border-color:rgba(240,165,0,.3)"
+              onclick="return confirm('Update title to \'{{ e.suggested_title }}\'?')">Use PRO title</button>
+          </form>
+        </div>
+        {% endif %}
+      </td>
       <td>
         {% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
         {% elif e.iswc_conflict %}<span class="iswc-tag iswc-conflict" title="Conflict: {{ e.iswcs_found|join(', ') }}">conflict &#9888;</span>
@@ -6178,7 +6192,20 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
     <tbody>
     {% for e in matched %}
     <tr>
-      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td style="font-weight:500">
+        <a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a>
+        {% if e.suggested_title %}
+        <div style="margin-top:4px">
+          <span style="font-size:11px;color:#f0a500">&#9998; Source has: <em>{{ e.suggested_title }}</em></span>
+          <form method="post" action="/mechanical-audit/apply-title" style="display:inline;margin-left:6px">
+            <input type="hidden" name="work_id" value="{{ e.work.id }}">
+            <input type="hidden" name="new_title" value="{{ e.suggested_title }}">
+            <button type="submit" class="btn btn-sm" style="font-size:10px;padding:1px 7px;background:rgba(240,165,0,.15);color:#f0a500;border-color:rgba(240,165,0,.3)"
+              onclick="return confirm('Update title to \'{{ e.suggested_title }}\'?')">Use source title</button>
+          </form>
+        </div>
+        {% endif %}
+      </td>
       <td>
         {% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
         {% elif e.iswc_conflict %}<span class="iswc-tag iswc-conflict" title="Conflict: {{ e.iswcs_found|join(', ') }}">conflict &#9888;</span>
@@ -6785,5 +6812,185 @@ USERS_HTML = """<!DOCTYPE html>
   <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item on"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+# ================================================================
+# TITLE REVIEW
+# ================================================================
+
+TITLE_REVIEW_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Title Review - LabelMind</title>""" + _STYLE + """
+<style>
+.tr-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--b0)}
+.tr-tab{padding:9px 18px;font-size:13px;font-weight:500;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;text-decoration:none}
+.tr-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+.tr-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
+.tr-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
+.title-inp{background:var(--s1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);font-size:13px;padding:5px 9px;width:100%;min-width:180px;box-sizing:border-box}
+.title-inp:focus{outline:none;border-color:var(--accent)}
+.save-btn{background:rgba(99,133,255,.12);border:1px solid rgba(99,133,255,.25);color:#6385ff;border-radius:6px;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.save-btn:hover{background:rgba(99,133,255,.22)}
+.search-bar{display:flex;gap:8px;margin-bottom:14px}
+.search-bar input{flex:1;background:var(--s1);border:1px solid var(--b0);border-radius:8px;color:var(--t1);font-size:13px;padding:8px 12px}
+.search-bar input:focus{outline:none;border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("title_review") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#9997;</div>
+    <div>
+      <div class="ph-title">Title Review</div>
+      <div class="ph-sub">Correct accents, ñ, and spelling across all works, releases, and tracks. Edit inline and save row by row.</div>
+    </div>
+  </div>
+</div>
+
+<div class="tr-tabs">
+  <a href="#works"    class="tr-tab on" onclick="showTab('works',this)">Works    <span class="cnt">{{ works|length }}</span></a>
+  <a href="#releases" class="tr-tab"    onclick="showTab('releases',this)">Releases <span class="cnt">{{ releases|length }}</span></a>
+  <a href="#tracks"   class="tr-tab"    onclick="showTab('tracks',this)">Tracks   <span class="cnt">{{ tracks|length }}</span></a>
+</div>
+
+<!-- WORKS -->
+<div id="tab-works">
+  <div class="search-bar"><input type="text" id="q-works" placeholder="Filter works…" oninput="filterTable('tbl-works',this.value)"></div>
+  <div class="card">
+    <div style="overflow-x:auto">
+    <table class="tbl" id="tbl-works" style="width:100%">
+      <thead><tr><th style="min-width:160px">Current Title</th><th style="min-width:200px">Edit Title</th><th>Writers</th><th>Date</th><th></th></tr></thead>
+      <tbody>
+      {% for w in works %}
+      <tr data-search="{{ w.title | lower }}">
+        <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ w.title }}</td>
+        <td>
+          <form method="post" action="/title-review/update-work" style="display:flex;gap:6px;align-items:center">
+            <input type="hidden" name="work_id" value="{{ w.id }}">
+            <input class="title-inp" name="title" value="{{ w.title }}" autocomplete="off">
+            <button type="submit" class="save-btn">Save</button>
+          </form>
+        </td>
+        <td style="font-size:11px;color:var(--t3)">
+          {% for ww in w.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </td>
+        <td style="font-size:11px;color:var(--t3);white-space:nowrap">
+          {{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}
+        </td>
+        <td><a href="/works/{{ w.id }}" style="font-size:11px;color:var(--t3)">&#128279;</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- RELEASES -->
+<div id="tab-releases" style="display:none">
+  <div class="search-bar"><input type="text" id="q-releases" placeholder="Filter releases…" oninput="filterTable('tbl-releases',this.value)"></div>
+  <div class="card">
+    <div style="overflow-x:auto">
+    <table class="tbl" id="tbl-releases" style="width:100%">
+      <thead><tr><th style="min-width:160px">Current Title</th><th style="min-width:200px">Edit Title</th><th>Type</th><th>Artist(s)</th><th></th></tr></thead>
+      <tbody>
+      {% for r in releases %}
+      {% set artists = r.artists | default('[]') %}
+      <tr data-search="{{ r.title | lower }}">
+        <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ r.title }}</td>
+        <td>
+          <form method="post" action="/title-review/update-release" style="display:flex;gap:6px;align-items:center">
+            <input type="hidden" name="release_id" value="{{ r.id }}">
+            <input class="title-inp" name="title" value="{{ r.title }}" autocomplete="off">
+            <button type="submit" class="save-btn">Save</button>
+          </form>
+        </td>
+        <td style="font-size:11px;color:var(--t3)">{{ r.release_type }}</td>
+        <td style="font-size:11px;color:var(--t3)">
+          {% for a in r.linked_artists %}{{ a.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </td>
+        <td><a href="/releases/{{ r.id }}" style="font-size:11px;color:var(--t3)">&#128279;</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- TRACKS -->
+<div id="tab-tracks" style="display:none">
+  <div class="search-bar"><input type="text" id="q-tracks" placeholder="Filter tracks…" oninput="filterTable('tbl-tracks',this.value)"></div>
+  <div class="card">
+    <div style="overflow-x:auto">
+    <table class="tbl" id="tbl-tracks" style="width:100%">
+      <thead><tr><th style="min-width:160px">Current Title</th><th style="min-width:200px">Edit Title</th><th>Release</th><th>ISRC</th><th></th></tr></thead>
+      <tbody>
+      {% for t in tracks %}
+      <tr data-search="{{ t.primary_title | lower }}">
+        <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ t.primary_title }}</td>
+        <td>
+          <form method="post" action="/title-review/update-track" style="display:flex;gap:6px;align-items:center">
+            <input type="hidden" name="track_id" value="{{ t.id }}">
+            <input class="title-inp" name="title" value="{{ t.primary_title }}" autocomplete="off">
+            <button type="submit" class="save-btn">Save</button>
+          </form>
+        </td>
+        <td style="font-size:11px;color:var(--t3)">
+          {% if t.release %}<a href="/releases/{{ t.release.id }}" style="color:var(--t3)">{{ t.release.title }}</a>{% else %}&mdash;{% endif %}
+        </td>
+        <td style="font-size:11px;font-family:monospace;color:var(--t3)">{{ t.isrc or '&mdash;' }}</td>
+        <td></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+</div></main></div>
+<script>
+function showTab(name, el) {
+  ['works','releases','tracks'].forEach(function(t) {
+    document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+  });
+  document.querySelectorAll('.tr-tab').forEach(function(a) { a.classList.remove('on'); });
+  el.classList.add('on');
+}
+function filterTable(tblId, q) {
+  var lq = q.toLowerCase();
+  document.querySelectorAll('#' + tblId + ' tbody tr').forEach(function(tr) {
+    tr.style.display = tr.dataset.search.includes(lq) ? '' : 'none';
+  });
+}
+// Restore tab from hash on load
+(function() {
+  var hash = window.location.hash.replace('#','');
+  if (['works','releases','tracks'].includes(hash)) {
+    var el = document.querySelector('.tr-tab[href="#' + hash + '"]');
+    if (el) showTab(hash, el);
+  }
+})();
+</script>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
 </div>
 </body></html>"""

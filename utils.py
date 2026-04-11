@@ -3,6 +3,7 @@ import re
 import os
 import json
 import datetime
+import unicodedata
 
 from docx import Document
 from sqlalchemy import func
@@ -24,6 +25,28 @@ from config import (
 
 
 # ── String helpers ─────────────────────────────────────────────────────────────
+
+def normalize_for_match(value):
+    """Normalize a title/name for fuzzy matching across accent/diacritic variants.
+
+    Steps:
+      1. Unicode NFC → NFD decomposition strips combining diacritics (é→e, ó→o, ü→u…)
+      2. Remove all combining characters (category Mn) — covers á é í ó ú ü
+      3. Lowercase and collapse whitespace
+      4. Strip punctuation
+
+    Important: ñ (U+00F1) decomposes to n + combining tilde, so after step 2 it
+    becomes plain 'n'. This means "Corazon" and "Corazón" both map to "corazon",
+    and "Canon" and "Cañon" both map to "canon" — which is what we want for
+    matching purposes. We never write this back to the database.
+    """
+    t = (value or "").strip()
+    t = unicodedata.normalize("NFD", t)
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    t = t.lower()
+    t = re.sub(r"[^\w\s]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
 
 def slugify(value):
     value = (value or "").strip()
@@ -56,11 +79,11 @@ def build_full_name(first_name, middle_name, last_names):
 
 
 def normalize_text(value):
-    return " ".join((value or "").lower().strip().split())
+    return normalize_for_match(value)
 
 
 def normalize_title(title):
-    return normalize_text(title)
+    return normalize_for_match(title)
 
 
 # ── Writer identity helpers ────────────────────────────────────────────────────
