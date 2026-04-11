@@ -222,10 +222,14 @@ def _run_import(file_bytes):
             stats["writers_created"] += 1
         return writer_cache[key]
 
-    def _get_or_create_work(title, contract_date):
-        key = title.lower()
+    def _get_or_create_work(title, contract_date, writer_names=()):
+        """Key on (title, sorted writer names) so two tracks with the same title
+        but different composers become separate Works instead of being merged."""
+        writers_key = tuple(sorted(n.lower() for n in writer_names if n))
+        key = (title.lower(), writers_key)
         if key not in work_cache:
-            obj = Work(title=title, normalized_title=key, contract_date=contract_date)
+            norm = title.lower()
+            obj = Work(title=title, normalized_title=norm, contract_date=contract_date)
             db.session.add(obj)
             db.session.flush()
             work_cache[key] = obj
@@ -354,7 +358,14 @@ def _run_import(file_bytes):
 
                     # ── Publishing == TRUE → Work + Writers ────────────────
                     if publishing:
-                        work = _get_or_create_work(track_title, release_date)
+                        # Collect writer names upfront so the dedup key includes them
+                        _writer_names_for_key = [
+                            row.get(nc, "").strip()
+                            for nc, *_ in COMPOSER_COLS
+                            if row.get(nc, "").strip()
+                            and row.get(nc, "").strip().lower() not in ("no registrada", "")
+                        ]
+                        work = _get_or_create_work(track_title, release_date, _writer_names_for_key)
 
                         tw_key = (t.id, work.id)
                         if tw_key not in track_work_set:

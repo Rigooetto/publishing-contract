@@ -341,7 +341,8 @@ def formulario():
 
         writer_identity_set = sorted([build_writer_identity_from_row(row) for row in writer_rows])
         
-        possible_duplicates = []
+        possible_duplicates = []       # same title + same writers (exact duplicate)
+        same_title_diff_writers = []   # same title + different writers (naming collision)
 
         if request.form.get("return_to_form"):
             return render_template_string(
@@ -355,19 +356,23 @@ def formulario():
             existing_identities = sorted([
                  build_writer_identity_from_workwriter(ww) for ww in existing_work.work_writers
             ])
+            batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
+            entry = {
+                "title": existing_work.title,
+                "camp_name": batch.session_name if batch else "",
+                "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
+                "work_id": existing_work.id,
+                "batch_id": existing_work.batch_id,
+                "writers": ", ".join(ww.writer.full_name for ww in existing_work.work_writers if ww.writer),
+            }
             if existing_identities == writer_identity_set:
-                batch = GenerationBatch.query.get(existing_work.batch_id) if existing_work.batch_id else None
-                possible_duplicates.append({
-                    "title": existing_work.title,
-                    "camp_name": batch.session_name if batch else "",
-                    "created_at": existing_work.created_at.strftime("%Y-%m-%d"),
-                    "work_id": existing_work.id,
-                    "batch_id": existing_work.batch_id,
-                })
+                possible_duplicates.append(entry)
+            else:
+                same_title_diff_writers.append(entry)
 
         force_create = request.form.get("force_create") == "1"
 
-        if possible_duplicates and not force_create:
+        if (possible_duplicates or same_title_diff_writers) and not force_create:
             form_data = {}
             for key in request.form.keys():
                 values = request.form.getlist(key)
@@ -376,6 +381,7 @@ def formulario():
             return render_template_string(
                 DUPLICATE_WARNING_HTML,
                 duplicates=possible_duplicates,
+                same_title_diff_writers=same_title_diff_writers,
                 form_data=form_data,
             )
 

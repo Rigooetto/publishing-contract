@@ -1426,34 +1426,64 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
     </div>
   </div>
 </div>
-<div class="card">
-  <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Matching Works</span></div>
+{% if duplicates %}
+<div class="card" style="border-color:#e05c5c">
+  <div class="card-hd"><div class="card-ico">&#128683;</div><span class="card-title">Exact Duplicate — Same Title &amp; Same Writers</span></div>
   <div class="card-body">
+    <p style="font-size:13px;color:var(--t2);margin-bottom:14px">This work already exists in LabelMind with the same writers. You should not create it again.</p>
     <table class="tbl" style="margin-bottom:18px">
-      <thead><tr><th>Title</th><th>Session</th><th>Created</th><th>Action</th></tr></thead>
+      <thead><tr><th>Title</th><th>Writers</th><th>Session</th><th>Created</th><th></th></tr></thead>
       <tbody>
         {% for item in duplicates %}
         <tr>
           <td style="font-weight:600">{{ item.title }}</td>
-          <td>{{ item.camp_name or '--' }}</td>
+          <td style="font-size:12px;color:var(--t2)">{{ item.writers }}</td>
+          <td>{{ item.camp_name or '&mdash;' }}</td>
           <td style="color:var(--t2)">{{ item.created_at }}</td>
-          <td>
-            {% if item.batch_id %}
-              <button
-                type="button"
-                class="btn btn-sec btn-sm"
-                onclick="openExisting('{{ url_for('publishing.batch_detail', batch_id=item.batch_id) }}')">
-                View Existing
-              </button>
-            {% else %}
-              <span style="color:var(--t2)">--</span>
-            {% endif %}
-          </td>
-
+          <td>{% if item.batch_id %}
+            <button type="button" class="btn btn-sec btn-sm"
+              onclick="openExisting('{{ url_for('publishing.batch_detail', batch_id=item.batch_id) }}')">View</button>
+          {% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+{% endif %}
+
+{% if same_title_diff_writers %}
+<div class="card" style="border-color:#f0a500;margin-top:12px">
+  <div class="card-hd"><div class="card-ico">&#9888;</div><span class="card-title">Same Title — Different Writers</span></div>
+  <div class="card-body">
+    <p style="font-size:13px;color:var(--t2);margin-bottom:14px">
+      A work called <strong>"{{ same_title_diff_writers[0].title }}"</strong> already exists but with different writers.
+      If this is genuinely a different work that happens to share the same title (e.g., two composers independently wrote a song with the same name), click <em>Create as Separate Work</em>.
+      If this is the same composition, go back and use the existing work.
+    </p>
+    <table class="tbl" style="margin-bottom:18px">
+      <thead><tr><th>Title</th><th>Existing Writers</th><th>Session</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        {% for item in same_title_diff_writers %}
+        <tr>
+          <td style="font-weight:600">{{ item.title }}</td>
+          <td style="font-size:12px;color:#f0a500">{{ item.writers }}</td>
+          <td>{{ item.camp_name or '&mdash;' }}</td>
+          <td style="color:var(--t2)">{{ item.created_at }}</td>
+          <td>{% if item.batch_id %}
+            <button type="button" class="btn btn-sec btn-sm"
+              onclick="openExisting('{{ url_for('publishing.batch_detail', batch_id=item.batch_id) }}')">View</button>
+          {% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:12px">
+  <div class="card-body">
     <div style="display:flex;gap:10px">
       <form method="post" style="margin:0">
         {% for key, value in form_data.items() %}
@@ -1468,11 +1498,9 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           {% endif %}
         {% endfor %}
         <input type="hidden" name="force_create" value="1">
-        <button
-          type="submit"
-          class="btn btn-danger"
-          onclick="return confirm('Are you sure you want to create this duplicate work?')">
-          Continue Anyway
+        <button type="submit" class="btn btn-danger"
+          onclick="return confirm('Create as a separate work with the same title?')">
+          {% if duplicates %}Create Exact Duplicate{% else %}Create as Separate Work{% endif %}
         </button>
       </form>
 
@@ -1489,10 +1517,10 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
           {% endif %}
         {% endfor %}
         <input type="hidden" name="return_to_form" value="1">
-        <button type="submit" class="btn btn-sec">Cancel</button>
+        <button type="submit" class="btn btn-sec">&#8592; Go Back &amp; Edit</button>
       </form>
     </div>
-</div>
+  </div>
 </div>
 </main>
 </div>
@@ -1696,6 +1724,13 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
           <td>
             <span class="expand-chevron">&#9658;</span>
             <span style="font-weight:600">{{ work.title }}</span>
+            {% set total_pct = work.work_writers | sum(attribute='writer_percentage') %}
+            {% if (total_pct - 100.0) | abs > 0.01 %}
+            <span title="Writer splits add up to {{ '%.1f'|format(total_pct) }}% — should be 100%"
+                  style="display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(224,92,92,.15);color:#e05c5c;cursor:help">
+              &#9888; {{ '%.0f'|format(total_pct) }}%
+            </span>
+            {% endif %}
             {% if work.contract_date %}<div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">{{ work.contract_date.strftime('%b %d, %Y') }}</div>{% endif %}
           </td>
           <td>
@@ -1725,7 +1760,14 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
           <td colspan="4">
             <div class="work-detail-inner">
               <div class="wd-section">
-                <div class="wd-label">Writers &amp; Splits</div>
+                {% set total_pct = work.work_writers | sum(attribute='writer_percentage') %}
+                <div class="wd-label">Writers &amp; Splits
+                  {% if (total_pct - 100.0) | abs > 0.01 %}
+                  <span style="margin-left:8px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(224,92,92,.15);color:#e05c5c">
+                    &#9888; Total: {{ '%.1f'|format(total_pct) }}% &mdash; should be 100%
+                  </span>
+                  {% endif %}
+                </div>
                 <table class="wd-writers-tbl">
                   <thead><tr><th>Writer</th><th>IPI</th><th>PRO</th><th>Split</th></tr></thead>
                   <tbody>
@@ -2011,7 +2053,14 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
           <td colspan="3">
             <div class="work-detail-inner">
               <div class="wd-section">
-                <div class="wd-label">Writers &amp; Splits</div>
+                {% set total_pct = work.work_writers | sum(attribute='writer_percentage') %}
+                <div class="wd-label">Writers &amp; Splits
+                  {% if (total_pct - 100.0) | abs > 0.01 %}
+                  <span style="margin-left:8px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(224,92,92,.15);color:#e05c5c">
+                    &#9888; Total: {{ '%.1f'|format(total_pct) }}% &mdash; should be 100%
+                  </span>
+                  {% endif %}
+                </div>
                 <table class="wd-writers-tbl">
                   <thead><tr><th>Writer</th><th>IPI</th><th>PRO</th><th>Split</th></tr></thead>
                   <tbody>
