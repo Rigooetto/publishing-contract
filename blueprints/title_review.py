@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template_string, request, redirect, url_for, flash
+from flask import Blueprint, render_template_string, request, redirect, url_for, flash, jsonify
 
 from extensions import db
 from models import Work, Release, Track
@@ -43,14 +43,18 @@ def update_work_title():
         return redirect(url_for("title_review.title_review"))
 
     work = Work.query.get_or_404(work_id)
-    old  = work.title
     work.title            = new_title
     work.normalized_title = normalize_for_match(new_title)
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
         db.session.commit()
-        flash(f'Work updated: "{old}" → "{new_title}".', "success")
+        if is_ajax:
+            return jsonify({"ok": True, "title": new_title})
+        flash(f'Work title updated to "{new_title}".', "success")
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({"error": str(e)}), 500
         flash(f"Error: {e}", "error")
     return redirect(url_for("title_review.title_review") + "#works")
 
@@ -70,13 +74,17 @@ def update_release_title():
         return redirect(url_for("title_review.title_review"))
 
     release = Release.query.get_or_404(release_id)
-    old     = release.title
     release.title = new_title
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
         db.session.commit()
-        flash(f'Release updated: "{old}" → "{new_title}".', "success")
+        if is_ajax:
+            return jsonify({"ok": True, "title": new_title})
+        flash(f'Release title updated to "{new_title}".', "success")
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({"error": str(e)}), 500
         flash(f"Error: {e}", "error")
     return redirect(url_for("title_review.title_review") + "#releases")
 
@@ -96,12 +104,16 @@ def update_track_title():
         return redirect(url_for("title_review.title_review"))
 
     track = Track.query.get_or_404(track_id)
-    old   = track.primary_title
     track.primary_title = new_title
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
         db.session.commit()
-        flash(f'Track updated: "{old}" → "{new_title}".', "success")
+        if is_ajax:
+            return jsonify({"ok": True, "title": new_title})
+        flash(f'Track title updated to "{new_title}".', "success")
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({"error": str(e)}), 500
         flash(f"Error: {e}", "error")
     return redirect(url_for("title_review.title_review") + "#tracks")

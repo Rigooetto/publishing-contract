@@ -6849,13 +6849,21 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
 .tr-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
 .tr-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
 .tr-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
-.title-inp{background:var(--s1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);font-size:13px;padding:5px 9px;width:100%;min-width:180px;box-sizing:border-box}
-.title-inp:focus{outline:none;border-color:var(--accent)}
-.save-btn{background:rgba(99,133,255,.12);border:1px solid rgba(99,133,255,.25);color:#6385ff;border-radius:6px;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;white-space:nowrap}
-.save-btn:hover{background:rgba(99,133,255,.22)}
 .search-bar{display:flex;gap:8px;margin-bottom:14px}
 .search-bar input{flex:1;background:var(--s1);border:1px solid var(--b0);border-radius:8px;color:var(--t1);font-size:13px;padding:8px 12px}
 .search-bar input:focus{outline:none;border-color:var(--accent)}
+.editable-cell{position:relative}
+.title-txt{cursor:pointer;color:var(--t1);font-size:13px;font-weight:500;border-bottom:1px dashed transparent;transition:border-color .15s}
+.title-txt:hover{border-bottom-color:var(--accent)}
+.edit-row{display:none;align-items:center;gap:6px;margin-top:4px}
+.title-inp{background:var(--s2);border:1px solid var(--accent);border-radius:6px;color:var(--t1);font-size:13px;padding:4px 8px;min-width:200px;box-sizing:border-box}
+.title-inp:focus{outline:none}
+.save-btn{background:rgba(99,133,255,.15);border:1px solid rgba(99,133,255,.35);color:#6385ff;border-radius:6px;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.save-btn:hover{background:rgba(99,133,255,.28)}
+.cancel-lnk{font-size:16px;color:var(--t3);cursor:pointer;line-height:1;padding:0 2px}
+.cancel-lnk:hover{color:var(--t1)}
+.save-ok{font-size:11px;color:#4caf8a;margin-left:4px;animation:fadeout 2s forwards}
+@keyframes fadeout{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
 </style>
 </head>
 <body>
@@ -6873,34 +6881,35 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
     <div class="ph-icon">&#9997;</div>
     <div>
       <div class="ph-title">Title Review</div>
-      <div class="ph-sub">Correct accents, ñ, and spelling across all works, releases, and tracks. Edit inline and save row by row.</div>
+      <div class="ph-sub">Click any title to edit it inline. Changes save instantly without reloading the page.</div>
     </div>
   </div>
 </div>
 
 <div class="tr-tabs">
-  <a href="#works"    class="tr-tab on" onclick="showTab('works',this)">Works    <span class="cnt">{{ works|length }}</span></a>
-  <a href="#releases" class="tr-tab"    onclick="showTab('releases',this)">Releases <span class="cnt">{{ releases|length }}</span></a>
-  <a href="#tracks"   class="tr-tab"    onclick="showTab('tracks',this)">Tracks   <span class="cnt">{{ tracks|length }}</span></a>
+  <a href="#works"    class="tr-tab on" onclick="showTab('works',this);return false">Works    <span class="cnt">{{ works|length }}</span></a>
+  <a href="#releases" class="tr-tab"    onclick="showTab('releases',this);return false">Releases <span class="cnt">{{ releases|length }}</span></a>
+  <a href="#tracks"   class="tr-tab"    onclick="showTab('tracks',this);return false">Tracks   <span class="cnt">{{ tracks|length }}</span></a>
 </div>
 
 <!-- WORKS -->
 <div id="tab-works">
-  <div class="search-bar"><input type="text" id="q-works" placeholder="Filter works…" oninput="filterTable('tbl-works',this.value)"></div>
+  <div class="search-bar"><input type="text" id="q-works" placeholder="Filter works…" oninput="debounceFilter('tbl-works',this.value)"></div>
   <div class="card">
     <div style="overflow-x:auto">
     <table class="tbl" id="tbl-works" style="width:100%">
-      <thead><tr><th style="min-width:160px">Current Title</th><th style="min-width:200px">Edit Title</th><th>Writers</th><th>Date</th><th></th></tr></thead>
+      <thead><tr><th style="min-width:240px">Title</th><th>Writers</th><th>Date</th><th></th></tr></thead>
       <tbody>
       {% for w in works %}
       <tr data-search="{{ w.title | lower }}">
-        <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ w.title }}</td>
-        <td>
-          <form method="post" action="/title-review/update-work" style="display:flex;gap:6px;align-items:center">
-            <input type="hidden" name="work_id" value="{{ w.id }}">
-            <input class="title-inp" name="title" value="{{ w.title }}" autocomplete="off">
-            <button type="submit" class="save-btn">Save</button>
-          </form>
+        <td class="editable-cell">
+          <span class="title-txt" onclick="startEdit(this)">{{ w.title }}</span>
+          <div class="edit-row">
+            <input class="title-inp" value="{{ w.title }}" autocomplete="off"
+                   onkeydown="if(event.key==='Enter'){saveEdit(this,'work',{{ w.id }})}else if(event.key==='Escape'){cancelEdit(this)}">
+            <button class="save-btn" onclick="saveEdit(this.previousElementSibling,'work',{{ w.id }})">Save</button>
+            <span class="cancel-lnk" onclick="cancelEdit(this.previousElementSibling.previousElementSibling)">&#10005;</span>
+          </div>
         </td>
         <td style="font-size:11px;color:var(--t3)">
           {% for ww in w.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
@@ -6919,22 +6928,22 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
 
 <!-- RELEASES -->
 <div id="tab-releases" style="display:none">
-  <div class="search-bar"><input type="text" id="q-releases" placeholder="Filter releases…" oninput="filterTable('tbl-releases',this.value)"></div>
+  <div class="search-bar"><input type="text" id="q-releases" placeholder="Filter releases…" oninput="debounceFilter('tbl-releases',this.value)"></div>
   <div class="card">
     <div style="overflow-x:auto">
     <table class="tbl" id="tbl-releases" style="width:100%">
-      <thead><tr><th style="min-width:160px">Current Title</th><th style="min-width:200px">Edit Title</th><th>Type</th><th>Artist(s)</th><th></th></tr></thead>
+      <thead><tr><th style="min-width:240px">Title</th><th>Type</th><th>Artist(s)</th><th></th></tr></thead>
       <tbody>
       {% for r in releases %}
-      {% set artists = r.artists | default('[]') %}
       <tr data-search="{{ r.title | lower }}">
-        <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ r.title }}</td>
-        <td>
-          <form method="post" action="/title-review/update-release" style="display:flex;gap:6px;align-items:center">
-            <input type="hidden" name="release_id" value="{{ r.id }}">
-            <input class="title-inp" name="title" value="{{ r.title }}" autocomplete="off">
-            <button type="submit" class="save-btn">Save</button>
-          </form>
+        <td class="editable-cell">
+          <span class="title-txt" onclick="startEdit(this)">{{ r.title }}</span>
+          <div class="edit-row">
+            <input class="title-inp" value="{{ r.title }}" autocomplete="off"
+                   onkeydown="if(event.key==='Enter'){saveEdit(this,'release',{{ r.id }})}else if(event.key==='Escape'){cancelEdit(this)}">
+            <button class="save-btn" onclick="saveEdit(this.previousElementSibling,'release',{{ r.id }})">Save</button>
+            <span class="cancel-lnk" onclick="cancelEdit(this.previousElementSibling.previousElementSibling)">&#10005;</span>
+          </div>
         </td>
         <td style="font-size:11px;color:var(--t3)">{{ r.release_type }}</td>
         <td style="font-size:11px;color:var(--t3)">
@@ -6951,27 +6960,27 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
 
 <!-- TRACKS -->
 <div id="tab-tracks" style="display:none">
-  <div class="search-bar"><input type="text" id="q-tracks" placeholder="Filter tracks…" oninput="filterTable('tbl-tracks',this.value)"></div>
+  <div class="search-bar"><input type="text" id="q-tracks" placeholder="Filter tracks…" oninput="debounceFilter('tbl-tracks',this.value)"></div>
   <div class="card">
     <div style="overflow-x:auto">
     <table class="tbl" id="tbl-tracks" style="width:100%">
-      <thead><tr><th style="min-width:160px">Current Title</th><th style="min-width:200px">Edit Title</th><th>Release</th><th>ISRC</th><th></th></tr></thead>
+      <thead><tr><th style="min-width:240px">Title</th><th>Release</th><th>ISRC</th></tr></thead>
       <tbody>
       {% for t in tracks %}
       <tr data-search="{{ t.primary_title | lower }}">
-        <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ t.primary_title }}</td>
-        <td>
-          <form method="post" action="/title-review/update-track" style="display:flex;gap:6px;align-items:center">
-            <input type="hidden" name="track_id" value="{{ t.id }}">
-            <input class="title-inp" name="title" value="{{ t.primary_title }}" autocomplete="off">
-            <button type="submit" class="save-btn">Save</button>
-          </form>
+        <td class="editable-cell">
+          <span class="title-txt" onclick="startEdit(this)">{{ t.primary_title }}</span>
+          <div class="edit-row">
+            <input class="title-inp" value="{{ t.primary_title }}" autocomplete="off"
+                   onkeydown="if(event.key==='Enter'){saveEdit(this,'track',{{ t.id }})}else if(event.key==='Escape'){cancelEdit(this)}">
+            <button class="save-btn" onclick="saveEdit(this.previousElementSibling,'track',{{ t.id }})">Save</button>
+            <span class="cancel-lnk" onclick="cancelEdit(this.previousElementSibling.previousElementSibling)">&#10005;</span>
+          </div>
         </td>
         <td style="font-size:11px;color:var(--t3)">
           {% if t.release %}<a href="/releases/{{ t.release.id }}" style="color:var(--t3)">{{ t.release.title }}</a>{% else %}&mdash;{% endif %}
         </td>
         <td style="font-size:11px;font-family:monospace;color:var(--t3)">{{ t.isrc or '&mdash;' }}</td>
-        <td></td>
       </tr>
       {% endfor %}
       </tbody>
@@ -6982,20 +6991,84 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
 
 </div></main></div>
 <script>
+var _filterTimers = {};
+function debounceFilter(tblId, q) {
+  clearTimeout(_filterTimers[tblId]);
+  _filterTimers[tblId] = setTimeout(function() {
+    var lq = q.toLowerCase();
+    document.querySelectorAll('#' + tblId + ' tbody tr').forEach(function(tr) {
+      tr.style.display = (tr.dataset.search || '').includes(lq) ? '' : 'none';
+    });
+  }, 180);
+}
 function showTab(name, el) {
   ['works','releases','tracks'].forEach(function(t) {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   document.querySelectorAll('.tr-tab').forEach(function(a) { a.classList.remove('on'); });
   el.classList.add('on');
+  history.replaceState(null, '', '#' + name);
 }
-function filterTable(tblId, q) {
-  var lq = q.toLowerCase();
-  document.querySelectorAll('#' + tblId + ' tbody tr').forEach(function(tr) {
-    tr.style.display = tr.dataset.search.includes(lq) ? '' : 'none';
+function startEdit(span) {
+  var cell = span.closest('.editable-cell');
+  span.style.display = 'none';
+  var row = cell.querySelector('.edit-row');
+  row.style.display = 'flex';
+  var inp = row.querySelector('.title-inp');
+  inp.focus();
+  inp.select();
+}
+function cancelEdit(inp) {
+  var row  = inp.closest('.edit-row');
+  var cell = row.closest('.editable-cell');
+  row.style.display = 'none';
+  cell.querySelector('.title-txt').style.display = '';
+}
+var _urlMap = {
+  'work':    '/title-review/update-work',
+  'release': '/title-review/update-release',
+  'track':   '/title-review/update-track'
+};
+var _idMap = { 'work': 'work_id', 'release': 'release_id', 'track': 'track_id' };
+function saveEdit(inp, kind, id) {
+  var newTitle = inp.value.trim();
+  if (!newTitle) { inp.focus(); return; }
+  var btn = inp.nextElementSibling;
+  btn.disabled = true;
+  btn.textContent = '\u2026';
+  var body = new FormData();
+  body.append(_idMap[kind], id);
+  body.append('title', newTitle);
+  fetch(_urlMap[kind], {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'},
+    body: body
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    if (data.ok) {
+      var cell = inp.closest('.editable-cell');
+      var span = cell.querySelector('.title-txt');
+      span.textContent = data.title;
+      inp.closest('tr').dataset.search = data.title.toLowerCase();
+      cancelEdit(inp);
+      var ok = document.createElement('span');
+      ok.className = 'save-ok';
+      ok.textContent = ' \u2713 Saved';
+      cell.appendChild(ok);
+      setTimeout(function() { if (ok.parentNode) ok.parentNode.removeChild(ok); }, 2200);
+    } else {
+      alert('Could not save: ' + (data.error || 'unknown error'));
+    }
+  })
+  .catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    alert('Network error \u2014 please try again.');
   });
 }
-// Restore tab from hash on load
 (function() {
   var hash = window.location.hash.replace('#','');
   if (['works','releases','tracks'].includes(hash)) {
