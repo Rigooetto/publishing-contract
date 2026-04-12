@@ -254,10 +254,20 @@ def _build_audit():
         iswc_conflict  = len(iswcs) > 1
         suggested_iswc = next(iter(iswcs), "") if not w.iswc else ""
 
-        # Detect title spelling differences (accents/ñ) between DB and source
+        # Suggest a source title only when it is mixed-case AND has diacritics the
+        # DB title is missing — never when the source is just ALL CAPS or same title.
+        def _worth_suggesting(src_title, db_title):
+            if not src_title or src_title == db_title:
+                return False
+            if src_title.lower() == db_title.lower():
+                return False
+            if normalize_for_match(src_title) == src_title.lower():
+                return False
+            return True
+
         src_titles = [
             src["title"] for src in [m, r]
-            if src and src.get("title") and src["title"] != w.title
+            if src and _worth_suggesting(src.get("title", ""), w.title)
         ]
         suggested_title = src_titles[0] if src_titles else ""
 

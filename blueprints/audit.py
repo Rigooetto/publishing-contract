@@ -200,10 +200,20 @@ def _build_audit():
         iswc_conflict  = len(iswcs_found) > 1
         suggested_iswc = next(iter(iswcs_found), "") if not w.iswc else ""
 
-        # Detect title spelling differences (accents/ñ) between DB and PRO source
+        # Suggest a PRO title only when it is mixed-case AND has diacritics the
+        # DB title is missing — never when the PRO is just ALL CAPS or same title.
+        def _worth_suggesting(src_title, db_title):
+            if not src_title or src_title == db_title:
+                return False
+            if src_title.lower() == db_title.lower():       # pure case difference
+                return False
+            if normalize_for_match(src_title) == src_title.lower():  # no diacritics in source
+                return False
+            return True
+
         pro_titles = [
             src["title"] for src in [a, b, s]
-            if src and src.get("title") and src["title"] != w.title
+            if src and _worth_suggesting(src.get("title", ""), w.title)
         ]
         suggested_title = pro_titles[0] if pro_titles else ""
 
