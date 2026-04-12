@@ -7181,8 +7181,9 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <div class="ph-actions">
-    <a href="/registration-report/export-csv?status=new" class="btn btn-sec">&#8659; Export New (CSV)</a>
-    <a href="/registration-report/export-csv?status=submitted" class="btn btn-sec">&#8659; Export Submitted (CSV)</a>
+    <a href="/registration-report/export-mlc" class="btn btn-sec">&#8659; MLC (.xlsx)</a>
+    <a href="/registration-report/export-mri" class="btn btn-sec">&#8659; MRI (.xls)</a>
+    <a href="/registration-report/export-soundexchange" class="btn btn-sec">&#8659; SoundExchange (.xlsx)</a>
   </div>
 </div>
 
