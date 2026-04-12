@@ -1440,7 +1440,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
         <tr>
           <td style="font-weight:600">{{ item.title }}</td>
           <td style="font-size:12px;color:var(--t2)">{{ item.writers }}</td>
-          <td>{{ item.camp_name or '&mdash;' }}</td>
+          <td>{{ item.camp_name or '—' }}</td>
           <td style="color:var(--t2)">{{ item.created_at }}</td>
           <td>{% if item.batch_id %}
             <button type="button" class="btn btn-sec btn-sm"
@@ -1470,7 +1470,7 @@ DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
         <tr>
           <td style="font-weight:600">{{ item.title }}</td>
           <td style="font-size:12px;color:#f0a500">{{ item.writers }}</td>
-          <td>{{ item.camp_name or '&mdash;' }}</td>
+          <td>{{ item.camp_name or '—' }}</td>
           <td style="color:var(--t2)">{{ item.created_at }}</td>
           <td>{% if item.batch_id %}
             <button type="button" class="btn btn-sec btn-sm"
@@ -5578,7 +5578,7 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
      class="pill {% if tab == \'registered\' %}on{% endif %}">Registered ({{ registered_count }})</a>
   <form method="get" style="margin-left:auto;display:flex;gap:8px">
     <input type="hidden" name="tab" value="{{ tab }}">
-    <input class="inp" name="q" value="{{ q }}" placeholder="Search worksâ¦" style="width:200px">
+    <input class="inp" name="q" value="{{ q }}" placeholder="Search works…" style="width:200px">
     <button class="btn btn-sec" type="submit">Search</button>
   </form>
 </div>
@@ -6252,7 +6252,7 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
   </td>
   <td>
     {% set mlc_reg = e.work.pro_registrations | selectattr("pro","equalto","MLC") | list %}
-    {% if mlc_reg %}<span class="code-tag">{{ mlc_reg[0].mlc_song_code or '&mdash;' }}</span>
+    {% if mlc_reg %}<span class="code-tag">{{ mlc_reg[0].mlc_song_code or '—' }}</span>
     {% elif e.mlc and e.mlc.mlc_song_code %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mlc.mlc_song_code }} &#8593;</span>
     {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
   </td>
@@ -6403,12 +6403,12 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
         {% if o.writers %}{{ o.writers | join(', ') }}{% else %}<span style="color:var(--t3)">&mdash;</span>{% endif %}
       </td>
       <td style="font-size:12px;font-family:monospace;color:var(--t2)">
-        {% if o.source == 'MLC' %}{{ o.mlc_song_code or '&mdash;' }}
-        {% else %}{{ o.mri_song_id or '&mdash;' }}{% endif %}
+        {% if o.source == 'MLC' %}{{ o.mlc_song_code or '—' }}
+        {% else %}{{ o.mri_song_id or '—' }}{% endif %}
       </td>
       <td>{% if o.iswc %}<span class="iswc-tag">{{ o.iswc }}</span>
           {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
-      <td style="font-size:12px;color:var(--t3)">{{ o.artist or '&mdash;' }}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ o.artist or '—' }}</td>
     </tr>
     {% endfor %}
     </tbody>
@@ -6633,14 +6633,14 @@ NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
         {{ e.track.primary_title }}
         {% if e.track.track_number %}<span style="font-size:11px;color:var(--t3);margin-left:4px">#{{ e.track.track_number }}</span>{% endif %}
       </td>
-      <td style="font-size:12px;color:var(--t2)">{{ e.artist_names or '&mdash;' }}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ e.artist_names or '—' }}</td>
       <td style="font-size:12px;color:var(--t3)">
         {% if e.release %}<a href="/releases/{{ e.release.id }}" style="color:var(--t2)">{{ e.release.title }}</a>{% else %}&mdash;{% endif %}
       </td>
       <td>{% if e.track.isrc %}<span class="isrc-tag">{{ e.track.isrc }}</span>
           {% else %}<span style="color:#e05c5c;font-size:11px">No ISRC</span>{% endif %}
       </td>
-      <td style="font-size:12px;color:var(--t3)">{{ e.track.genre or '&mdash;' }}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ e.track.genre or '—' }}</td>
     </tr>
     {% endfor %}
     </tbody>
@@ -6679,7 +6679,7 @@ NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
     {% for o in orphaned %}
     <tr>
       <td style="font-weight:500;color:var(--t1)">{{ o.title }}</td>
-      <td style="font-size:12px;color:var(--t2)">{{ o.artist or '&mdash;' }}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ o.artist or '—' }}</td>
       <td>{% if o.isrc %}<span class="isrc-tag">{{ o.isrc }}</span>
           {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
       <td>{% if o.sxid %}<span class="sxid-tag">{{ o.sxid }}</span>
@@ -6838,7 +6838,7 @@ USERS_HTML = """<!DOCTYPE html>
       <td style="font-weight:500">{{ u.username }}
         {% if u.id == current_user_id %}<span style="font-size:10px;color:var(--t3);margin-left:4px">(you)</span>{% endif %}
       </td>
-      <td style="font-size:12px;color:var(--t2)">{{ u.email or '&mdash;' }}</td>
+      <td style="font-size:12px;color:var(--t2)">{{ u.email or '—' }}</td>
       <td>
         <form method="post" action="/users/{{ u.id }}/role" style="display:flex;gap:6px;align-items:center">
           <select name="role" class="inp" style="padding:4px 8px;font-size:12px;width:auto">
@@ -6969,7 +6969,7 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
           {% for ww in w.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
         </td>
         <td style="font-size:11px;color:var(--t3);white-space:nowrap">
-          {{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}
+          {{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}
         </td>
         <td><a href="/works/{{ w.id }}" style="font-size:11px;color:var(--t3)">&#128279;</a></td>
       </tr>
@@ -7034,7 +7034,7 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
         <td style="font-size:11px;color:var(--t3)">
           {% if t.release %}<a href="/releases/{{ t.release.id }}" style="color:var(--t3)">{{ t.release.title }}</a>{% else %}&mdash;{% endif %}
         </td>
-        <td style="font-size:11px;font-family:monospace;color:var(--t3)">{{ t.isrc or '&mdash;' }}</td>
+        <td style="font-size:11px;font-family:monospace;color:var(--t3)">{{ t.isrc or '—' }}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -7227,11 +7227,11 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     <tr>
       <td style="text-align:center"><input type="checkbox" name="work_ids" value="{{ w.id }}" style="width:15px;height:15px"></td>
       <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
-      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '&mdash;' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
       <td style="font-size:11px;color:var(--t2)">
         {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
       </td>
-      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}</td>
       <td style="font-size:11px;color:var(--t3)">
         {% if w.aka_titles %}{{ w.aka_titles | map(attribute='title') | join(', ') }}{% else %}&mdash;{% endif %}
       </td>
@@ -7276,11 +7276,11 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     <tr>
       <td style="text-align:center"><input type="checkbox" name="work_ids" value="{{ w.id }}" style="width:15px;height:15px"></td>
       <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
-      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '&mdash;' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
       <td style="font-size:11px;color:var(--t2)">
         {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
       </td>
-      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}</td>
       <td style="font-size:11px;color:var(--t3)">
         {% if w.aka_titles %}{{ w.aka_titles | map(attribute='title') | join(', ') }}{% else %}&mdash;{% endif %}
       </td>
@@ -7314,12 +7314,12 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     {% for w in confirmed_works %}
     <tr>
       <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
-      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '&mdash;' }}</td>
-      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.mri_song_id or '&mdash;' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.mri_song_id or '—' }}</td>
       <td style="font-size:11px;color:var(--t2)">
         {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
       </td>
-      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}</td>
     </tr>
     {% endfor %}
     </tbody>
