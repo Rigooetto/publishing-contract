@@ -242,7 +242,9 @@ def _build_audit():
     all_works = Work.query.order_by(Work.title).all()
     db_keys   = {_norm(w.title): w for w in all_works}
 
-    matched      = []
+    matched_both = []
+    mlc_only     = []
+    mri_only     = []
     unregistered = []
 
     for w in all_works:
@@ -276,8 +278,12 @@ def _build_audit():
                      iswc_conflict=iswc_conflict,
                      iswcs_found=iswcs,
                      suggested_title=suggested_title)
-        if m or r:
-            matched.append(entry)
+        if m and r:
+            matched_both.append(entry)
+        elif m:
+            mlc_only.append(entry)
+        elif r:
+            mri_only.append(entry)
         else:
             unregistered.append(entry)
 
@@ -287,7 +293,7 @@ def _build_audit():
             if key not in db_keys:
                 orphaned.append(dict(source=source, **v))
 
-    return matched, unregistered, orphaned, mlc, mri
+    return matched_both, mlc_only, mri_only, unregistered, orphaned, mlc, mri
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -300,24 +306,32 @@ def mechanical_audit():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
-    matched, unregistered, orphaned, mlc, mri = _build_audit()
+    matched_both, mlc_only, mri_only, unregistered, orphaned, mlc, mri = _build_audit()
 
     stats = dict(
         mlc_total=len(mlc),
         mri_total=len(mri),
-        db_total=len(matched) + len(unregistered),
-        matched=len(matched),
+        db_total=len(matched_both) + len(mlc_only) + len(mri_only) + len(unregistered),
+        matched_both=len(matched_both),
+        mlc_only=len(mlc_only),
+        mri_only=len(mri_only),
         unregistered=len(unregistered),
         orphaned=len(orphaned),
     )
 
     upload_meta = {"mlc": _read_meta("mlc"), "mri": _read_meta("mri")}
-    tab  = request.args.get("tab", "matched")
+    tab  = request.args.get("tab", "matched_both")
     page = request.args.get("page", 1, type=int)
 
-    if tab == "matched":
-        pagination = paginate_list(matched, page)
-        matched = pagination.items
+    if tab == "matched_both":
+        pagination = paginate_list(matched_both, page)
+        matched_both = pagination.items
+    elif tab == "mlc_only":
+        pagination = paginate_list(mlc_only, page)
+        mlc_only = pagination.items
+    elif tab == "mri_only":
+        pagination = paginate_list(mri_only, page)
+        mri_only = pagination.items
     elif tab == "unregistered":
         pagination = paginate_list(unregistered, page)
         unregistered = pagination.items
@@ -327,7 +341,8 @@ def mechanical_audit():
 
     return render_template_string(
         MECHANICAL_AUDIT_HTML,
-        matched=matched, unregistered=unregistered, orphaned=orphaned,
+        matched_both=matched_both, mlc_only=mlc_only, mri_only=mri_only,
+        unregistered=unregistered, orphaned=orphaned,
         stats=stats, tab=tab, upload_meta=upload_meta, pagination=pagination,
     )
 
@@ -401,11 +416,12 @@ def apply_sync():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
-    matched, _u, _o, _m, _r = _build_audit()
+    matched_both, mlc_only, mri_only, _u, _o, _m, _r = _build_audit()
+    all_matched = matched_both + mlc_only + mri_only
 
     iswc_updated = mri_updated = mlc_created = skipped_iswc = 0
 
-    for entry in matched:
+    for entry in all_matched:
         w = entry["work"]
         m = entry["mlc"]
         r = entry["mri"]
@@ -450,7 +466,7 @@ def apply_sync():
     if mlc_created:  parts.append(f"{mlc_created} MLC Song Codes saved")
     if skipped_iswc: parts.append(f"{skipped_iswc} works skipped (ISWC conflict)")
     flash(", ".join(parts) + "." if parts else "Nothing to update.", "success")
-    return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched"))
+    return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched_both"))
 
 
 @bp.route("/mechanical-audit/apply-title", methods=["POST"])
@@ -465,7 +481,7 @@ def apply_title():
     new_title = (request.form.get("new_title") or "").strip()
     if not work_id or not new_title:
         flash("Invalid request.", "error")
-        return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched"))
+        return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched_both"))
 
     work = Work.query.get_or_404(work_id)
     old_title = work.title
@@ -477,4 +493,4 @@ def apply_title():
     except Exception as e:
         db.session.rollback()
         flash(f"Error: {e}", "error")
-    return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched"))
+    return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched_both"))

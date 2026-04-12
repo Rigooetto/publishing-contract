@@ -6159,7 +6159,9 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
 
 <div class="audit-stat-grid">
   <div class="audit-stat"><div class="asv">{{ stats.db_total }}</div><div class="asl">Works in LabelMind</div></div>
-  <div class="audit-stat ok"><div class="asv">{{ stats.matched }}</div><div class="asl">Matched</div></div>
+  <div class="audit-stat ok"><div class="asv">{{ stats.matched_both }}</div><div class="asl">Matched Both</div></div>
+  <div class="audit-stat warn"><div class="asv">{{ stats.mlc_only }}</div><div class="asl">MLC Only</div></div>
+  <div class="audit-stat warn"><div class="asv">{{ stats.mri_only }}</div><div class="asl">MRI Only</div></div>
   <div class="audit-stat danger"><div class="asv">{{ stats.unregistered }}</div><div class="asl">Unregistered</div></div>
   <div class="audit-stat warn"><div class="asv">{{ stats.orphaned }}</div><div class="asl">Source-only (not in DB)</div></div>
   <div class="audit-stat"><div class="asv">{{ stats.mlc_total }}</div><div class="asl">MLC works</div></div>
@@ -6167,89 +6169,117 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="audit-tabs">
-  <a href="?tab=matched"      class="audit-tab {% if tab=='matched' %}on{% endif %}">Registered <span class="cnt">{{ stats.matched }}</span></a>
+  <a href="?tab=matched_both" class="audit-tab {% if tab=='matched_both' %}on{% endif %}">Matched Both <span class="cnt">{{ stats.matched_both }}</span></a>
+  <a href="?tab=mlc_only"     class="audit-tab {% if tab=='mlc_only' %}on{% endif %}">MLC Only <span class="cnt">{{ stats.mlc_only }}</span></a>
+  <a href="?tab=mri_only"     class="audit-tab {% if tab=='mri_only' %}on{% endif %}">MRI Only <span class="cnt">{{ stats.mri_only }}</span></a>
   <a href="?tab=unregistered" class="audit-tab {% if tab=='unregistered' %}on{% endif %}">Unregistered <span class="cnt">{{ stats.unregistered }}</span></a>
   <a href="?tab=orphaned"     class="audit-tab {% if tab=='orphaned' %}on{% endif %}">Source-Only (not in DB) <span class="cnt">{{ stats.orphaned }}</span></a>
 </div>
 
-{% if tab == 'matched' %}
+{% macro work_row(e) %}
+<tr>
+  <td style="font-weight:500">
+    <a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a>
+    {% if e.suggested_title %}
+    <div style="margin-top:4px">
+      <span style="font-size:11px;color:#f0a500">&#9998; Source has: <em>{{ e.suggested_title }}</em></span>
+      <form method="post" action="/mechanical-audit/apply-title" style="display:inline;margin-left:6px">
+        <input type="hidden" name="work_id" value="{{ e.work.id }}">
+        <input type="hidden" name="new_title" value="{{ e.suggested_title }}">
+        <button type="submit" class="btn btn-sm" style="font-size:10px;padding:1px 7px;background:rgba(240,165,0,.15);color:#f0a500;border-color:rgba(240,165,0,.3)"
+          onclick="return confirm('Update title to \'{{ e.suggested_title }}\'?')">Use source title</button>
+      </form>
+    </div>
+    {% endif %}
+  </td>
+  <td>
+    {% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+    {% elif e.iswc_conflict %}<span class="iswc-tag iswc-conflict" title="Conflict: {{ e.iswcs_found|join(', ') }}">conflict &#9888;</span>
+    {% elif e.suggested_iswc %}<span class="iswc-tag iswc-new" title="Will be written on Sync">{{ e.suggested_iswc }} &#8593;</span>
+    {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+  </td>
+  <td>
+    {% set mlc_reg = e.work.pro_registrations | selectattr("pro","equalto","MLC") | list %}
+    {% if mlc_reg %}<span class="code-tag">{{ mlc_reg[0].mlc_song_code or '&mdash;' }}</span>
+    {% elif e.mlc and e.mlc.mlc_song_code %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mlc.mlc_song_code }} &#8593;</span>
+    {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+  </td>
+  <td>
+    {% if e.work.mri_song_id %}<span class="code-tag">{{ e.work.mri_song_id }}</span>
+    {% elif e.mri and e.mri.mri_song_id %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mri.mri_song_id }} &#8593;</span>
+    {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
+  </td>
+  <td>
+    {% if e.mlc %}<span class="mech-badge mech-mlc">MLC</span>
+      {% if e.mlc.artist %}<br><span style="font-size:11px;color:var(--t3)">{{ e.mlc.artist }}</span>{% endif %}
+    {% else %}<span style="color:#e05c5c;font-size:12px">&#9888; Missing</span>{% endif %}
+  </td>
+  <td>
+    {% if e.mri %}<span class="mech-badge mech-mri">MRI</span>
+      {% if e.mri.artist %}<br><span style="font-size:11px;color:var(--t3)">{{ e.mri.artist }}</span>{% endif %}
+    {% else %}<span style="color:#e05c5c;font-size:12px">&#9888; Missing</span>{% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro pagination_bar(total, label) %}
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
+  <span>{{ total }} {{ label }} &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+  <div style="display:flex;gap:6px">
+    {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro matched_table(entries, empty_msg) %}
+{% if entries %}
+<div style="overflow-x:auto">
+<table class="tbl" style="width:100%">
+  <thead><tr>
+    <th style="min-width:200px">Work Title</th>
+    <th>ISWC (DB)</th>
+    <th>MLC Song Code</th>
+    <th>MRI Song ID (DB)</th>
+    <th>MLC</th>
+    <th>Music Reports</th>
+  </tr></thead>
+  <tbody>{% for e in entries %}{{ work_row(e) }}{% endfor %}</tbody>
+</table>
+</div>
+{% else %}
+<div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">{{ empty_msg }}</div>
+{% endif %}
+{% endmacro %}
+
+{% if tab == 'matched_both' %}
 <div class="card">
   <div class="card-hd">
-    <span class="card-title">Works matched in MLC and/or Music Reports</span>
+    <span class="card-title">Works registered in both MLC and Music Reports</span>
     <span style="font-size:12px;color:var(--t3);margin-left:8px">Green ISWC = will be written on Sync &bull; IDs in blue will be saved</span>
   </div>
-  {% if matched %}
-  <div style="overflow-x:auto">
-  <table class="tbl" style="width:100%">
-    <thead><tr>
-      <th style="min-width:200px">Work Title</th>
-      <th>ISWC (DB)</th>
-      <th>MLC Song Code</th>
-      <th>MRI Song ID (DB)</th>
-      <th>MLC</th>
-      <th>Music Reports</th>
-    </tr></thead>
-    <tbody>
-    {% for e in matched %}
-    <tr>
-      <td style="font-weight:500">
-        <a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a>
-        {% if e.suggested_title %}
-        <div style="margin-top:4px">
-          <span style="font-size:11px;color:#f0a500">&#9998; Source has: <em>{{ e.suggested_title }}</em></span>
-          <form method="post" action="/mechanical-audit/apply-title" style="display:inline;margin-left:6px">
-            <input type="hidden" name="work_id" value="{{ e.work.id }}">
-            <input type="hidden" name="new_title" value="{{ e.suggested_title }}">
-            <button type="submit" class="btn btn-sm" style="font-size:10px;padding:1px 7px;background:rgba(240,165,0,.15);color:#f0a500;border-color:rgba(240,165,0,.3)"
-              onclick="return confirm('Update title to \'{{ e.suggested_title }}\'?')">Use source title</button>
-          </form>
-        </div>
-        {% endif %}
-      </td>
-      <td>
-        {% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
-        {% elif e.iswc_conflict %}<span class="iswc-tag iswc-conflict" title="Conflict: {{ e.iswcs_found|join(', ') }}">conflict &#9888;</span>
-        {% elif e.suggested_iswc %}<span class="iswc-tag iswc-new" title="Will be written on Sync">{{ e.suggested_iswc }} &#8593;</span>
-        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
-      </td>
-      <td>
-        {% set mlc_reg = e.work.pro_registrations | selectattr("pro","equalto","MLC") | list %}
-        {% if mlc_reg %}<span class="code-tag">{{ mlc_reg[0].mlc_song_code or '&mdash;' }}</span>
-        {% elif e.mlc and e.mlc.mlc_song_code %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mlc.mlc_song_code }} &#8593;</span>
-        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
-      </td>
-      <td>
-        {% if e.work.mri_song_id %}<span class="code-tag">{{ e.work.mri_song_id }}</span>
-        {% elif e.mri and e.mri.mri_song_id %}<span class="code-tag iswc-new" title="Will be saved on Sync">{{ e.mri.mri_song_id }} &#8593;</span>
-        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
-      </td>
-      <td>
-        {% if e.mlc %}
-          <span class="mech-badge mech-mlc">MLC</span>
-          {% if e.mlc.artist %}<br><span style="font-size:11px;color:var(--t3)">{{ e.mlc.artist }}</span>{% endif %}
-        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
-      </td>
-      <td>
-        {% if e.mri %}
-          <span class="mech-badge mech-mri">MRI</span>
-          {% if e.mri.artist %}<br><span style="font-size:11px;color:var(--t3)">{{ e.mri.artist }}</span>{% endif %}
-        {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  {{ matched_table(matched_both, 'No works matched in both sources yet. Upload MLC and Music Reports exports to begin.') }}
+  {% if matched_both %}{{ pagination_bar(pagination.total, 'works') }}{% endif %}
+</div>
+
+{% elif tab == 'mlc_only' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Registered in MLC only — needs Music Reports registration</span>
+    <span style="font-size:12px;color:#f0a500;margin-left:8px">&#9888; These works are missing from Music Reports (MRI)</span>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
-    <span>{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
-    <div style="display:flex;gap:6px">
-      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
-      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
-    </div>
+  {{ matched_table(mlc_only, 'No MLC-only works found.') }}
+  {% if mlc_only %}{{ pagination_bar(pagination.total, 'works') }}{% endif %}
+</div>
+
+{% elif tab == 'mri_only' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Registered in Music Reports only — needs MLC registration</span>
+    <span style="font-size:12px;color:#f0a500;margin-left:8px">&#9888; These works are missing from The MLC</span>
   </div>
-  {% else %}
-  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No matches found. Upload MLC and Music Reports exports to begin.</div>
-  {% endif %}
+  {{ matched_table(mri_only, 'No MRI-only works found.') }}
+  {% if mri_only %}{{ pagination_bar(pagination.total, 'works') }}{% endif %}
 </div>
 
 {% elif tab == 'unregistered' %}
@@ -6286,13 +6316,7 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
-    <span>{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
-    <div style="display:flex;gap:6px">
-      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
-      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
-    </div>
-  </div>
+  {{ pagination_bar(pagination.total, 'works') }}
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are registered for mechanicals. &#9989;</div>
   {% endif %}
@@ -6338,13 +6362,7 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--b1);font-size:13px;color:var(--t2)">
-    <span>{{ pagination.total }} entries &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
-    <div style="display:flex;gap:6px">
-      {% if pagination.has_prev %}<a href="?tab={{ tab }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
-      {% if pagination.has_next %}<a href="?tab={{ tab }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
-    </div>
-  </div>
+  {{ pagination_bar(pagination.total, 'entries') }}
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No source-only entries found.</div>
   {% endif %}
