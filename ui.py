@@ -6853,8 +6853,10 @@ TITLE_REVIEW_HTML = """<!DOCTYPE html>
 .search-bar input{flex:1;background:var(--s1);border:1px solid var(--b0);border-radius:8px;color:var(--t1);font-size:13px;padding:8px 12px}
 .search-bar input:focus{outline:none;border-color:var(--accent)}
 .editable-cell{position:relative}
-.title-txt{cursor:pointer;color:var(--t1);font-size:13px;font-weight:500;border-bottom:1px dashed transparent;transition:border-color .15s}
-.title-txt:hover{border-bottom-color:var(--accent)}
+.title-txt{cursor:pointer;color:var(--t1);font-size:13px;font-weight:500}
+.title-txt::after{content:"\00a0\270E";font-size:11px;color:var(--t3);opacity:.5}
+.title-txt:hover{color:var(--accent)}
+.title-txt:hover::after{opacity:1;color:var(--accent)}
 .edit-row{display:none;align-items:center;gap:6px;margin-top:4px}
 .title-inp{background:var(--s2);border:1px solid var(--accent);border-radius:6px;color:var(--t1);font-size:13px;padding:4px 8px;min-width:200px;box-sizing:border-box}
 .title-inp:focus{outline:none}
