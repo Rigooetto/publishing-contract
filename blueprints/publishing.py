@@ -25,7 +25,7 @@ from docusign_esign import (
 from extensions import db
 from models import (
     Camp, GenerationBatch, Writer, Work, WorkWriter,
-    ContractDocument
+    ContractDocument, WorkAKA
 )
 from utils import (
     auth_required, slugify, parse_float, build_full_name,
@@ -1557,6 +1557,50 @@ def work_delete(work_id):
 
     flash(f'Work "{work_title}" deleted successfully.')
     return redirect(url_for(".works_list"))
+
+
+@bp.route("/works/<int:work_id>/aka/add", methods=["POST"])
+def work_aka_add(work_id):
+    if auth_required():
+        return redirect(url_for(".login"))
+    work = Work.query.get_or_404(work_id)
+    from utils import normalize_for_match
+    title  = (request.form.get("aka_title") or "").strip()
+    source = (request.form.get("aka_source") or "manual").strip()
+    if not title:
+        flash("AKA title cannot be empty.", "error")
+        return redirect(url_for(".work_detail", work_id=work_id))
+    normalized = normalize_for_match(title)
+    # Prevent duplicate AKAs on the same work
+    exists = WorkAKA.query.filter_by(work_id=work.id, normalized=normalized).first()
+    if exists:
+        flash(f'AKA "{title}" already exists for this work.', "error")
+        return redirect(url_for(".work_detail", work_id=work_id))
+    db.session.add(WorkAKA(work_id=work.id, title=title, normalized=normalized, source=source))
+    try:
+        db.session.commit()
+        flash(f'AKA "{title}" added.', "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error: {e}", "error")
+    return redirect(url_for(".work_detail", work_id=work_id))
+
+
+@bp.route("/works/<int:work_id>/aka/<int:aka_id>/delete", methods=["POST"])
+def work_aka_delete(work_id, aka_id):
+    if auth_required():
+        return redirect(url_for(".login"))
+    aka = WorkAKA.query.filter_by(id=aka_id, work_id=work_id).first_or_404()
+    title = aka.title
+    db.session.delete(aka)
+    try:
+        db.session.commit()
+        flash(f'AKA "{title}" removed.', "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error: {e}", "error")
+    return redirect(url_for(".work_detail", work_id=work_id))
+
 
 @bp.route("/admin/import-catalog/preview", methods=["POST"])
 def import_catalog_preview():

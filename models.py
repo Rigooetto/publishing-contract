@@ -52,10 +52,13 @@ class Work(db.Model):
     mri_song_id = db.Column(db.String(50), default="")    # assigned by Music Reports portal
     aka_title = db.Column(db.String(255), default="")
     aka_title_type_code = db.Column(db.String(5), default="")  # AT, OT, FT, etc.
+    # Registration workflow: new → submitted → confirmed
+    registration_status = db.Column(db.String(20), nullable=False, default="new", index=True)
     batch = db.relationship("GenerationBatch", foreign_keys=[batch_id], lazy="select")
     work_writers = db.relationship("WorkWriter", backref="work", lazy=True, cascade="all, delete-orphan")
     contract_documents = db.relationship("ContractDocument", backref="work", lazy=True, cascade="all, delete-orphan")
     pro_registrations = db.relationship("ProRegistration", backref="work", lazy=True, cascade="all, delete-orphan")
+    aka_titles = db.relationship("WorkAKA", backref="work", lazy=True, cascade="all, delete-orphan")
 
 
 class WorkWriter(db.Model):
@@ -190,6 +193,17 @@ class ProRegistration(db.Model):
     registered_at = db.Column(db.Date, nullable=False, default=datetime.datetime.utcnow)
     registered_by = db.Column(db.String(255), default="")
     notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+
+class WorkAKA(db.Model):
+    """Alternate titles for a work — used for audit matching when a PRO/MLC
+    has the work filed under a different name."""
+    id         = db.Column(db.Integer, primary_key=True)
+    work_id    = db.Column(db.Integer, db.ForeignKey("work.id"), nullable=False, index=True)
+    title      = db.Column(db.String(255), nullable=False)
+    normalized = db.Column(db.String(255), nullable=False, index=True)
+    source     = db.Column(db.String(50), default="")   # e.g. "ASCAP", "MLC", "manual"
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 

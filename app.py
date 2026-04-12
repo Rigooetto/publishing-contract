@@ -47,6 +47,7 @@ from blueprints.mechanical_audit import bp as mechanical_audit_bp
 from blueprints.neighboring_rights_audit import bp as neighboring_rights_audit_bp
 from blueprints.users import bp as users_bp
 from blueprints.title_review import bp as title_review_bp
+from blueprints.registration_report import bp as registration_report_bp
 
 app.register_blueprint(publishing_bp)
 app.register_blueprint(releases_bp)
@@ -59,6 +60,7 @@ app.register_blueprint(mechanical_audit_bp)
 app.register_blueprint(neighboring_rights_audit_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(title_review_bp)
+app.register_blueprint(registration_report_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 

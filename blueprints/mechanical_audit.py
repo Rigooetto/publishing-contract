@@ -9,7 +9,7 @@ import re
 from flask import Blueprint, render_template_string, request, redirect, url_for, flash
 
 from extensions import db
-from models import Work, ProRegistration
+from models import Work, ProRegistration, WorkAKA
 from utils import auth_required, paginate_list, role_required, FULL_ACCESS_ROLES, normalize_for_match
 from ui import MECHANICAL_AUDIT_HTML
 
@@ -242,6 +242,12 @@ def _build_audit():
     all_works = Work.query.order_by(Work.title).all()
     db_keys   = {_norm(w.title): w for w in all_works}
 
+    # Include AKA keys so orphan detection doesn't flag them
+    for w in all_works:
+        for aka in w.aka_titles:
+            if aka.normalized not in db_keys:
+                db_keys[aka.normalized] = w
+
     matched_both = []
     mlc_only     = []
     mri_only     = []
@@ -249,8 +255,10 @@ def _build_audit():
 
     for w in all_works:
         key = _norm(w.title)
-        m = mlc.get(key)
-        r = mri.get(key)
+        aka_keys = [aka.normalized for aka in w.aka_titles]
+
+        m = mlc.get(key) or next((mlc.get(k) for k in aka_keys if mlc.get(k)), None)
+        r = mri.get(key) or next((mri.get(k) for k in aka_keys if mri.get(k)), None)
 
         iswcs = set(filter(None, [(m or {}).get("iswc"), (r or {}).get("iswc")]))
         iswc_conflict  = len(iswcs) > 1
@@ -419,12 +427,17 @@ def apply_sync():
     matched_both, mlc_only, mri_only, _u, _o, _m, _r = _build_audit()
     all_matched = matched_both + mlc_only + mri_only
 
-    iswc_updated = mri_updated = mlc_created = skipped_iswc = 0
+    iswc_updated = mri_updated = mlc_created = skipped_iswc = confirmed_count = 0
 
     for entry in all_matched:
         w = entry["work"]
         m = entry["mlc"]
         r = entry["mri"]
+
+        # Auto-confirm registration status
+        if w.registration_status != "confirmed":
+            w.registration_status = "confirmed"
+            confirmed_count += 1
 
         if not w.iswc:
             if entry["iswc_conflict"]:
@@ -461,10 +474,11 @@ def apply_sync():
         return redirect(url_for("mechanical_audit.mechanical_audit"))
 
     parts = []
-    if iswc_updated: parts.append(f"{iswc_updated} ISWC numbers written")
-    if mri_updated:  parts.append(f"{mri_updated} MRI Song IDs written")
-    if mlc_created:  parts.append(f"{mlc_created} MLC Song Codes saved")
-    if skipped_iswc: parts.append(f"{skipped_iswc} works skipped (ISWC conflict)")
+    if iswc_updated:    parts.append(f"{iswc_updated} ISWC numbers written")
+    if mri_updated:     parts.append(f"{mri_updated} MRI Song IDs written")
+    if mlc_created:     parts.append(f"{mlc_created} MLC Song Codes saved")
+    if confirmed_count: parts.append(f"{confirmed_count} works marked confirmed")
+    if skipped_iswc:    parts.append(f"{skipped_iswc} works skipped (ISWC conflict)")
     flash(", ".join(parts) + "." if parts else "Nothing to update.", "success")
     return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched_both"))
 

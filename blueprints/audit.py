@@ -7,7 +7,7 @@ from flask import Blueprint, render_template_string, request, redirect, url_for,
 from werkzeug.utils import secure_filename
 
 from extensions import db
-from models import Work, ProRegistration
+from models import Work, ProRegistration, WorkAKA
 from utils import auth_required, role_required, FULL_ACCESS_ROLES, normalize_for_match
 from ui import PRO_AUDIT_HTML
 
@@ -183,14 +183,32 @@ def _build_audit():
     all_works = Work.query.order_by(Work.title).all()
     db_keys   = {_norm(w.title): w for w in all_works}
 
+    # Also index by AKA normalized titles so orphan detection works
+    for w in all_works:
+        for aka in w.aka_titles:
+            if aka.normalized not in db_keys:
+                db_keys[aka.normalized] = w
+
     matched      = []
     unregistered = []
 
+    def _worth_suggesting(src_title, db_title):
+        if not src_title or src_title == db_title:
+            return False
+        if src_title.lower() == db_title.lower():
+            return False
+        if normalize_for_match(src_title) == src_title.lower():
+            return False
+        return True
+
     for w in all_works:
         key = _norm(w.title)
-        a = ascap.get(key)
-        b = bmi.get(key)
-        s = sesac.get(key)
+        # Also check AKA keys
+        aka_keys = [aka.normalized for aka in w.aka_titles]
+
+        a = ascap.get(key) or next((ascap.get(k) for k in aka_keys if ascap.get(k)), None)
+        b = bmi.get(key)   or next((bmi.get(k)   for k in aka_keys if bmi.get(k)),   None)
+        s = sesac.get(key) or next((sesac.get(k)  for k in aka_keys if sesac.get(k)), None)
 
         iswcs_found = set(filter(None, [
             (a or {}).get("iswc"),
@@ -199,17 +217,6 @@ def _build_audit():
         ]))
         iswc_conflict  = len(iswcs_found) > 1
         suggested_iswc = next(iter(iswcs_found), "") if not w.iswc else ""
-
-        # Suggest a PRO title only when it is mixed-case AND has diacritics the
-        # DB title is missing — never when the PRO is just ALL CAPS or same title.
-        def _worth_suggesting(src_title, db_title):
-            if not src_title or src_title == db_title:
-                return False
-            if src_title.lower() == db_title.lower():       # pure case difference
-                return False
-            if normalize_for_match(src_title) == src_title.lower():  # no diacritics in source
-                return False
-            return True
 
         pro_titles = [
             src["title"] for src in [a, b, s]
@@ -345,8 +352,15 @@ def apply_iswc():
     reg_created  = 0
     skipped_iswc = 0
 
+    confirmed_count = 0
+
     for entry in matched:
         w = entry["work"]
+
+        # Auto-confirm registration status
+        if w.registration_status != "confirmed":
+            w.registration_status = "confirmed"
+            confirmed_count += 1
 
         if not w.iswc:
             if entry["iswc_conflict"]:
@@ -387,6 +401,8 @@ def apply_iswc():
         parts.append(f"{iswc_updated} ISWC numbers written")
     if reg_created:
         parts.append(f"{reg_created} PRO registration records created")
+    if confirmed_count:
+        parts.append(f"{confirmed_count} works marked confirmed")
     if skipped_iswc:
         parts.append(f"{skipped_iswc} works skipped (ISWC conflict — review manually)")
     flash(", ".join(parts) + "." if parts else "Nothing to update.", "success")

@@ -823,6 +823,7 @@ def _sidebar(active):
     html += "<a href='/mechanical-audit'" + (" class='on'" if active == "mechanical_audit" else "") + " title='Mechanical Audit'><span class='ni'>&#127926;</span><span class='nl'>Mechanical Audit</span></a>"
     html += "<a href='/neighboring-rights-audit'" + (" class='on'" if active == "neighboring_rights_audit" else "") + " title='Neighboring Rights Audit'><span class='ni'>&#127911;</span><span class='nl'>Neighboring Rights</span></a>"
     html += "<a href='/title-review'" + (" class='on'" if active == "title_review" else "") + " title='Title Review'><span class='ni'>&#9997;</span><span class='nl'>Title Review</span></a>"
+    html += "<a href='/registration-report'" + (" class='on'" if active == "registration_report" else "") + " title='Registration Report'><span class='ni'>&#128228;</span><span class='nl'>Registration Report</span></a>"
     html += "</nav>"
     html += "<div class='sb-sec'>Admin</div>"
     html += "<nav class='sb-nav'>"
@@ -1732,6 +1733,13 @@ WORKS_LIST_HTML = """<!DOCTYPE html>
               &#9888; {{ '%.0f'|format(total_pct) }}%
             </span>
             {% endif %}
+            {% if work.registration_status == 'confirmed' %}
+            <span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(76,175,138,.12);color:#4caf8a">&#10003; Confirmed</span>
+            {% elif work.registration_status == 'submitted' %}
+            <span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(240,165,0,.12);color:#f0a500">&#8987; Submitted</span>
+            {% else %}
+            <span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(224,92,92,.1);color:#e05c5c">&#9679; New</span>
+            {% endif %}
             {% if work.contract_date %}<div style="font-size:11px;color:var(--t3);margin-top:2px;margin-left:16px">{{ work.contract_date.strftime('%b %d, %Y') }}</div>{% endif %}
           </td>
           <td>
@@ -2346,7 +2354,15 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
   <div class="ph-left">
     <div class="ph-icon">&#128395;</div>
     <div>
-      <div class="ph-title">{{ work.title }}</div>
+      <div class="ph-title">{{ work.title }}
+        {% if work.registration_status == 'confirmed' %}
+          <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(76,175,138,.15);color:#4caf8a;margin-left:8px;vertical-align:middle">&#10003; Confirmed</span>
+        {% elif work.registration_status == 'submitted' %}
+          <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(240,165,0,.15);color:#f0a500;margin-left:8px;vertical-align:middle">&#8987; Submitted</span>
+        {% else %}
+          <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(224,92,92,.15);color:#e05c5c;margin-left:8px;vertical-align:middle">&#9679; New</span>
+        {% endif %}
+      </div>
       <div class="ph-sub">{{ work.batch.session_name if work.batch and work.batch.session_name else 'No session' }} - {{ work.contract_date.strftime('%b %d, %Y') if work.contract_date else '--' }}</div>
     </div>
   </div>
@@ -2369,6 +2385,42 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
       <div class="info-item"><label>Contract Date</label><span>{{ work.contract_date.strftime('%B %d, %Y') if work.contract_date else '--' }}</span></div>
       <div class="info-item"><label>Created</label><span>{{ work.created_at.strftime('%b %d, %Y %H:%M') }}</span></div>
     </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#127344;</div><span class="card-title">Alternate Titles (AKAs)</span>
+    <span style="font-size:11px;color:var(--t3);margin-left:8px">Used by audits to match works filed under different names at PROs or MLC</span>
+  </div>
+  <div class="card-body" style="padding-bottom:4px">
+    {% if work.aka_titles %}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      {% for aka in work.aka_titles %}
+      <div style="display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--b0);border-radius:20px;padding:3px 10px 3px 12px;font-size:12px">
+        <span style="color:var(--t1)">{{ aka.title }}</span>
+        {% if aka.source and aka.source != 'manual' %}<span style="color:var(--t3);font-size:10px">&bull; {{ aka.source }}</span>{% endif %}
+        <form method="post" action="/works/{{ work.id }}/aka/{{ aka.id }}/delete" style="display:inline;margin:0">
+          <button type="submit" title="Remove" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;padding:0 2px;line-height:1"
+                  onclick="return confirm('Remove AKA \'{{ aka.title }}\'?')">&times;</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size:12px;color:var(--t3);margin:0 0 12px">No alternate titles set. Add one below if this work is registered under a different name at a PRO or MLC.</p>
+    {% endif %}
+    <form method="post" action="/works/{{ work.id }}/aka/add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input class="inp" name="aka_title" placeholder="Alternate title…" style="max-width:280px;margin:0" autocomplete="off" required>
+      <select class="inp" name="aka_source" style="max-width:140px;margin:0">
+        <option value="manual">Manual</option>
+        <option value="ASCAP">ASCAP</option>
+        <option value="BMI">BMI</option>
+        <option value="SESAC">SESAC</option>
+        <option value="MLC">MLC</option>
+        <option value="MRI">Music Reports</option>
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm">Add AKA</button>
+    </form>
   </div>
 </div>
 
@@ -7083,6 +7135,214 @@ function saveEdit(inp, kind, id) {
 <div class="mobile-nav">
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
+</div>
+</body></html>"""
+
+
+REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registration Report - LabelMind</title>""" + _STYLE + """
+<style>
+.rr-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.rr-stat{background:var(--s1);border:1px solid var(--b0);border-radius:10px;padding:14px 16px;text-align:center}
+.rr-stat .sv{font-size:26px;font-weight:700;color:var(--t1);line-height:1}
+.rr-stat .sl{font-size:11px;color:var(--t3);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.rr-stat.new .sv{color:#e05c5c}
+.rr-stat.sub .sv{color:#f0a500}
+.rr-stat.ok  .sv{color:#4caf8a}
+.rr-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--b0)}
+.rr-tab{padding:9px 18px;font-size:13px;font-weight:500;color:var(--t3);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.rr-tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+.rr-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
+.rr-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
+.sel-all{font-size:12px;color:var(--accent);cursor:pointer;margin-left:8px}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("registration_report") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128228;</div>
+    <div>
+      <div class="ph-title">Registration Report</div>
+      <div class="ph-sub">Track which works need to be submitted to PROs and MLC. Export and mark as sent when Omar submits them.</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/registration-report/export-csv?status=new" class="btn btn-sec">&#8659; Export New (CSV)</a>
+    <a href="/registration-report/export-csv?status=submitted" class="btn btn-sec">&#8659; Export Submitted (CSV)</a>
+  </div>
+</div>
+
+<div class="rr-stat-grid">
+  <div class="rr-stat"><div class="sv">{{ stats.total }}</div><div class="sl">Total Works</div></div>
+  <div class="rr-stat new"><div class="sv">{{ stats.new }}</div><div class="sl">New (pending submission)</div></div>
+  <div class="rr-stat sub"><div class="sv">{{ stats.submitted }}</div><div class="sl">Submitted (awaiting confirm)</div></div>
+  <div class="rr-stat ok"><div class="sv">{{ stats.confirmed }}</div><div class="sl">Confirmed by PRO/MLC</div></div>
+</div>
+
+<div class="rr-tabs">
+  <a href="?tab=new"       class="rr-tab {% if tab=='new' %}on{% endif %}">New <span class="cnt">{{ stats.new }}</span></a>
+  <a href="?tab=submitted" class="rr-tab {% if tab=='submitted' %}on{% endif %}">Submitted <span class="cnt">{{ stats.submitted }}</span></a>
+  <a href="?tab=confirmed" class="rr-tab {% if tab=='confirmed' %}on{% endif %}">Confirmed <span class="cnt">{{ stats.confirmed }}</span></a>
+</div>
+
+{% if tab == 'new' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works pending submission to PROs &amp; MLC</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">Select works Omar has sent out and click Mark as Submitted</span>
+  </div>
+  {% if new_works %}
+  <form method="post" action="/registration-report/mark-submitted" id="frmNew">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px">
+    <button type="submit" class="btn btn-primary btn-sm">&#10003; Mark Selected as Submitted</button>
+    <span class="sel-all" onclick="toggleAll('frmNew',true)">Select all</span>
+    <span class="sel-all" onclick="toggleAll('frmNew',false)">Deselect all</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="width:36px"></th>
+      <th style="min-width:220px">Work Title</th>
+      <th>ISWC</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+      <th>AKAs</th>
+    </tr></thead>
+    <tbody>
+    {% for w in new_works %}
+    <tr>
+      <td style="text-align:center"><input type="checkbox" name="work_ids" value="{{ w.id }}" style="width:15px;height:15px"></td>
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t2)">
+        {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t3)">
+        {% if w.aka_titles %}{{ w.aka_titles | map(attribute='title') | join(', ') }}{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  </form>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">
+    &#9989; All works have been submitted or confirmed. Nothing pending.
+  </div>
+  {% endif %}
+</div>
+
+{% elif tab == 'submitted' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works submitted &mdash; awaiting PRO/MLC confirmation</span>
+    <span style="font-size:12px;color:var(--t3);margin-left:8px">These will be auto-confirmed when they appear in an uploaded catalog export</span>
+  </div>
+  {% if submitted_works %}
+  <form method="post" action="/registration-report/mark-new" id="frmSub">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px">
+    <button type="submit" class="btn btn-sec btn-sm">&#8592; Move Selected Back to New</button>
+    <span class="sel-all" onclick="toggleAll('frmSub',true)">Select all</span>
+    <span class="sel-all" onclick="toggleAll('frmSub',false)">Deselect all</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="width:36px"></th>
+      <th style="min-width:220px">Work Title</th>
+      <th>ISWC</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+      <th>AKAs</th>
+    </tr></thead>
+    <tbody>
+    {% for w in submitted_works %}
+    <tr>
+      <td style="text-align:center"><input type="checkbox" name="work_ids" value="{{ w.id }}" style="width:15px;height:15px"></td>
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t2)">
+        {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t3)">
+        {% if w.aka_titles %}{{ w.aka_titles | map(attribute='title') | join(', ') }}{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  </form>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">No works currently in submitted state.</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'confirmed' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works confirmed by PRO or MLC catalog export</span>
+  </div>
+  {% if confirmed_works %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:220px">Work Title</th>
+      <th>ISWC</th>
+      <th>MRI Song ID</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+    </tr></thead>
+    <tbody>
+    {% for w in confirmed_works %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '&mdash;' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.mri_song_id or '&mdash;' }}</td>
+      <td style="font-size:11px;color:var(--t2)">
+        {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '&mdash;' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">No confirmed works yet. Run Sync on the PRO or Mechanical Audit to auto-confirm matched works.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+</div></main></div>
+<script>
+function toggleAll(formId, check) {
+  document.querySelectorAll('#' + formId + ' input[type=checkbox]').forEach(function(cb) {
+    cb.checked = check;
+  });
+}
+</script>
+""" + _SB_JS + """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/reports" class="mnav-item on"><span>&#128202;</span><small>Reports</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
   <a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>
 </div>
