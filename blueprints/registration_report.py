@@ -213,13 +213,13 @@ def _works_for_registration():
 
     for e in (mri_only + unregistered):
         w = e["work"]
-        if w.id not in seen_mlc:
+        if w.id not in seen_mlc and w.registration_status == "new":
             seen_mlc.add(w.id)
             mlc_needs.append(w)
 
     for e in (mlc_only + unregistered):
         w = e["work"]
-        if w.id not in seen_mri:
+        if w.id not in seen_mri and w.registration_status == "new":
             seen_mri.add(w.id)
             mri_needs.append(w)
 
@@ -436,10 +436,19 @@ def export_soundexchange():
             for cell in row:
                 cell.value = None
 
+        from models import TrackWork, Work as _Work
         row_idx = data_start
         for entry in unregistered:
             t   = entry["track"]
             rel = entry["release"]
+
+            # Skip if all linked works are already submitted or confirmed
+            linked_works = (_Work.query
+                            .join(TrackWork, TrackWork.work_id == _Work.id)
+                            .filter(TrackWork.track_id == t.id)
+                            .all())
+            if linked_works and all(w.registration_status != "new" for w in linked_works):
+                continue
 
             try:
                 artist = ", ".join(a for a in _json.loads(t.artists or "[]") if a)
