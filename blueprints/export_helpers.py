@@ -11,13 +11,19 @@ import zipfile
 
 def stitch_xlsx_assets(template_path, opx_bytes):
     """
-    openpyxl drops embedded images and drawings when loading/saving an xlsx.
-    This function re-injects them from the original template zip so the
-    output file is identical to the template except for the data rows.
+    openpyxl drops embedded images, drawings, and their content-type entries
+    when loading/saving an xlsx.  This function re-injects them from the
+    original template so the output is valid and opens without a repair prompt.
 
-    template_path : str   — path to the original .xlsx template file
-    opx_bytes     : bytes — output of wb.save() via openpyxl
-    Returns       : bytes — fixed xlsx with assets restored
+    Strategy:
+      - [Content_Types].xml : use the template's copy as the base; merge in
+        any Override entries that openpyxl added (e.g. sharedStrings) that
+        aren't already in the template.
+      - xl/worksheets/_rels/ : restore from template (drawing relationship).
+      - xl/drawings/         : restore from template (drawing XML + image rels).
+      - xl/media/            : restore from template (the actual image bytes).
+      - worksheet XML        : re-insert <drawing r:id="..."/> before </worksheet>
+        and ensure xmlns:r is declared on the root element.
     """
     with open(template_path, "rb") as f:
         template_bytes = f.read()
@@ -33,23 +39,40 @@ def stitch_xlsx_assets(template_path, opx_bytes):
         opx_files = set(opx.namelist())
         src_files = set(src.namelist())
 
-        # Files in template not in openpyxl output that we want to restore
+        # Files to restore from the template
         inject = {
             n for n in src_files - opx_files
             if any(n.startswith(p) for p in ASSET_PREFIXES)
             or n.startswith(RELS_PREFIX)
         }
 
+        # ── Merge [Content_Types].xml ─────────────────────────────────────────
         src_ct = src.read("[Content_Types].xml").decode()
+        opx_ct = opx.read("[Content_Types].xml").decode()
 
-        # Build a map of drawing references from the template's worksheet rels.
-        # e.g. {"xl/worksheets/sheet1.xml": '<drawing r:id="rId1"/>'}
+        # Collect PartNames already declared in the template
+        src_parts = set(re.findall(r'PartName="([^"]+)"', src_ct))
+
+        # Any Override in openpyxl output not in template (e.g. sharedStrings)
+        extra_overrides = []
+        for m in re.finditer(r'<Override\b[^>]*/>', opx_ct):
+            part = re.search(r'PartName="([^"]+)"', m.group(0))
+            if part and part.group(1) not in src_parts:
+                extra_overrides.append(m.group(0))
+
+        merged_ct = src_ct.replace(
+            "</Types>",
+            "".join(extra_overrides) + "</Types>"
+        )
+
+        # ── Build drawing-tag map from worksheet rels ─────────────────────────
+        # { "xl/worksheets/sheet1.xml": '<drawing r:id="rId1"/>' }
         drawing_refs = {}
         for rels_name in inject:
             if not rels_name.startswith(RELS_PREFIX):
                 continue
             rels_xml = src.read(rels_name).decode()
-            # Find every drawing relationship in the rels file
+            # Attribute order varies — match either Id-first or Type-first
             drawing_ids = re.findall(
                 r'<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bType="[^"]*drawing[^"]*"',
                 rels_xml,
@@ -62,49 +85,35 @@ def stitch_xlsx_assets(template_path, opx_bytes):
             if drawing_ids:
                 # "xl/worksheets/_rels/sheet1.xml.rels" → "xl/worksheets/sheet1.xml"
                 sheet_name = re.sub(r"/_rels/(.+)\.rels$", r"/\1", rels_name)
-                tags = "".join(f'<drawing r:id="{rid}"/>' for rid in drawing_ids)
-                drawing_refs[sheet_name] = tags
+                drawing_refs[sheet_name] = "".join(
+                    f'<drawing r:id="{rid}"/>' for rid in drawing_ids
+                )
 
+        # ── Write output zip ──────────────────────────────────────────────────
         for name in opx.namelist():
-            data = opx.read(name)
-            if name == "[Content_Types].xml" and inject:
-                content = data.decode()
-                # Re-inject missing Default entries (e.g. jpeg)
-                for m in re.finditer(r'<Default Extension="(?!rels|xml)[^"]*"[^/]*/>', src_ct):
-                    tag = m.group(0)
-                    ext = re.search(r'Extension="([^"]+)"', tag).group(1)
-                    if ext not in content:
-                        content = content.replace("</Types>", tag + "</Types>")
-                # Re-inject Override entries for drawings
-                for n in inject:
-                    if n.startswith("xl/drawings/") and n.endswith(".xml"):
-                        part = "/" + n
-                        if part not in content:
-                            m2 = re.search(
-                                r'<Override[^>]+' + re.escape(part) + r'[^/]*/>', src_ct
-                            )
-                            if m2:
-                                content = content.replace("</Types>", m2.group(0) + "</Types>")
-                data = content.encode()
+            if name == "[Content_Types].xml":
+                out.writestr(name, merged_ct.encode())
             elif name in drawing_refs:
-                # Re-inject <drawing r:id="..."/> into the worksheet XML before </worksheet>
-                content = data.decode()
+                content = opx.read(name).decode()
                 tags = drawing_refs[name]
                 if "<drawing " not in content:
-                    # Also ensure the r: namespace is declared on the root element
+                    # Ensure xmlns:r is declared on the root <worksheet> element
                     content = re.sub(
-                        r'(<worksheet\b[^>]*)(>)',
-                        lambda m: (m.group(1) + m.group(2))
-                        if 'xmlns:r=' in m.group(1)
-                        else (m.group(1) + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' + m.group(2)),
+                        r'(<worksheet\b)([^>]*>)',
+                        lambda m: m.group(1) + m.group(2)
+                        if 'xmlns:r=' in m.group(2)
+                        else m.group(1)
+                        + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+                        + m.group(2),
                         content,
                         count=1,
                     )
                     content = content.replace("</worksheet>", tags + "</worksheet>")
-                data = content.encode()
-            out.writestr(name, data)
+                out.writestr(name, content.encode())
+            else:
+                out.writestr(name, opx.read(name))
 
-        # Inject asset files from template
+        # Restore asset files from template
         for name in inject:
             out.writestr(name, src.read(name))
 
