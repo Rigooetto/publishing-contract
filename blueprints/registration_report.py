@@ -332,27 +332,13 @@ def export_mri():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
     try:
-        import xlwt
+        from blueprints.export_helpers import open_xls_template
 
         _, mri_works = _works_for_registration()
 
-        wb_xls = xlwt.Workbook()
-        ws = wb_xls.add_sheet("Catalog Template")
-
-        headers = [
-            "SONG TITLE*", "AKA TITLE", "MRI SONG ID", "PUBLISHER'S SONG ID", "ISWC",
-            "COMPOSER LAST NAME*", "COMPOSER FIRST NAME*", "COMPOSER MIDDLE NAME",
-            "COMPOSER PRO*", "COMPOSER IPI NUMBER", "CONTROLLED COMPOSER (Y/N)*",
-            "COMPOSER SHARE %*", "COMPOSER ROLE CODE", "PUBLISHER NAME *",
-            "PUBLISHER PRO*", "PUBLISHER IPI NUMBER *", "CONTROLLED PUBLISHER (Y/N)*",
-            "ADMINISTRATOR NAME", "SHARE %*", "TERRITORY CONTROLLED*",
-            "TERRITORY EXCLUSIONS (OPTIONAL)", "PUBLISHER MAILING ADDRESS*",
-            "PUBLISHER CONTACT*", "RECORDING ARTIST NAME", "RECORDING LABEL",
-            "RECORDING ISRC", "UPC/EAN",
-        ]
-        hdr_style = xlwt.easyxf("font: bold true; pattern: pattern solid, fore_colour light_green;")
-        for ci, h in enumerate(headers):
-            ws.write(0, ci, h, hdr_style)
+        template_path = os.path.join(_TEMPLATE_DIR, "MusicReportspublishing_catalog_template-3.xls")
+        wb_xls = open_xls_template(template_path)
+        ws = wb_xls.get_sheet(0)  # "Catalog Template" — row 0 is the header, preserved from template
 
         row_idx = 1
         for work in mri_works:
@@ -479,11 +465,12 @@ def export_soundexchange():
             ws.cell(row=row_idx, column=15).value = "US"
             row_idx += 1
 
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
+        from blueprints.export_helpers import stitch_xlsx_assets
+        opx_buf = io.BytesIO()
+        wb.save(opx_buf)
+        fixed_bytes = stitch_xlsx_assets(template_path, opx_buf.getvalue())
         filename = f"SoundExchange_Registration_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
-        resp = make_response(output.read())
+        resp = make_response(fixed_bytes)
         resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
         return resp

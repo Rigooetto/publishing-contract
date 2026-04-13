@@ -1,6 +1,9 @@
 import io
+import os
 import datetime
 import json as _json
+
+_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "template")
 
 from flask import Blueprint, request, redirect, url_for, flash, render_template_string, send_file
 from flask import current_app
@@ -341,25 +344,11 @@ def export_music_reports():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
     try:
-        import xlwt
+        from blueprints.export_helpers import open_xls_template
 
-        wb = xlwt.Workbook()
-        ws = wb.add_sheet("Catalog Template")
-
-        headers = [
-            "SONG TITLE*", "AKA TITLE", "MRI SONG ID", "PUBLISHER'S SONG ID", "ISWC",
-            "COMPOSER LAST NAME*", "COMPOSER FIRST NAME*", "COMPOSER MIDDLE NAME",
-            "COMPOSER PRO*", "COMPOSER IPI NUMBER", "CONTROLLED COMPOSER (Y/N)*",
-            "COMPOSER SHARE %*", "COMPOSER ROLE CODE", "PUBLISHER NAME *",
-            "PUBLISHER PRO*", "PUBLISHER IPI NUMBER *", "CONTROLLED PUBLISHER (Y/N)*",
-            "ADMINISTRATOR NAME", "SHARE %*", "TERRITORY CONTROLLED*",
-            "TERRITORY EXCLUSIONS (OPTIONAL)", "PUBLISHER MAILING ADDRESS*",
-            "PUBLISHER CONTACT*", "RECORDING ARTIST NAME", "RECORDING LABEL",
-            "RECORDING ISRC", "UPC/EAN"
-        ]
-        hdr_style = xlwt.easyxf('font: bold true; pattern: pattern solid, fore_colour light_green;')
-        for ci, h in enumerate(headers):
-            ws.write(0, ci, h, hdr_style)
+        template_path = os.path.join(_TEMPLATE_DIR, "MusicReportspublishing_catalog_template-3.xls")
+        wb = open_xls_template(template_path)
+        ws = wb.get_sheet(0)  # row 0 = header, preserved from template
 
         works = (Work.query
                  .join(WorkWriter, WorkWriter.work_id == Work.id)
@@ -462,8 +451,10 @@ def export_soundexchange():
         return redirect(url_for("publishing.works_list"))
     try:
         from openpyxl import load_workbook
+        from blueprints.export_helpers import stitch_xlsx_assets
 
-        wb = load_workbook("template/Sound Exchange ISRC Ingest Form.xlsx")
+        sx_template_path = os.path.join(_TEMPLATE_DIR, "Sound Exchange ISRC Ingest Form.xlsx")
+        wb = load_workbook(sx_template_path)
         ws = wb["Form"]
 
         # Clear data below header (row 10 is header, data starts row 11)
@@ -511,11 +502,11 @@ def export_soundexchange():
             ws.cell(row=row_idx, column=15).value = "US"
             row_idx += 1
 
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
+        opx_buf = io.BytesIO()
+        wb.save(opx_buf)
+        fixed_bytes = stitch_xlsx_assets(sx_template_path, opx_buf.getvalue())
         filename = f"SoundExchange_ISRC_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
-        return send_file(output, download_name=filename,
+        return send_file(io.BytesIO(fixed_bytes), download_name=filename,
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          as_attachment=True)
     except Exception as e:
