@@ -42,6 +42,29 @@ def stitch_xlsx_assets(template_path, opx_bytes):
 
         src_ct = src.read("[Content_Types].xml").decode()
 
+        # Build a map of drawing references from the template's worksheet rels.
+        # e.g. {"xl/worksheets/sheet1.xml": '<drawing r:id="rId1"/>'}
+        drawing_refs = {}
+        for rels_name in inject:
+            if not rels_name.startswith(RELS_PREFIX):
+                continue
+            rels_xml = src.read(rels_name).decode()
+            # Find every drawing relationship in the rels file
+            drawing_ids = re.findall(
+                r'<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bType="[^"]*drawing[^"]*"',
+                rels_xml,
+            )
+            if not drawing_ids:
+                drawing_ids = re.findall(
+                    r'<Relationship\b[^>]*\bType="[^"]*drawing[^"]*"[^>]*\bId="([^"]+)"',
+                    rels_xml,
+                )
+            if drawing_ids:
+                # "xl/worksheets/_rels/sheet1.xml.rels" → "xl/worksheets/sheet1.xml"
+                sheet_name = re.sub(r"/_rels/(.+)\.rels$", r"/\1", rels_name)
+                tags = "".join(f'<drawing r:id="{rid}"/>' for rid in drawing_ids)
+                drawing_refs[sheet_name] = tags
+
         for name in opx.namelist():
             data = opx.read(name)
             if name == "[Content_Types].xml" and inject:
@@ -62,6 +85,22 @@ def stitch_xlsx_assets(template_path, opx_bytes):
                             )
                             if m2:
                                 content = content.replace("</Types>", m2.group(0) + "</Types>")
+                data = content.encode()
+            elif name in drawing_refs:
+                # Re-inject <drawing r:id="..."/> into the worksheet XML before </worksheet>
+                content = data.decode()
+                tags = drawing_refs[name]
+                if "<drawing " not in content:
+                    # Also ensure the r: namespace is declared on the root element
+                    content = re.sub(
+                        r'(<worksheet\b[^>]*)(>)',
+                        lambda m: (m.group(1) + m.group(2))
+                        if 'xmlns:r=' in m.group(1)
+                        else (m.group(1) + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' + m.group(2)),
+                        content,
+                        count=1,
+                    )
+                    content = content.replace("</worksheet>", tags + "</worksheet>")
                 data = content.encode()
             out.writestr(name, data)
 
