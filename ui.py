@@ -37,7 +37,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
 .app{display:flex;min-height:100vh}
 .main{margin-left:var(--sb);flex:1;min-height:100vh;transition:margin-left .22s ease}
 .page{max-width:1200px;margin:0 auto;padding:22px 22px 100px}
-.sb{width:var(--sb);min-height:100vh;background:var(--bg1);border-right:1px solid var(--b0);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50;transition:width .22s ease;overflow:hidden}
+.sb{width:var(--sb);height:100vh;background:var(--bg1);border-right:1px solid var(--b0);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50;transition:width .22s ease;overflow-x:hidden;overflow-y:auto}.sb::-webkit-scrollbar{width:4px}.sb::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
 .sb.collapsed{width:var(--sb-collapsed)}
 .app.sb-collapsed .main{margin-left:var(--sb-collapsed)}
 .sb-logo{

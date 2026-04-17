@@ -341,7 +341,7 @@ def dashboard():
         _DASHBOARD_HTML,
         data=data, year=year, quarter=quarter,
         artist=artist, view=view,
-        _sidebar_html=_sidebar('streaming_royalties'),
+        _sidebar_html=_sb(),
     )
 
 
@@ -370,7 +370,7 @@ def imports_list():
 
     from models import StreamingImport
     imports = StreamingImport.query.order_by(StreamingImport.uploaded_at.desc()).all()
-    return render_template_string(_IMPORTS_HTML, imports=imports, _sidebar=_sidebar)
+    return render_template_string(_IMPORTS_HTML, imports=imports, _sidebar_html=_sb())
 
 
 @bp.route("/streaming-royalties/import", methods=["GET", "POST"])
@@ -382,7 +382,7 @@ def import_file():
         return redirect(url_for("publishing.works_list"))
 
     if request.method == "GET":
-        return render_template_string(_IMPORT_FORM_HTML, _sidebar=_sidebar)
+        return render_template_string(_IMPORT_FORM_HTML, _sidebar_html=_sb())
 
     f = request.files.get("csv_file")
     if not f or not f.filename:
@@ -420,7 +420,7 @@ def bulk_import():
         return redirect(url_for("publishing.works_list"))
 
     if request.method == "GET":
-        return render_template_string(_BULK_IMPORT_HTML, _sidebar=_sidebar)
+        return render_template_string(_BULK_IMPORT_HTML, _sidebar_html=_sb())
 
     folder = request.form.get("folder_path", "").strip()
     if not folder or not os.path.isdir(folder):
@@ -470,7 +470,7 @@ def import_status(import_id):
 
     from models import StreamingImport
     rec = StreamingImport.query.get_or_404(import_id)
-    return render_template_string(_STATUS_HTML, rec=rec, _sidebar=_sidebar)
+    return render_template_string(_STATUS_HTML, rec=rec, _sidebar_html=_sb())
 
 
 @bp.route("/streaming-royalties/import-status/<int:import_id>/json")
@@ -516,7 +516,7 @@ def catalog_upload():
         return redirect(url_for("publishing.works_list"))
 
     if request.method == "GET":
-        return render_template_string(_CATALOG_UPLOAD_HTML, stats=None, _sidebar=_sidebar)
+        return render_template_string(_CATALOG_UPLOAD_HTML, stats=None, _sidebar_html=_sb())
 
     f = request.files.get("catalog_file")
     if not f or not f.filename:
@@ -609,7 +609,7 @@ def catalog_upload():
             "artists_matched":    sorted(artists_matched),
             "artists_unmatched":  sorted(artists_unmatched),
         }
-        return render_template_string(_CATALOG_UPLOAD_HTML, stats=stats, _sidebar=_sidebar)
+        return render_template_string(_CATALOG_UPLOAD_HTML, stats=stats, _sidebar_html=_sb())
 
     except Exception as e:
         flash(f"Error reading catalog: {e}", "error")
@@ -619,6 +619,11 @@ def catalog_upload():
 # ── HTML Templates ─────────────────────────────────────────────────────────────
 
 from ui import _STYLE, _sidebar, _SB_JS  # noqa: E402
+
+
+def _sb(active="streaming_royalties"):
+    """Pre-render the sidebar so its Jinja2 role-guards are evaluated."""
+    return render_template_string(_sidebar(active))
 
 
 def _page(title, active, body):
@@ -899,7 +904,7 @@ _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Upload CSV — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
-{% set _s = _sidebar('streaming_royalties') %}{{ _s | safe }}
+{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Upload Monthly Report</h1></div>
 <div class="ph-actions"><a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; Imports</a></div>
@@ -928,7 +933,7 @@ _BULK_IMPORT_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bulk Import — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
-{% set _s = _sidebar('streaming_royalties') %}{{ _s | safe }}
+{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Bulk Historical Import</h1></div>
 <div class="ph-actions"><a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; Imports</a></div>
@@ -957,7 +962,7 @@ _STATUS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Import Status — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
-{% set _s = _sidebar('streaming_royalties') %}{{ _s | safe }}
+{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Import Status</h1></div>
 <div class="ph-actions"><a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; All Imports</a></div>
@@ -1034,7 +1039,7 @@ _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Catalog Upload — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
-{% set _s = _sidebar('streaming_royalties') %}{{ _s | safe }}
+{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Artist Royalty Catalog</h1></div>
 <div class="ph-actions"><a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a></div>
