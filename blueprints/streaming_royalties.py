@@ -18,7 +18,9 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from extensions import db
-from utils import auth_required, role_required, FULL_ACCESS_ROLES
+from utils import auth_required, role_required
+
+_ADMIN_ONLY = {"admin"}
 
 bp = Blueprint("streaming_royalties", __name__)
 
@@ -325,7 +327,7 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
 def dashboard():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(FULL_ACCESS_ROLES):
+    if role_required(_ADMIN_ONLY):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
@@ -361,7 +363,7 @@ def dashboard_data():
 def imports_list():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(FULL_ACCESS_ROLES):
+    if role_required(_ADMIN_ONLY):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
@@ -374,7 +376,7 @@ def imports_list():
 def import_file():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(FULL_ACCESS_ROLES):
+    if role_required(_ADMIN_ONLY):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
@@ -412,7 +414,7 @@ def import_file():
 def bulk_import():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(FULL_ACCESS_ROLES):
+    if role_required(_ADMIN_ONLY):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
@@ -491,7 +493,7 @@ def import_status_json(import_id):
 def delete_import(import_id):
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(FULL_ACCESS_ROLES):
+    if role_required(_ADMIN_ONLY):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
@@ -508,7 +510,7 @@ def delete_import(import_id):
 def catalog_upload():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(FULL_ACCESS_ROLES):
+    if role_required(_ADMIN_ONLY):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
