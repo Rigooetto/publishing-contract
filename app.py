@@ -19,7 +19,7 @@ if not _secret_key:
     import logging
     logging.warning("SECRET_KEY env var not set — using a random key. Sessions will not persist across restarts.")
 app.secret_key = _secret_key
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024
 
 raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
 if raw_db_url.startswith("postgres://"):
@@ -48,6 +48,7 @@ from blueprints.neighboring_rights_audit import bp as neighboring_rights_audit_b
 from blueprints.users import bp as users_bp
 from blueprints.title_review import bp as title_review_bp
 from blueprints.registration_report import bp as registration_report_bp
+from blueprints.streaming_royalties import bp as streaming_royalties_bp
 
 app.register_blueprint(publishing_bp)
 app.register_blueprint(releases_bp)
@@ -61,6 +62,7 @@ app.register_blueprint(neighboring_rights_audit_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(title_review_bp)
 app.register_blueprint(registration_report_bp)
+app.register_blueprint(streaming_royalties_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
@@ -77,6 +79,7 @@ def inject_globals():
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(os.path.join(os.path.dirname(__file__), "uploads", "streaming_imports"), exist_ok=True)
 
 app.logger.warning("ENV CHECK: folder=%s json=%s", bool(GOOGLE_DRIVE_FOLDER_ID), bool(GOOGLE_SERVICE_ACCOUNT_JSON))
 app.logger.warning("JSON LEN: %s", len(GOOGLE_SERVICE_ACCOUNT_JSON or ""))

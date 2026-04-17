@@ -240,3 +240,74 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+# ── Phase 4 — Streaming Royalties ────────────────────────────────────────────
+
+class StreamingImport(db.Model):
+    """Tracks the lifecycle of one uploaded Believe monthly CSV file."""
+    id                = db.Column(db.Integer, primary_key=True)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_path         = db.Column(db.String(512), nullable=False)
+    status            = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    # status values: pending | processing | done | error
+    reporting_month   = db.Column(db.Date, nullable=True, index=True)  # filled after processing
+    uploaded_by       = db.Column(db.String(80), default="")
+    uploaded_at       = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    started_at        = db.Column(db.DateTime, nullable=True)
+    finished_at       = db.Column(db.DateTime, nullable=True)
+    rows_read         = db.Column(db.Integer, default=0)
+    rows_aggregated   = db.Column(db.Integer, default=0)
+    rows_skipped      = db.Column(db.Integer, default=0)
+    error_message     = db.Column(db.Text, nullable=True)
+
+
+class StreamingRoyalty(db.Model):
+    """One aggregated row per unique (isrc, platform, country, sales_type,
+    reporting_month, sales_month) per import."""
+    id               = db.Column(db.Integer, primary_key=True)
+    import_id        = db.Column(db.Integer, db.ForeignKey("streaming_import.id"), nullable=False, index=True)
+    isrc             = db.Column(db.String(20), nullable=False, index=True)
+    platform         = db.Column(db.String(100), nullable=False, index=True)
+    country          = db.Column(db.String(100), nullable=False)
+    sales_type       = db.Column(db.String(50), nullable=False)
+    reporting_month  = db.Column(db.Date, nullable=False, index=True)
+    sales_month      = db.Column(db.Date, nullable=False)
+    # Denormalized snapshot from CSV (first row wins)
+    artist_name_csv    = db.Column(db.String(255), default="")
+    track_title_csv    = db.Column(db.String(255), default="")
+    label_name         = db.Column(db.String(255), default="")
+    release_title      = db.Column(db.String(255), default="")
+    upc                = db.Column(db.String(50), default="")
+    streaming_sub_type = db.Column(db.String(50), default="")
+    release_type       = db.Column(db.String(50), default="")
+    currency           = db.Column(db.String(10), default="EUR")
+    # Aggregated numerics (SUM across all matching rows)
+    total_quantity        = db.Column(db.BigInteger, default=0)
+    total_gross_revenue   = db.Column(db.Numeric(16, 6), default=0)
+    total_net_revenue     = db.Column(db.Numeric(16, 6), default=0)
+    total_mechanical_fee  = db.Column(db.Numeric(16, 6), default=0)
+    # FK to Track (nullable — unmatched ISRCs are valid)
+    track_id         = db.Column(db.Integer, db.ForeignKey("track.id"), nullable=True, index=True)
+    created_at       = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint(
+            "import_id", "isrc", "platform", "country",
+            "sales_type", "reporting_month", "sales_month",
+            name="uq_streaming_royalty_agg_key"
+        ),
+    )
+
+
+class ArtistRoyaltySplit(db.Model):
+    """Per-ISRC artist royalty percentage loaded from the catalog upload."""
+    id          = db.Column(db.Integer, primary_key=True)
+    isrc        = db.Column(db.String(20), nullable=False, index=True)
+    artist_name = db.Column(db.String(255), nullable=False)
+    artist_id   = db.Column(db.Integer, db.ForeignKey("artist.id"), nullable=True, index=True)
+    percentage  = db.Column(db.Numeric(7, 4), nullable=False)  # e.g. 90.0000
+    notes       = db.Column(db.String(255), default="")
+    created_at  = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint("isrc", "artist_name", name="uq_artist_royalty_split"),
+    )
