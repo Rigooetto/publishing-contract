@@ -154,6 +154,11 @@ def _aggregate_and_store(rec):
                 rows_skipped += 1
                 continue
 
+            if rows_read % 25_000 == 0:
+                rec.rows_read    = rows_read
+                rec.rows_skipped = rows_skipped
+                db.session.commit()
+
     # Bulk ISRC → track_id lookup
     isrc_set = {k[0] for k in agg}
     track_map = {}

@@ -145,6 +145,20 @@ def backfill_artists_cmd():
 
 with app.app_context():
     _run_artist_backfill()
+    # Mark any imports that were mid-flight when the server last restarted
+    try:
+        import datetime as _dt
+        from models import StreamingImport as _SI
+        stuck = _SI.query.filter_by(status="processing").all()
+        for _s in stuck:
+            _s.status        = "error"
+            _s.error_message = "Processing was interrupted by a server restart. Please re-upload the file."
+            _s.finished_at   = _dt.datetime.utcnow()
+        if stuck:
+            db.session.commit()
+            app.logger.warning("Cleaned up %d stuck streaming imports", len(stuck))
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
