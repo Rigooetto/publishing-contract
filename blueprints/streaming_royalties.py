@@ -341,6 +341,7 @@ def dashboard():
         _DASHBOARD_HTML,
         data=data, year=year, quarter=quarter,
         artist=artist, view=view,
+        _sidebar_html=_sidebar('streaming_royalties'),
     )
 
 
@@ -369,7 +370,7 @@ def imports_list():
 
     from models import StreamingImport
     imports = StreamingImport.query.order_by(StreamingImport.uploaded_at.desc()).all()
-    return render_template_string(_IMPORTS_HTML, imports=imports)
+    return render_template_string(_IMPORTS_HTML, imports=imports, _sidebar=_sidebar)
 
 
 @bp.route("/streaming-royalties/import", methods=["GET", "POST"])
@@ -381,7 +382,7 @@ def import_file():
         return redirect(url_for("publishing.works_list"))
 
     if request.method == "GET":
-        return render_template_string(_IMPORT_FORM_HTML)
+        return render_template_string(_IMPORT_FORM_HTML, _sidebar=_sidebar)
 
     f = request.files.get("csv_file")
     if not f or not f.filename:
@@ -419,7 +420,7 @@ def bulk_import():
         return redirect(url_for("publishing.works_list"))
 
     if request.method == "GET":
-        return render_template_string(_BULK_IMPORT_HTML)
+        return render_template_string(_BULK_IMPORT_HTML, _sidebar=_sidebar)
 
     folder = request.form.get("folder_path", "").strip()
     if not folder or not os.path.isdir(folder):
@@ -469,7 +470,7 @@ def import_status(import_id):
 
     from models import StreamingImport
     rec = StreamingImport.query.get_or_404(import_id)
-    return render_template_string(_STATUS_HTML, rec=rec)
+    return render_template_string(_STATUS_HTML, rec=rec, _sidebar=_sidebar)
 
 
 @bp.route("/streaming-royalties/import-status/<int:import_id>/json")
@@ -515,7 +516,7 @@ def catalog_upload():
         return redirect(url_for("publishing.works_list"))
 
     if request.method == "GET":
-        return render_template_string(_CATALOG_UPLOAD_HTML, stats=None)
+        return render_template_string(_CATALOG_UPLOAD_HTML, stats=None, _sidebar=_sidebar)
 
     f = request.files.get("catalog_file")
     if not f or not f.filename:
@@ -600,7 +601,7 @@ def catalog_upload():
             "artists_matched":    sorted(artists_matched),
             "artists_unmatched":  sorted(artists_unmatched),
         }
-        return render_template_string(_CATALOG_UPLOAD_HTML, stats=stats)
+        return render_template_string(_CATALOG_UPLOAD_HTML, stats=stats, _sidebar=_sidebar)
 
     except Exception as e:
         flash(f"Error reading catalog: {e}", "error")
