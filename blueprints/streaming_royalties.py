@@ -553,6 +553,8 @@ def catalog_upload():
         from models import ArtistRoyaltySplit, Artist
         rows_loaded = 0
         rows_updated = 0
+        rows_skipped = 0
+        first_error = None
         artists_matched = set()
         artists_unmatched = set()
 
@@ -562,6 +564,7 @@ def catalog_upload():
                 artist_name = str(row[artist_col]).strip() if row[artist_col] else ""
                 pct_raw    = row[pct_col]
                 if not isrc or not artist_name or pct_raw is None:
+                    rows_skipped += 1
                     continue
                 pct = decimal.Decimal(str(pct_raw))
 
@@ -591,13 +594,18 @@ def catalog_upload():
                         percentage=pct,
                     ))
                     rows_loaded += 1
-            except Exception:
-                continue
+            except Exception as row_err:
+                rows_skipped += 1
+                if first_error is None:
+                    first_error = str(row_err)
 
         db.session.commit()
         stats = {
             "rows_loaded":        rows_loaded,
             "rows_updated":       rows_updated,
+            "rows_skipped":       rows_skipped,
+            "first_error":        first_error,
+            "header_detected":    {"isrc": isrc_col, "artist": artist_col, "pct": pct_col},
             "artists_matched":    sorted(artists_matched),
             "artists_unmatched":  sorted(artists_unmatched),
         }
@@ -1040,9 +1048,20 @@ _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
   <div style="font-size:13px;color:var(--t2);line-height:2">
     New rows: <strong style="color:var(--t1)">{{ stats.rows_loaded }}</strong><br>
     Updated rows: <strong style="color:var(--t1)">{{ stats.rows_updated }}</strong><br>
+    Skipped rows: <strong style="color:var(--am)">{{ stats.rows_skipped }}</strong><br>
     Artists matched: <strong style="color:var(--ag)">{{ stats.artists_matched|length }}</strong><br>
     Artists unmatched: <strong style="color:var(--am)">{{ stats.artists_unmatched|length }}</strong>
   </div>
+  <div style="margin-top:10px;font-size:12px;color:var(--t2)">
+    Columns detected → ISRC: col {{ stats.header_detected.isrc }},
+    Artist: col {{ stats.header_detected.artist }},
+    Percentage: col {{ stats.header_detected.pct }}
+  </div>
+  {% if stats.first_error %}
+  <div style="margin-top:8px;font-size:12px;color:var(--am)">
+    First row error: {{ stats.first_error }}
+  </div>
+  {% endif %}
   {% if stats.artists_unmatched %}
   <div style="margin-top:12px;font-size:12px;color:var(--am)">
     Unmatched (create these artists in the catalog to link): {{ stats.artists_unmatched|join(', ') }}
