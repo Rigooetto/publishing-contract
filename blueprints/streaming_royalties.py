@@ -40,14 +40,66 @@ def _parse_date(val):
     return None
 
 
-def _aggregate_and_store(rec):
-    """Stream-parse the CSV and flush aggregated rows to the DB in batches."""
-    from models import StreamingImport, StreamingRoyalty, Track
+def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
+    """UPSERT the current agg dict into StreamingRoyalty, then return new total."""
+    from models import StreamingRoyalty
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-    agg = {}       # key → dict of accumulated values
+    batch = []
+    for key, vals in agg.items():
+        isrc, platform, country, sales_type, rep_iso, sal_iso = key
+        batch.append({
+            "import_id":            rec.id,
+            "isrc":                 isrc,
+            "platform":             platform,
+            "country":              country,
+            "sales_type":           sales_type,
+            "reporting_month":      datetime.date.fromisoformat(rep_iso),
+            "sales_month":          datetime.date.fromisoformat(sal_iso),
+            "artist_name_csv":      meta[key]["artist_name_csv"],
+            "track_title_csv":      meta[key]["track_title_csv"],
+            "label_name":           meta[key]["label_name"],
+            "release_title":        meta[key]["release_title"],
+            "upc":                  meta[key]["upc"],
+            "streaming_sub_type":   meta[key]["streaming_sub_type"],
+            "release_type":         meta[key]["release_type"],
+            "currency":             meta[key]["currency"],
+            "total_quantity":       vals["qty"],
+            "total_gross_revenue":  vals["gross"],
+            "total_net_revenue":    vals["net"],
+            "total_mechanical_fee": vals["mech"],
+            "track_id":             track_map.get(isrc),
+            "created_at":           datetime.datetime.utcnow(),
+        })
+
+    for i in range(0, len(batch), 500):
+        chunk = batch[i:i + 500]
+        stmt = pg_insert(StreamingRoyalty).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_streaming_royalty_agg_key",
+            set_={
+                "total_quantity":       stmt.excluded.total_quantity + StreamingRoyalty.total_quantity,
+                "total_gross_revenue":  stmt.excluded.total_gross_revenue + StreamingRoyalty.total_gross_revenue,
+                "total_net_revenue":    stmt.excluded.total_net_revenue + StreamingRoyalty.total_net_revenue,
+                "total_mechanical_fee": stmt.excluded.total_mechanical_fee + StreamingRoyalty.total_mechanical_fee,
+            },
+        )
+        db.session.execute(stmt)
+        db.session.commit()
+
+    return rows_aggregated_total + len(agg)
+
+
+def _aggregate_and_store(rec):
+    """Stream-parse the CSV and flush aggregated rows to the DB in bounded-memory chunks."""
+    from models import StreamingRoyalty, Track
+
+    agg = {}       # key → dict of accumulated values (cleared every FLUSH_EVERY unique keys)
     meta = {}      # key → snapshot fields (first row wins)
     rows_read = 0
     rows_skipped = 0
+    rows_aggregated_total = 0
+    FLUSH_EVERY = 10_000  # unique agg keys before flushing to DB to bound memory
 
     # Detect delimiter from first line (Believe uses ";" but guard against ",")
     with open(rec.file_path, encoding="utf-8-sig", errors="replace") as _peek:
@@ -154,56 +206,33 @@ def _aggregate_and_store(rec):
                 rows_skipped += 1
                 continue
 
+            # Flush and clear agg dict when it reaches FLUSH_EVERY unique keys
+            if len(agg) >= FLUSH_EVERY:
+                isrc_set = {k[0] for k in agg}
+                tracks = Track.query.filter(Track.isrc.in_(isrc_set)).all()
+                track_map = {t.isrc: t.id for t in tracks}
+                rows_aggregated_total = _flush_agg(rec, agg, meta, track_map, rows_aggregated_total)
+                agg.clear()
+                meta.clear()
+                rec.rows_read       = rows_read
+                rec.rows_skipped    = rows_skipped
+                rec.rows_aggregated = rows_aggregated_total
+                db.session.commit()
+
             if rows_read % 25_000 == 0:
                 rec.rows_read    = rows_read
                 rec.rows_skipped = rows_skipped
                 db.session.commit()
 
-    # Bulk ISRC → track_id lookup
-    isrc_set = {k[0] for k in agg}
-    track_map = {}
-    if isrc_set:
+    # Final flush for whatever remains in agg
+    if agg:
+        isrc_set = {k[0] for k in agg}
         tracks = Track.query.filter(Track.isrc.in_(isrc_set)).all()
         track_map = {t.isrc: t.id for t in tracks}
-
-    # Flush in batches of 500
-    batch = []
-    for key, vals in agg.items():
-        isrc, platform, country, sales_type, rep_iso, sal_iso = key
-        batch.append({
-            "import_id":           rec.id,
-            "isrc":                isrc,
-            "platform":            platform,
-            "country":             country,
-            "sales_type":          sales_type,
-            "reporting_month":     datetime.date.fromisoformat(rep_iso),
-            "sales_month":         datetime.date.fromisoformat(sal_iso),
-            "artist_name_csv":     meta[key]["artist_name_csv"],
-            "track_title_csv":     meta[key]["track_title_csv"],
-            "label_name":          meta[key]["label_name"],
-            "release_title":       meta[key]["release_title"],
-            "upc":                 meta[key]["upc"],
-            "streaming_sub_type":  meta[key]["streaming_sub_type"],
-            "release_type":        meta[key]["release_type"],
-            "currency":            meta[key]["currency"],
-            "total_quantity":      vals["qty"],
-            "total_gross_revenue": vals["gross"],
-            "total_net_revenue":   vals["net"],
-            "total_mechanical_fee": vals["mech"],
-            "track_id":            track_map.get(isrc),
-            "created_at":          datetime.datetime.utcnow(),
-        })
-        if len(batch) >= 500:
-            db.session.bulk_insert_mappings(StreamingRoyalty, batch)
-            db.session.commit()
-            batch = []
-
-    if batch:
-        db.session.bulk_insert_mappings(StreamingRoyalty, batch)
-        db.session.commit()
+        rows_aggregated_total = _flush_agg(rec, agg, meta, track_map, rows_aggregated_total)
 
     rec.rows_read       = rows_read
-    rec.rows_aggregated = len(agg)
+    rec.rows_aggregated = rows_aggregated_total
     rec.rows_skipped    = rows_skipped
     if reporting_month_seen:
         rec.reporting_month = reporting_month_seen
