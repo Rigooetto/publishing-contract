@@ -844,8 +844,7 @@ def _tojson_filter(value):
 _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Streaming Imports — AfinArte</title>""" + _STYLE + """
-</head><body><div class="app">""" + "{% set _s = _sidebar('streaming_royalties') %}" + """
-{{ _s | safe }}
+</head><body><div class="app">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Streaming Imports</h1></div>
 <div class="ph-actions">
