@@ -49,33 +49,69 @@ def _aggregate_and_store(rec):
     rows_read = 0
     rows_skipped = 0
 
+    # Detect delimiter from first line (Believe uses ";" but guard against ",")
+    with open(rec.file_path, encoding="utf-8-sig", errors="replace") as _peek:
+        first_line = _peek.readline()
+    delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
+
     with open(rec.file_path, encoding="utf-8-sig", errors="replace", newline="") as fh:
-        reader = csv.reader(fh, delimiter=";", quotechar='"')
+        reader = csv.reader(fh, delimiter=delimiter, quotechar='"')
         raw_header = next(reader, None)
         if raw_header is None:
             raise ValueError("CSV file is empty or missing header row")
         header = [h.strip().strip('"') for h in raw_header]
-        col = {name: idx for idx, name in enumerate(header)}
 
-        required = {"ISRC", "Platform", "Country / Region", "Sales Type",
-                    "Reporting month", "Sales Month", "Quantity",
-                    "Gross Revenue", "Net Revenue", "Mechanical Fee"}
+        # Case-insensitive column lookup with common aliases
+        _col_aliases = {
+            "isrc":                  ["isrc"],
+            "platform":              ["platform"],
+            "country":               ["country / region", "country/region", "country"],
+            "sales_type":            ["sales type", "salestype", "sale type"],
+            "reporting_month":       ["reporting month", "reporting_month", "report month"],
+            "sales_month":           ["sales month", "sales_month", "sale month"],
+            "quantity":              ["quantity", "qty", "units"],
+            "gross_revenue":         ["gross revenue", "gross_revenue", "gross"],
+            "net_revenue":           ["net revenue", "net_revenue", "net"],
+            "mechanical_fee":        ["mechanical fee", "mechanical_fee", "mechanical"],
+            "artist_name":           ["artist name", "artist_name", "artist"],
+            "track_title":           ["track title", "track_title", "track name", "title"],
+            "label_name":            ["label name", "label_name", "label"],
+            "release_title":         ["release title", "release_title", "release name", "album"],
+            "upc":                   ["upc"],
+            "streaming_sub_type":    ["streaming subscription type", "streaming_subscription_type", "subscription type"],
+            "release_type":          ["release type", "release_type"],
+            "currency":              ["client payment currency", "currency", "payment currency"],
+        }
+        header_lower = [h.lower() for h in header]
+        col = {}
+        for field, aliases in _col_aliases.items():
+            for alias in aliases:
+                if alias in header_lower:
+                    col[field] = header_lower.index(alias)
+                    break
+
+        required = {"isrc", "platform", "country", "sales_type",
+                    "reporting_month", "sales_month", "quantity",
+                    "gross_revenue", "net_revenue", "mechanical_fee"}
         missing = required - set(col.keys())
         if missing:
-            raise ValueError(f"CSV missing expected columns: {missing}")
+            raise ValueError(
+                f"CSV missing required columns: {missing}. "
+                f"Headers found: {header[:20]}"
+            )
 
         reporting_month_seen = None
 
         for raw_row in reader:
             rows_read += 1
             try:
-                isrc = raw_row[col["ISRC"]].strip().strip('"').upper()
+                isrc = raw_row[col["isrc"]].strip().strip('"').upper()
                 if not isrc:
                     rows_skipped += 1
                     continue
 
-                rep_month = _parse_date(raw_row[col["Reporting month"]])
-                sal_month = _parse_date(raw_row[col["Sales Month"]])
+                rep_month = _parse_date(raw_row[col["reporting_month"]])
+                sal_month = _parse_date(raw_row[col["sales_month"]])
                 if rep_month is None or sal_month is None:
                     rows_skipped += 1
                     continue
@@ -83,14 +119,14 @@ def _aggregate_and_store(rec):
                 if reporting_month_seen is None:
                     reporting_month_seen = rep_month
 
-                platform   = raw_row[col["Platform"]].strip().strip('"')
-                country    = raw_row[col["Country / Region"]].strip().strip('"')
-                sales_type = raw_row[col["Sales Type"]].strip().strip('"')
+                platform   = raw_row[col["platform"]].strip().strip('"')
+                country    = raw_row[col["country"]].strip().strip('"')
+                sales_type = raw_row[col["sales_type"]].strip().strip('"')
 
-                qty   = int(float(raw_row[col["Quantity"]].strip().strip('"') or "0"))
-                gross = decimal.Decimal(raw_row[col["Gross Revenue"]].strip().strip('"') or "0")
-                net   = decimal.Decimal(raw_row[col["Net Revenue"]].strip().strip('"') or "0")
-                mech  = decimal.Decimal(raw_row[col["Mechanical Fee"]].strip().strip('"') or "0")
+                qty   = int(float(raw_row[col["quantity"]].strip().strip('"') or "0"))
+                gross = decimal.Decimal(raw_row[col["gross_revenue"]].strip().strip('"') or "0")
+                net   = decimal.Decimal(raw_row[col["net_revenue"]].strip().strip('"') or "0")
+                mech  = decimal.Decimal(raw_row[col["mechanical_fee"]].strip().strip('"') or "0")
 
                 key = (isrc, platform, country, sales_type,
                        rep_month.isoformat(), sal_month.isoformat())
@@ -99,14 +135,14 @@ def _aggregate_and_store(rec):
                     agg[key] = {"qty": 0, "gross": decimal.Decimal(0),
                                 "net": decimal.Decimal(0), "mech": decimal.Decimal(0)}
                     meta[key] = {
-                        "artist_name_csv":    raw_row[col["Artist Name"]].strip().strip('"') if "Artist Name" in col else "",
-                        "track_title_csv":    raw_row[col["Track title"]].strip().strip('"') if "Track title" in col else "",
-                        "label_name":         raw_row[col["Label Name"]].strip().strip('"') if "Label Name" in col else "",
-                        "release_title":      raw_row[col["Release title"]].strip().strip('"') if "Release title" in col else "",
-                        "upc":                raw_row[col["UPC"]].strip().strip('"') if "UPC" in col else "",
-                        "streaming_sub_type": raw_row[col["Streaming Subscription Type"]].strip().strip('"') if "Streaming Subscription Type" in col else "",
-                        "release_type":       raw_row[col["Release type"]].strip().strip('"') if "Release type" in col else "",
-                        "currency":           raw_row[col["Client Payment Currency"]].strip().strip('"') if "Client Payment Currency" in col else "EUR",
+                        "artist_name_csv":    raw_row[col["artist_name"]].strip().strip('"') if "artist_name" in col else "",
+                        "track_title_csv":    raw_row[col["track_title"]].strip().strip('"') if "track_title" in col else "",
+                        "label_name":         raw_row[col["label_name"]].strip().strip('"') if "label_name" in col else "",
+                        "release_title":      raw_row[col["release_title"]].strip().strip('"') if "release_title" in col else "",
+                        "upc":                raw_row[col["upc"]].strip().strip('"') if "upc" in col else "",
+                        "streaming_sub_type": raw_row[col["streaming_sub_type"]].strip().strip('"') if "streaming_sub_type" in col else "",
+                        "release_type":       raw_row[col["release_type"]].strip().strip('"') if "release_type" in col else "",
+                        "currency":           raw_row[col["currency"]].strip().strip('"') if "currency" in col else "EUR",
                     }
 
                 agg[key]["qty"]   += qty
