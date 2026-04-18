@@ -72,52 +72,61 @@ def _isrc_to_track_map(isrc_set):
 
 
 def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
-    """UPSERT the current agg dict into StreamingRoyalty, then return new total."""
-    from models import StreamingRoyalty
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    """UPSERT the current agg dict into StreamingRoyalty via the royalties engine directly."""
+    from sqlalchemy import text as _t
 
-    batch = []
+    now = datetime.datetime.utcnow()
+    rows = []
     for key, vals in agg.items():
         isrc, platform, country, sales_type, rep_iso, sal_iso = key
-        batch.append({
-            "import_id":            rec.id,
-            "isrc":                 isrc,
-            "platform":             platform,
-            "country":              country,
-            "sales_type":           sales_type,
-            "reporting_month":      datetime.date.fromisoformat(rep_iso),
-            "sales_month":          datetime.date.fromisoformat(sal_iso),
-            "artist_name_csv":      meta[key]["artist_name_csv"],
-            "track_title_csv":      meta[key]["track_title_csv"],
-            "label_name":           meta[key]["label_name"],
-            "release_title":        meta[key]["release_title"],
-            "upc":                  meta[key]["upc"],
-            "streaming_sub_type":   meta[key]["streaming_sub_type"],
-            "release_type":         meta[key]["release_type"],
-            "currency":             meta[key]["currency"],
-            "total_quantity":       vals["qty"],
-            "total_gross_revenue":  vals["gross"],
-            "total_net_revenue":    vals["net"],
-            "total_mechanical_fee": vals["mech"],
-            "track_id":             track_map.get(isrc),
-            "created_at":           datetime.datetime.utcnow(),
-        })
+        m = meta[key]
+        rows.append((
+            rec.id, isrc, platform, country, sales_type,
+            datetime.date.fromisoformat(rep_iso),
+            datetime.date.fromisoformat(sal_iso),
+            m["artist_name_csv"], m["track_title_csv"], m["label_name"],
+            m["release_title"], m["upc"], m["streaming_sub_type"],
+            m["release_type"], m["currency"],
+            vals["qty"], vals["gross"], vals["net"], vals["mech"],
+            track_map.get(isrc), now,
+        ))
 
-    for i in range(0, len(batch), 500):
-        chunk = batch[i:i + 500]
-        stmt = pg_insert(StreamingRoyalty).values(chunk)
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_streaming_royalty_agg_key",
-            set_={
-                "total_quantity":       stmt.excluded.total_quantity + StreamingRoyalty.total_quantity,
-                "total_gross_revenue":  stmt.excluded.total_gross_revenue + StreamingRoyalty.total_gross_revenue,
-                "total_net_revenue":    stmt.excluded.total_net_revenue + StreamingRoyalty.total_net_revenue,
-                "total_mechanical_fee": stmt.excluded.total_mechanical_fee + StreamingRoyalty.total_mechanical_fee,
-            },
+    _engine = _royalties_engine()
+    UPSERT = """
+        INSERT INTO streaming_royalty (
+            import_id, isrc, platform, country, sales_type,
+            reporting_month, sales_month,
+            artist_name_csv, track_title_csv, label_name, release_title,
+            upc, streaming_sub_type, release_type, currency,
+            total_quantity, total_gross_revenue, total_net_revenue, total_mechanical_fee,
+            track_id, created_at
+        ) VALUES (
+            :import_id, :isrc, :platform, :country, :sales_type,
+            :reporting_month, :sales_month,
+            :artist_name_csv, :track_title_csv, :label_name, :release_title,
+            :upc, :streaming_sub_type, :release_type, :currency,
+            :total_quantity, :total_gross_revenue, :total_net_revenue, :total_mechanical_fee,
+            :track_id, :created_at
         )
-        db.session.execute(stmt)
-        db.session.commit()
-        db.session.expunge_all()  # release ORM identity map after each commit
+        ON CONFLICT ON CONSTRAINT uq_streaming_royalty_agg_key DO UPDATE SET
+            total_quantity       = streaming_royalty.total_quantity       + EXCLUDED.total_quantity,
+            total_gross_revenue  = streaming_royalty.total_gross_revenue  + EXCLUDED.total_gross_revenue,
+            total_net_revenue    = streaming_royalty.total_net_revenue    + EXCLUDED.total_net_revenue,
+            total_mechanical_fee = streaming_royalty.total_mechanical_fee + EXCLUDED.total_mechanical_fee
+    """
+    keys = [
+        "import_id","isrc","platform","country","sales_type",
+        "reporting_month","sales_month",
+        "artist_name_csv","track_title_csv","label_name","release_title",
+        "upc","streaming_sub_type","release_type","currency",
+        "total_quantity","total_gross_revenue","total_net_revenue","total_mechanical_fee",
+        "track_id","created_at",
+    ]
+    with _engine.connect() as conn:
+        for i in range(0, len(rows), 500):
+            chunk = [dict(zip(keys, r)) for r in rows[i:i + 500]]
+            conn.execute(_t(UPSERT), chunk)
+        conn.commit()
 
     return rows_aggregated_total + len(agg)
 
