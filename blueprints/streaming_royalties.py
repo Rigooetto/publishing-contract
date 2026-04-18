@@ -286,119 +286,122 @@ def _process_bulk(app, import_ids):
 # ── Dashboard data helper ─────────────────────────────────────────────────────
 
 def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
-    """Return aggregated dashboard data as a dict.
-    view='label'  → use total_net_revenue directly
-    view='artist' → multiply by ArtistRoyaltySplit.percentage / 100
-    """
-    from models import StreamingRoyalty, ArtistRoyaltySplit
-    from sqlalchemy import func, case
+    """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
+    from sqlalchemy import text
 
-    q = db.session.query(StreamingRoyalty)
-
+    # Build WHERE clause fragments
+    conditions = ["1=1"]
+    params = {}
     if year and year != "all":
-        q = q.filter(func.extract("year", StreamingRoyalty.reporting_month) == int(year))
+        conditions.append("EXTRACT(year FROM reporting_month) = :year")
+        params["year"] = int(year)
     if quarter and quarter != "all":
         month_ranges = {"1": (1, 3), "2": (4, 6), "3": (7, 9), "4": (10, 12)}
         m_start, m_end = month_ranges.get(str(quarter), (1, 12))
-        q = q.filter(
-            func.extract("month", StreamingRoyalty.reporting_month) >= m_start,
-            func.extract("month", StreamingRoyalty.reporting_month) <= m_end,
-        )
+        conditions.append("EXTRACT(month FROM reporting_month) BETWEEN :m_start AND :m_end")
+        params["m_start"] = m_start
+        params["m_end"]   = m_end
     if artist and artist != "all":
-        q = q.filter(StreamingRoyalty.artist_name_csv == artist)
+        conditions.append("artist_name_csv = :artist")
+        params["artist"] = artist
+    where = " AND ".join(conditions)
 
-    rows = q.all()
-
-    # Build split lookup: isrc → percentage (Decimal)
-    split_map = {}
+    # Revenue expression: label view uses net directly; artist view joins split percentages
     if view == "artist":
-        isrc_set = {r.isrc for r in rows}
-        if artist and artist != "all":
-            splits = ArtistRoyaltySplit.query.filter(
-                ArtistRoyaltySplit.isrc.in_(isrc_set),
-                db.func.lower(ArtistRoyaltySplit.artist_name) == artist.lower(),
-            ).all()
-        else:
-            splits = ArtistRoyaltySplit.query.filter(
-                ArtistRoyaltySplit.isrc.in_(isrc_set)
-            ).all()
-        for s in splits:
-            # If multiple artists per ISRC, sum their percentages for "all artists" view
-            split_map[s.isrc] = split_map.get(s.isrc, decimal.Decimal(0)) + s.percentage
+        rev_expr = """
+            sr.total_net_revenue * COALESCE(
+                (SELECT SUM(ars.percentage) / 100.0
+                   FROM artist_royalty_split ars
+                  WHERE ars.isrc = sr.isrc
+                    {artist_filter}
+                ), 1.0
+            )
+        """.format(
+            artist_filter="AND LOWER(ars.artist_name) = LOWER(:artist)" if (artist and artist != "all") else ""
+        )
+        table_alias = "sr"
+        from_clause  = "streaming_royalty sr"
+        where_clause = where.replace("reporting_month", "sr.reporting_month").replace("artist_name_csv", "sr.artist_name_csv")
+    else:
+        rev_expr     = "total_net_revenue"
+        table_alias  = "streaming_royalty"
+        from_clause  = "streaming_royalty"
+        where_clause = where
 
-    def _rev(row):
-        net = row.total_net_revenue or decimal.Decimal(0)
-        if view == "artist":
-            pct = split_map.get(row.isrc, decimal.Decimal(100))
-            return float(net * pct / decimal.Decimal(100))
-        return float(net)
+    def q(sql):
+        return db.session.execute(text(sql), params).fetchall()
 
     # KPI
-    kpi_total = sum(_rev(r) for r in rows)
+    kpi_row = q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {from_clause} WHERE {where_clause}")
+    kpi_total = float(kpi_row[0][0])
 
     # By artist (top 10)
-    artist_totals = {}
-    for r in rows:
-        name = r.artist_name_csv or "Unknown"
-        artist_totals[name] = artist_totals.get(name, 0.0) + _rev(r)
-    top_artists = sorted(artist_totals.items(), key=lambda x: x[1], reverse=True)[:10]
+    by_artist = q(f"""
+        SELECT artist_name_csv, COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {from_clause} WHERE {where_clause} AND artist_name_csv IS NOT NULL AND artist_name_csv != ''
+         GROUP BY artist_name_csv ORDER BY rev DESC LIMIT 10
+    """)
 
-    # By month
-    month_totals = {}
-    for r in rows:
-        label = r.reporting_month.strftime("%b %Y") if r.reporting_month else "?"
-        month_totals[label] = month_totals.get(label, 0.0) + _rev(r)
-    # Sort chronologically
-    month_sorted = sorted(month_totals.items(), key=lambda x: x[0])
+    # By month (chronological)
+    by_month = q(f"""
+        SELECT TO_CHAR(reporting_month, 'Mon YYYY') AS mo, reporting_month,
+               COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {from_clause} WHERE {where_clause}
+         GROUP BY reporting_month ORDER BY reporting_month
+    """)
 
     # By platform
-    platform_totals = {}
-    for r in rows:
-        plat = r.platform or "Unknown"
-        platform_totals[plat] = platform_totals.get(plat, 0.0) + _rev(r)
-    platform_sorted = sorted(platform_totals.items(), key=lambda x: x[1], reverse=True)
+    by_platform = q(f"""
+        SELECT platform, COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {from_clause} WHERE {where_clause} AND platform IS NOT NULL
+         GROUP BY platform ORDER BY rev DESC
+    """)
 
     # By country (top 5 + Other)
-    country_totals = {}
-    for r in rows:
-        ctry = r.country or "Unknown"
-        country_totals[ctry] = country_totals.get(ctry, 0.0) + _rev(r)
-    top5_countries = sorted(country_totals.items(), key=lambda x: x[1], reverse=True)[:5]
-    other_country = sum(v for k, v in country_totals.items()
-                        if k not in {c[0] for c in top5_countries})
-    country_data = list(top5_countries)
-    if other_country > 0:
-        country_data.append(("Other", other_country))
+    by_country_all = q(f"""
+        SELECT country, COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {from_clause} WHERE {where_clause} AND country IS NOT NULL
+         GROUP BY country ORDER BY rev DESC
+    """)
+    top5 = by_country_all[:5]
+    other = sum(float(r[1]) for r in by_country_all[5:])
+    country_data = [(r[0], float(r[1])) for r in top5]
+    if other > 0:
+        country_data.append(("Other", other))
 
-    # Catalog table (by track, top 50)
-    track_data = {}
-    for r in rows:
-        key = r.isrc
-        if key not in track_data:
-            track_data[key] = {"title": r.track_title_csv or r.isrc,
-                               "artist": r.artist_name_csv or "",
-                               "streams": 0, "revenue": 0.0}
-        track_data[key]["streams"] += (r.total_quantity or 0)
-        track_data[key]["revenue"] += _rev(r)
-    catalog_sorted = sorted(track_data.values(), key=lambda x: x["revenue"], reverse=True)[:50]
+    # Catalog top 50
+    catalog_rows = q(f"""
+        SELECT isrc,
+               MAX(track_title_csv) AS title,
+               MAX(artist_name_csv) AS artist,
+               COALESCE(SUM(total_quantity), 0) AS streams,
+               COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {from_clause} WHERE {where_clause}
+         GROUP BY isrc ORDER BY rev DESC LIMIT 50
+    """)
+    catalog = [{"title": r[1] or r[0], "artist": r[2] or "",
+                "streams": int(r[3]), "revenue": float(r[4])}
+               for r in catalog_rows]
 
-    # Available filter options
-    all_artists = sorted({r.artist_name_csv for r in
-                          db.session.query(StreamingRoyalty.artist_name_csv).distinct().all()
-                          if r.artist_name_csv})
-    all_years = sorted({r.reporting_month.year for r in
-                        db.session.query(StreamingRoyalty.reporting_month).distinct().all()
-                        if r.reporting_month}, reverse=True)
+    # Filter options
+    all_artists = [r[0] for r in q(
+        "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
+        "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY artist_name_csv"
+    )]
+    all_years = [int(r[0]) for r in q(
+        "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM streaming_royalty "
+        "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
+    )]
 
     return {
-        "kpi_total":      kpi_total,
-        "by_artist":      [{"name": k, "revenue": v} for k, v in top_artists],
-        "by_month":       [{"month": k, "revenue": v} for k, v in month_sorted],
-        "by_platform":    [{"platform": k, "revenue": v} for k, v in platform_sorted],
-        "by_country":     [{"country": k, "revenue": v} for k, v in country_data],
-        "catalog":        catalog_sorted,
-        "all_artists":    all_artists,
-        "all_years":      all_years,
+        "kpi_total":   kpi_total,
+        "by_artist":   [{"name": r[0], "revenue": float(r[1])} for r in by_artist],
+        "by_month":    [{"month": r[0], "revenue": float(r[2])} for r in by_month],
+        "by_platform": [{"platform": r[0], "revenue": float(r[1])} for r in by_platform],
+        "by_country":  [{"country": k, "revenue": v} for k, v in country_data],
+        "catalog":     catalog,
+        "all_artists": all_artists,
+        "all_years":   all_years,
     }
 
 
