@@ -172,7 +172,7 @@ with app.app_context():
                     _c.commit()
         except Exception:
             pass  # already TEXT, or table doesn't exist yet — both fine
-        # Create dashboard_cache table and indexes
+        # Create dashboard_cache table
         try:
             from sqlalchemy import text as _text
             _roy_engine = db.engines.get('royalties')
@@ -185,11 +185,47 @@ with app.app_context():
                             computed_at TIMESTAMP NOT NULL
                         )
                     """))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_sr_artist_name_csv ON streaming_royalty (artist_name_csv)"))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_sr_country ON streaming_royalty (country)"))
                     _c.commit()
         except Exception:
             pass
+        # Create royalty_summary table (pre-aggregated for fast dashboard queries)
+        try:
+            from sqlalchemy import text as _text
+            _roy_engine = db.engines.get('royalties')
+            if _roy_engine:
+                with _roy_engine.connect() as _c:
+                    _c.execute(_text("""
+                        CREATE TABLE IF NOT EXISTS royalty_summary (
+                            reporting_month  DATE          NOT NULL,
+                            isrc             TEXT          NOT NULL,
+                            artist_name_csv  TEXT,
+                            platform         TEXT,
+                            country          TEXT,
+                            track_title_csv  TEXT,
+                            streams          BIGINT        DEFAULT 0,
+                            net_revenue      NUMERIC(16,6) DEFAULT 0,
+                            PRIMARY KEY (reporting_month, isrc, platform, country)
+                        )
+                    """))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_month    ON royalty_summary (reporting_month)"))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist   ON royalty_summary (artist_name_csv)"))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
+                    # One-time backfill from existing streaming_royalty data
+                    _c.execute(_text("""
+                        INSERT INTO royalty_summary
+                            (reporting_month, isrc, artist_name_csv, platform, country,
+                             track_title_csv, streams, net_revenue)
+                        SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                               MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                          FROM streaming_royalty
+                         GROUP BY reporting_month, isrc, platform, country
+                        ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
+                    """))
+                    _c.commit()
+                    app.logger.warning("royalty_summary table ensured and backfilled.")
+        except Exception as _rse:
+            app.logger.warning("royalty_summary setup failed: %s", _rse)
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt

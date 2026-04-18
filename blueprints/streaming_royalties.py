@@ -480,6 +480,7 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
                 "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
             ), {"id": import_id}).fetchone()
         _clear_dashboard_cache(r_engine)
+        threading.Thread(target=_prewarm_dashboard_cache, daemon=True).start()
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
@@ -518,6 +519,28 @@ def _royalties_engine():
         # Fallback to default engine (e.g. local dev without ROYALTIES_DATABASE_URL)
         engine = db.engine
     return engine
+
+
+def _prewarm_dashboard_cache():
+    """Background thread: pre-compute all year/quarter × view combos into dashboard_cache."""
+    from sqlalchemy import text as _t
+    engine = _royalties_engine()
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(_t(
+                "SELECT DISTINCT EXTRACT(year FROM reporting_month)::int FROM royalty_summary "
+                "WHERE reporting_month IS NOT NULL ORDER BY 1"
+            )).fetchall()
+        years = [str(r[0]) for r in rows]
+    except Exception:
+        return
+    combos = [("all", "all")] + [(y, "all") for y in years]
+    for y, qtr in combos:
+        for v in ("label", "artist"):
+            try:
+                _dashboard_data(y, qtr, "all", v)
+            except Exception:
+                pass
 
 
 def _clear_dashboard_cache(engine=None):
@@ -589,11 +612,11 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         _has_map = False
 
     if _has_map:
-        base_from  = ("streaming_royalty sr "
+        base_from  = ("royalty_summary sr "
                       "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv")
         artist_col = "COALESCE(anm.canonical_name, sr.artist_name_csv)"
     else:
-        base_from  = "streaming_royalty sr"
+        base_from  = "royalty_summary sr"
         artist_col = "sr.artist_name_csv"
 
     conditions = ["1=1"]
@@ -627,10 +650,10 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
             ") "
         )
         base_from += " LEFT JOIN _splits _s ON _s.isrc = sr.isrc"
-        rev_expr   = "sr.total_net_revenue * COALESCE(_s.pct, 1.0)"
+        rev_expr   = "sr.net_revenue * COALESCE(_s.pct, 1.0)"
     else:
         cte      = ""
-        rev_expr = "sr.total_net_revenue"
+        rev_expr = "sr.net_revenue"
 
     def q(sql, p=None):
         with _engine.connect() as conn:
@@ -680,7 +703,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         SELECT sr.isrc,
                MAX(sr.track_title_csv) AS title,
                MAX({artist_col}) AS artist,
-               COALESCE(SUM(sr.total_quantity), 0) AS streams,
+               COALESCE(SUM(sr.streams), 0) AS streams,
                COALESCE(SUM({rev_expr}), 0) AS rev
           FROM {base_from} WHERE {where}
          GROUP BY sr.isrc ORDER BY rev DESC LIMIT 50
@@ -690,8 +713,8 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                for r in catalog_rows]
 
     # Dropdown options — split collab strings on comma, deduplicate to individual names
-    _all_artists_from = ("streaming_royalty sr LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv"
-                         if _has_map else "streaming_royalty sr")
+    _all_artists_from = ("royalty_summary sr LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv"
+                         if _has_map else "royalty_summary sr")
     _all_artists_col  = "COALESCE(anm.canonical_name, sr.artist_name_csv)" if _has_map else "sr.artist_name_csv"
     _raw_strings = [r[0] for r in q(
         f"SELECT DISTINCT {_all_artists_col} FROM {_all_artists_from} "
@@ -706,7 +729,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                 _artist_names.add(name)
     all_artists = sorted(_artist_names, key=str.lower)
     all_years = [int(r[0]) for r in q(
-        "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM streaming_royalty "
+        "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
         "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
         {},
     )]
@@ -959,6 +982,7 @@ def purge_all():
     with _engine.connect() as _c:
         _c.execute(_t("DELETE FROM streaming_royalty"))
         _c.execute(_t("DELETE FROM streaming_import"))
+        _c.execute(_t("DELETE FROM royalty_summary"))
         _c.commit()
     _clear_dashboard_cache(_engine)
     flash("All royalty data purged.", "success")

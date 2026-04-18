@@ -315,6 +315,29 @@ def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
         """, (datetime.datetime.now(datetime.timezone.utc), rows_read, rows_aggregated_total,
               rows_skipped, reporting_month, import_id))
         conn.commit()
+
+        # Populate royalty_summary for fast dashboard queries
+        try:
+            cur.execute("""
+                INSERT INTO royalty_summary
+                    (reporting_month, isrc, artist_name_csv, platform, country,
+                     track_title_csv, streams, net_revenue)
+                SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                       MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                  FROM streaming_royalty
+                 WHERE import_id = %s
+                 GROUP BY reporting_month, isrc, platform, country
+                ON CONFLICT (reporting_month, isrc, platform, country) DO UPDATE SET
+                    streams         = royalty_summary.streams     + EXCLUDED.streams,
+                    net_revenue     = royalty_summary.net_revenue + EXCLUDED.net_revenue,
+                    artist_name_csv = EXCLUDED.artist_name_csv,
+                    track_title_csv = EXCLUDED.track_title_csv
+            """, (import_id,))
+            conn.commit()
+        except Exception as _rs_err:
+            conn.rollback()
+            println(f"{prefix} | WARNING: royalty_summary update failed: {_rs_err}")
+
         println(f"{prefix} | DONE  {rows_read:,} rows → {rows_aggregated_total:,} agg  ({elapsed:.1f}s)")
 
     except Exception as e:
