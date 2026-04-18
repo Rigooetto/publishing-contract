@@ -479,7 +479,7 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             row = conn.execute(_t(
                 "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
             ), {"id": import_id}).fetchone()
-        _dash_cache.clear()
+        _clear_dashboard_cache(r_engine)
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
@@ -520,14 +520,58 @@ def _royalties_engine():
     return engine
 
 
+def _clear_dashboard_cache(engine=None):
+    """Delete all persistent dashboard cache entries."""
+    from sqlalchemy import text
+    eng = engine or _royalties_engine()
+    try:
+        with eng.connect() as conn:
+            conn.execute(text("DELETE FROM dashboard_cache"))
+            conn.commit()
+    except Exception:
+        pass
+    _dash_cache.clear()
+
+
 def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
-    """Cache wrapper around _compute_dashboard_data."""
-    key = (year, quarter, artist, view)
-    cached = _dash_cache.get(key)
+    """Two-layer cache: in-memory (fast) → DB (survives restarts) → compute."""
+    from sqlalchemy import text
+    mem_key = (year, quarter, artist, view)
+    cached = _dash_cache.get(mem_key)
     if cached and (_time.time() - cached["ts"]) < _CACHE_TTL:
         return cached["data"]
+
+    db_key = f"{year}|{quarter}|{artist}|{view}"
+    engine = _royalties_engine()
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT data_json FROM dashboard_cache WHERE cache_key = :k"),
+                {"k": db_key}
+            ).fetchone()
+            if row:
+                result = json.loads(row[0])
+                _dash_cache[mem_key] = {"data": result, "ts": _time.time()}
+                return result
+    except Exception:
+        pass
+
     result = _compute_dashboard_data(year, quarter, artist, view)
-    _dash_cache[key] = {"data": result, "ts": _time.time()}
+
+    # Persist to DB cache
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
+                VALUES (:k, :d, NOW())
+                ON CONFLICT (cache_key) DO UPDATE
+                    SET data_json = EXCLUDED.data_json, computed_at = EXCLUDED.computed_at
+            """), {"k": db_key, "d": json.dumps(result)})
+            conn.commit()
+    except Exception:
+        pass
+
+    _dash_cache[mem_key] = {"data": result, "ts": _time.time()}
     return result
 
 
@@ -916,7 +960,20 @@ def purge_all():
         _c.execute(_t("DELETE FROM streaming_royalty"))
         _c.execute(_t("DELETE FROM streaming_import"))
         _c.commit()
+    _clear_dashboard_cache(_engine)
     flash("All royalty data purged.", "success")
+    return redirect(url_for("streaming_royalties.imports_list"))
+
+
+@bp.route("/streaming-royalties/clear-cache", methods=["POST"])
+def clear_cache():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+    _clear_dashboard_cache()
+    flash("Dashboard cache cleared. Charts will recompute on next load.", "success")
     return redirect(url_for("streaming_royalties.imports_list"))
 
 
@@ -1481,7 +1538,10 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% else %}
 <div style="padding:40px;text-align:center;color:var(--t3)">No imports yet. Upload a Believe monthly CSV to get started.</div>
 {% endif %}
-<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b2)">
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b2);display:flex;gap:12px;align-items:center">
+  <form method="post" action="/streaming-royalties/clear-cache">
+    <button class="btn btn-sm">Clear Dashboard Cache</button>
+  </form>
   <form method="post" action="/streaming-royalties/purge-all"
         onsubmit="return confirm('This will delete ALL royalty rows from the database. Are you sure?')">
     <button class="btn btn-sm" style="color:var(--ar)">Purge All Royalty Data</button>
