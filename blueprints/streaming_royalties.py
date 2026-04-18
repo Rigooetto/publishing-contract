@@ -285,6 +285,15 @@ def _process_bulk(app, import_ids):
 
 # ── Dashboard data helper ─────────────────────────────────────────────────────
 
+def _royalties_engine():
+    """Return the SQLAlchemy engine for the royalties database."""
+    engine = db.engines.get('royalties')
+    if engine is None:
+        # Fallback to default engine (e.g. local dev without ROYALTIES_DATABASE_URL)
+        engine = db.engine
+    return engine
+
+
 def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
     from sqlalchemy import text
@@ -328,8 +337,11 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
         from_clause  = "streaming_royalty"
         where_clause = where
 
-    def q(sql):
-        return db.session.execute(text(sql), params).fetchall()
+    _engine = _royalties_engine()
+
+    def q(sql, p=None):
+        with _engine.connect() as conn:
+            return conn.execute(text(sql), p or params).fetchall()
 
     # KPI
     kpi_row = q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {from_clause} WHERE {where_clause}")
@@ -386,11 +398,13 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     # Filter options
     all_artists = [r[0] for r in q(
         "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
-        "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY artist_name_csv"
+        "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY artist_name_csv",
+        {},
     )]
     all_years = [int(r[0]) for r in q(
         "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM streaming_royalty "
-        "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
+        "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
+        {},
     )]
 
     return {
