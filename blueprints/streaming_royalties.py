@@ -527,19 +527,32 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
 
 # ── Dashboard data helper ─────────────────────────────────────────────────────
 
+_engine_local = threading.local()  # thread-local engine override for pre-warmer isolation
+
 def _royalties_engine():
-    """Return the SQLAlchemy engine for the royalties database."""
+    """Return the SQLAlchemy engine for the royalties database.
+    If the current thread has set _engine_local.override, use that instead
+    (pre-warmer uses a NullPool engine so it never corrupts the main pool).
+    """
+    override = getattr(_engine_local, 'override', None)
+    if override is not None:
+        return override
     engine = db.engines.get('royalties')
     if engine is None:
-        # Fallback to default engine (e.g. local dev without ROYALTIES_DATABASE_URL)
         engine = db.engine
     return engine
 
 
 def _prewarm_dashboard_cache():
     """Background thread: pre-compute every artist × year × quarter × view combo into dashboard_cache."""
-    from sqlalchemy import text as _t
-    engine = _royalties_engine()
+    from sqlalchemy import text as _t, create_engine
+    from sqlalchemy.pool import NullPool
+    # Create a dedicated NullPool engine for this thread so it never shares
+    # connections with the main Flask pool — prevents SSL corruption.
+    shared_engine = db.engines.get('royalties') or db.engine
+    db_url = str(shared_engine.url)
+    engine = create_engine(db_url, poolclass=NullPool)
+    _engine_local.override = engine  # all _royalties_engine() calls in this thread use this
     try:
         with engine.connect() as conn:
             year_rows = conn.execute(_t(
@@ -586,6 +599,8 @@ def _prewarm_dashboard_cache():
         except Exception:
             pass
     _prewarm_status.update({"running": False, "current_artist": ""})
+    _engine_local.override = None
+    engine.dispose()
 
 
 def _clear_dashboard_cache(engine=None):
