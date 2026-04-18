@@ -36,7 +36,7 @@ raw_royalties_url = _pg_url((os.getenv("ROYALTIES_DATABASE_URL") or "").strip())
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True, "pool_recycle": 1800, "pool_size": 5, "max_overflow": 10}
 if raw_royalties_url:
     app.config["SQLALCHEMY_BINDS"] = {"royalties": raw_royalties_url}
 

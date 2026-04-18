@@ -577,6 +577,7 @@ def _prewarm_dashboard_cache():
                         pass
                     done += 1
                     _prewarm_status["done"] = done
+                    _time.sleep(0.05)  # throttle to avoid SSL connection pool exhaustion
         try:
             current_app.logger.info(
                 "Cache pre-warm: '%s' done (%d/%d combos)", artist, done, total
