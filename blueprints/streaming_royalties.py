@@ -719,28 +719,37 @@ def catalog_upload():
 # ── Artist Name Consolidation ─────────────────────────────────────────────────
 
 def _norm(s):
-    return unicodedata.normalize('NFD', s.lower()).encode('ascii', 'ignore').decode().strip()
+    """Strip accents + lowercase + collapse spaces."""
+    s = unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode()
+    return ' '.join(s.lower().split())
 
-def _group_similar(names, threshold=0.62):
-    """Cluster names by string similarity. Returns list of lists (largest first)."""
-    names = sorted(set(n for n in names if n))
-    taken = set()
-    groups = []
-    for name in names:
-        if name in taken:
-            continue
-        group = [name]
-        taken.add(name)
-        ni = _norm(name)
-        for other in names:
-            if other in taken:
-                continue
-            if difflib.SequenceMatcher(None, ni, _norm(other)).ratio() >= threshold:
-                group.append(other)
-                taken.add(other)
-        groups.append(group)
-    groups.sort(key=lambda g: -len(g))
+
+def _group_by_normalization(names):
+    """Group names that are identical after stripping accents and case.
+    Names with commas (collaborations) are treated as distinct entries —
+    'Artist A' and 'Artist A, Artist B' will never be in the same group.
+    Returns list of lists, multi-name groups first.
+    """
+    from collections import defaultdict
+    buckets = defaultdict(list)
+    for name in sorted(set(n for n in names if n)):
+        buckets[_norm(name)].append(name)
+    groups = list(buckets.values())
+    groups.sort(key=lambda g: (-len(g), g[0].lower()))
     return groups
+
+
+def _suggest_canonical(group):
+    """Pick the best-looking name from a normalization group.
+    Prefer mixed-case (not all-caps) versions; strip accents from the winner.
+    """
+    # Prefer names that are not all-caps
+    mixed = [n for n in group if n != n.upper()]
+    candidates = mixed if mixed else group
+    # Among candidates, pick the longest (more words = more complete name)
+    best = max(candidates, key=len)
+    # Strip accents so the canonical is accent-free
+    return unicodedata.normalize('NFD', best).encode('ascii', 'ignore').decode()
 
 
 @bp.route("/streaming-royalties/artist-names", methods=["GET", "POST"])
@@ -788,9 +797,9 @@ def artist_names():
         )).fetchall()]
 
     existing_maps = {m.raw_name: m.canonical_name for m in ArtistNameMap.query.all()}
-    groups = _group_similar(raw_names)
+    groups = _group_by_normalization(raw_names)
+    suggestions = {name: _suggest_canonical(g) for g in groups for name in g}
 
-    # Build flat ordered list for the form (multi-name groups first, then singletons)
     ordered = []
     for g in groups:
         for name in g:
@@ -801,6 +810,7 @@ def artist_names():
         ordered=ordered,
         groups=groups,
         existing_maps=existing_maps,
+        suggestions=suggestions,
         total=len(raw_names),
         mapped=len(existing_maps),
         _sidebar_html=_sb("streaming_artist_names"),
@@ -1374,7 +1384,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="main"><div class="page">
 <div class="ph">
   <div class="ph-left"><h1 class="ph-title">Artist Name Consolidation</h1>
-  <div class="ph-sub">Map CSV name variants to a single canonical artist name. Similar names are auto-grouped.</div></div>
+  <div class="ph-sub">Names are grouped when they are identical after removing accents and ignoring case. Comma = collaboration — those are never merged.</div></div>
   <div class="ph-actions"><a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a></div>
 </div>
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -1385,11 +1395,15 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
   <div class="an-stat"><strong>{{ total }}</strong>Distinct raw names</div>
   <div class="an-stat"><strong>{{ mapped }}</strong>Mapped</div>
   <div class="an-stat"><strong>{{ total - mapped }}</strong>Unmapped</div>
-  <div class="an-stat"><strong>{{ groups|length }}</strong>Groups</div>
+  <div class="an-stat"><strong>{{ groups|selectattr('length','gt',1)|list|length if false else groups|length }}</strong>Groups</div>
 </div>
 
-<div style="margin-bottom:14px">
-  <input class="inp" id="srch" placeholder="&#128269; Search..." style="max-width:360px" oninput="doSearch(this.value)">
+<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+  <input class="inp" id="srch" placeholder="&#128269; Search artist name..." style="max-width:340px;flex:1" oninput="doSearch(this.value)">
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);cursor:pointer">
+    <input type="checkbox" id="chkMulti" onchange="toggleMultiOnly(this.checked)"> Show only groups with variants
+  </label>
+  <button type="button" class="btn btn-sec btn-sm" onclick="autoApplyAll()">&#9889; Auto-apply all suggestions</button>
 </div>
 
 <form method="post">
@@ -1401,28 +1415,30 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
   {% set flat = namespace(i=0) %}
   {% for group in groups %}
   {% set gi = loop.index0 %}
-  <div class="an-group" data-search="{{ group|join('|||')|lower }}">
+  {% set sugg = suggestions[group[0]] %}
+  <div class="an-group" data-search="{{ group|join('|||')|lower }}" data-multi="{{ 'y' if group|length > 1 else 'n' }}">
     <div class="an-group-hd">
       {% if group|length > 1 %}
       <span class="an-badge">{{ group|length }} variants</span>
       {% else %}
       <span class="an-badge" style="background:#34d39916;color:#34d399;border-color:#34d39940">1 name</span>
       {% endif %}
-      <span style="font-size:13px;color:var(--t1);font-weight:500">{{ group[0][:60] }}{% if group[0]|length > 60 %}…{% endif %}</span>
-      {% if group|length > 1 %}
+      <span style="font-size:13px;color:var(--t1);font-weight:500">{{ sugg[:60] }}{% if sugg|length > 60 %}…{% endif %}</span>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <input class="inp" id="gc_{{ gi }}" placeholder="Set canonical for all {{ group|length }}…" style="width:280px;font-size:12px">
+        <input class="inp gc-inp" id="gc_{{ gi }}" value="{{ sugg }}"
+               placeholder="Canonical for all {{ group|length }}…"
+               style="width:260px;font-size:12px"
+               data-suggestion="{{ sugg }}">
         <button type="button" class="btn btn-sm" onclick="applyGroup({{ gi }})">Apply to group</button>
       </div>
-      {% endif %}
     </div>
     {% for name in group %}
     <div class="an-row">
       <span class="an-raw" title="{{ name }}">{{ name }}</span>
       <input class="inp row-can" name="canonical_{{ flat.i }}"
              value="{{ existing_maps.get(name, '') }}"
-             placeholder="Leave blank = keep as-is"
-             style="font-size:12.5px" data-gi="{{ gi }}">
+             placeholder="{{ sugg }}"
+             style="font-size:12.5px" data-gi="{{ gi }}" data-suggestion="{{ sugg }}">
       <button type="button" class="an-clear" onclick="this.closest('.an-row').querySelector('.row-can').value=''" title="Clear">&#10005;</button>
     </div>
     {% set flat.i = flat.i + 1 %}
@@ -1442,11 +1458,21 @@ function applyGroup(gi){
   if(!val) return;
   document.querySelectorAll('.row-can[data-gi="'+gi+'"]').forEach(el => el.value = val);
 }
+function autoApplyAll(){
+  document.querySelectorAll('.row-can').forEach(el => {
+    if(!el.value.trim()) el.value = el.dataset.suggestion || '';
+  });
+}
 function doSearch(q){
   q = q.toLowerCase();
   document.querySelectorAll('.an-group').forEach(g => {
-    g.style.display = (!q || g.dataset.search.includes(q)) ? '' : 'none';
+    const matchSearch = !q || g.dataset.search.includes(q);
+    const matchMulti  = !document.getElementById('chkMulti').checked || g.dataset.multi === 'y';
+    g.style.display = (matchSearch && matchMulti) ? '' : 'none';
   });
+}
+function toggleMultiOnly(on){
+  doSearch(document.getElementById('srch').value);
 }
 </script>
 </body></html>"""
