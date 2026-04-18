@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: labelmind
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 300 --graceful-timeout 600 --workers 3
+    stopTimeout: 600

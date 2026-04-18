@@ -10,13 +10,14 @@ import difflib
 import io
 import json
 import os
+import queue as _queue_mod
 import re
 import threading
 import unicodedata
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
-    flash, jsonify, current_app, session,
+    flash, jsonify, current_app, session, Response, stream_with_context,
 )
 from markupsafe import Markup
 from werkzeug.utils import secure_filename
@@ -167,7 +168,7 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total, royalties_engin
     return rows_aggregated_total + len(agg)
 
 
-def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None):
+def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress_callback=None):
     """Stream-parse the CSV and flush aggregated rows to the DB in bounded-memory chunks.
     main_engine / royalties_engine_ are passed by the background thread so it uses
     its own independent connections instead of the shared gunicorn pool."""
@@ -294,9 +295,13 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None):
                 agg.clear()
                 meta.clear()
                 _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
+                if progress_callback:
+                    progress_callback(rows_read, rows_skipped, rows_aggregated_total)
 
             if rows_read % 25_000 == 0:
                 _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
+                if progress_callback:
+                    progress_callback(rows_read, rows_skipped, rows_aggregated_total)
 
     # Final flush for whatever remains in agg
     if agg:
@@ -392,6 +397,107 @@ def _process_bulk(app, import_ids):
     """Background thread: process a list of imports sequentially."""
     for imp_id in import_ids:
         _process_import(app, imp_id)
+
+
+def _process_import_sse(import_id, main_url, royalties_url, progress_q):
+    """Worker thread for SSE streaming imports. Puts progress dicts in progress_q.
+    The SSE route keeps an in-flight HTTP response alive while this runs, so
+    gunicorn's graceful shutdown waits for it instead of killing it immediately."""
+    from sqlalchemy import create_engine, text as _t
+    from sqlalchemy.pool import NullPool
+
+    def _pg(url):
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        if url and "sslmode=" not in url and url.startswith("postgresql://"):
+            url += ("&" if "?" in url else "?") + "sslmode=require"
+        return url
+
+    r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
+    m_engine = create_engine(_pg(main_url),      poolclass=NullPool) if main_url      else None
+
+    def _emit(data):
+        progress_q.put(data)
+
+    try:
+        if r_engine is None:
+            _emit({"status": "error", "error_message": "No royalties DB configured"})
+            return
+
+        # Atomically claim the import (only this request processes it)
+        with r_engine.connect() as conn:
+            result = conn.execute(_t("""
+                UPDATE streaming_import
+                   SET status='processing', started_at=:t
+                 WHERE id=:id AND status='pending'
+            """), {"t": datetime.datetime.utcnow(), "id": import_id})
+            conn.commit()
+            if result.rowcount == 0:
+                # Already claimed or finished — stream current status
+                row = conn.execute(_t(
+                    "SELECT status, rows_read, rows_aggregated, rows_skipped, error_message "
+                    "FROM streaming_import WHERE id=:id"
+                ), {"id": import_id}).fetchone()
+                if row:
+                    _emit({"status": row[0], "rows_read": row[1] or 0,
+                           "rows_aggregated": row[2] or 0, "rows_skipped": row[3] or 0,
+                           "error_message": row[4]})
+                return
+            row = conn.execute(_t("SELECT file_path FROM streaming_import WHERE id=:id"),
+                               {"id": import_id}).fetchone()
+            file_path = row[0] if row else None
+
+        if not file_path:
+            _emit({"status": "error", "error_message": "Import record not found"})
+            return
+
+        _emit({"status": "processing", "rows_read": 0, "rows_aggregated": 0, "rows_skipped": 0})
+
+        class _Rec:
+            id = import_id
+
+        _rec = _Rec()
+        _rec.file_path = file_path
+
+        def _on_progress(rows_read, rows_skipped, rows_aggregated):
+            _emit({"status": "processing", "rows_read": rows_read,
+                   "rows_aggregated": rows_aggregated, "rows_skipped": rows_skipped})
+
+        _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine,
+                             progress_callback=_on_progress)
+
+        # Fetch final counts from DB
+        with r_engine.connect() as conn:
+            row = conn.execute(_t(
+                "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
+            ), {"id": import_id}).fetchone()
+        _emit({"status": "done",
+               "rows_read":      row[0] if row else 0,
+               "rows_aggregated": row[1] if row else 0,
+               "rows_skipped":   row[2] if row else 0})
+
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+
+    except Exception as e:
+        _emit({"status": "error", "error_message": str(e)[:500]})
+        if r_engine:
+            try:
+                with r_engine.connect() as conn:
+                    conn.execute(_t("""
+                        UPDATE streaming_import SET status='error', finished_at=:t, error_message=:e
+                         WHERE id=:id
+                    """), {"t": datetime.datetime.utcnow(), "e": str(e)[:2000], "id": import_id})
+                    conn.commit()
+            except Exception:
+                pass
+    finally:
+        if r_engine:
+            r_engine.dispose()
+        if m_engine:
+            m_engine.dispose()
 
 
 # ── Dashboard data helper ─────────────────────────────────────────────────────
@@ -635,9 +741,6 @@ def import_file():
     db.session.add(rec)
     db.session.commit()
 
-    app_obj = current_app._get_current_object()
-    threading.Thread(target=_process_import, args=(app_obj, rec.id), daemon=True).start()
-
     return redirect(url_for("streaming_royalties.import_status", import_id=rec.id))
 
 
@@ -718,6 +821,43 @@ def import_status_json(import_id):
         "error_message":  rec.error_message,
         "reporting_month": rec.reporting_month.isoformat() if rec.reporting_month else None,
     })
+
+
+@bp.route("/streaming-royalties/import-stream/<int:import_id>")
+def import_stream(import_id):
+    """SSE endpoint: claims + processes the import inline, streaming progress to the browser.
+    Because this is a long-lived in-flight HTTP request, gunicorn's graceful shutdown
+    (triggered by deploys) waits for it to complete rather than killing it immediately."""
+    if auth_required():
+        return Response("data: {\"status\":\"error\"}\n\n", mimetype="text/event-stream")
+
+    main_url      = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    royalties_url = (current_app.config.get("SQLALCHEMY_BINDS") or {}).get("royalties", "")
+
+    q = _queue_mod.Queue()
+
+    t = threading.Thread(
+        target=_process_import_sse,
+        args=(import_id, main_url, royalties_url, q),
+        daemon=True,
+    )
+    t.start()
+
+    def generate():
+        while True:
+            try:
+                event = q.get(timeout=15)
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("status") in ("done", "error"):
+                    break
+            except _queue_mod.Empty:
+                yield ": keepalive\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @bp.route("/streaming-royalties/import/<int:import_id>/delete", methods=["POST"])
@@ -1427,39 +1567,60 @@ const importId = {{ rec.id }};
 const finalStatuses = new Set(['done','error']);
 let currentStatus = '{{ rec.status }}';
 
+function applyUpdate(d){
+  currentStatus = d.status;
+  document.getElementById('rowsRead').textContent = (d.rows_read||0).toLocaleString();
+  document.getElementById('rowsAgg').textContent  = (d.rows_aggregated||0).toLocaleString();
+  document.getElementById('rowsSkip').textContent = (d.rows_skipped||0).toLocaleString();
+  const badge = document.getElementById('statusBadge');
+  if(d.status==='done'){
+    badge.innerHTML='<span style="color:var(--ag)">&#10003; Done</span>';
+    setTimeout(()=>{ location.href='/streaming-royalties'; }, 2000);
+  } else if(d.status==='error'){
+    badge.innerHTML='<span style="color:var(--ar)">&#10007; Error</span>';
+    if(d.error_message){
+      let errBox = document.getElementById('errBox');
+      if(!errBox){
+        errBox=document.createElement('div');
+        errBox.id='errBox';
+        errBox.style='margin-top:14px;background:rgba(255,79,106,.08);border:1px solid rgba(255,79,106,.2);border-radius:8px;padding:12px;font-size:12px;color:var(--ar);word-break:break-all';
+        document.getElementById('statsBox').after(errBox);
+      }
+      errBox.textContent=d.error_message;
+    }
+  } else if(d.status==='processing'){
+    badge.innerHTML='<span style="color:var(--am)">&#9654; Processing…</span>';
+  }
+}
+
+// Use SSE for pending/processing imports; fall back to polling if SSE unsupported
+if(!finalStatuses.has(currentStatus)){
+  if(typeof EventSource !== 'undefined'){
+    const es = new EventSource(`/streaming-royalties/import-stream/${importId}`);
+    es.onmessage = e => {
+      try{
+        const d = JSON.parse(e.data);
+        applyUpdate(d);
+        if(finalStatuses.has(d.status)) es.close();
+      }catch(err){}
+    };
+    es.onerror = () => {
+      es.close();
+      // Fall back to polling if stream dies
+      if(!finalStatuses.has(currentStatus)) setTimeout(poll, 3000);
+    };
+  } else {
+    setTimeout(poll, 2000);
+  }
+}
+
 function poll(){
   if(finalStatuses.has(currentStatus)) return;
   fetch(`/streaming-royalties/import-status/${importId}/json`)
     .then(r=>r.json())
-    .then(d=>{
-      currentStatus = d.status;
-      document.getElementById('rowsRead').textContent = (d.rows_read||0).toLocaleString();
-      document.getElementById('rowsAgg').textContent  = (d.rows_aggregated||0).toLocaleString();
-      document.getElementById('rowsSkip').textContent = (d.rows_skipped||0).toLocaleString();
-      const badge = document.getElementById('statusBadge');
-      if(d.status==='done'){
-        badge.innerHTML='<span style="color:var(--ag)">&#10003; Done</span>';
-        setTimeout(()=>{ location.href='/streaming-royalties'; }, 2000);
-      } else if(d.status==='error'){
-        badge.innerHTML='<span style="color:var(--ar)">&#10007; Error</span>';
-        if(d.error_message){
-          let errBox = document.getElementById('errBox');
-          if(!errBox){
-            errBox=document.createElement('div');
-            errBox.id='errBox';
-            errBox.style='margin-top:14px;background:rgba(255,79,106,.08);border:1px solid rgba(255,79,106,.2);border-radius:8px;padding:12px;font-size:12px;color:var(--ar);word-break:break-all';
-            document.getElementById('statsBox').after(errBox);
-          }
-          errBox.textContent=d.error_message;
-        }
-      } else {
-        setTimeout(poll, 2000);
-      }
-    })
+    .then(d=>{ applyUpdate(d); if(!finalStatuses.has(d.status)) setTimeout(poll, 2000); })
     .catch(()=>setTimeout(poll, 3000));
 }
-
-if(!finalStatuses.has(currentStatus)) setTimeout(poll, 2000);
 </script>
 </body></html>"""
 
