@@ -160,6 +160,17 @@ with app.app_context():
             app.logger.warning("Royalties DB tables ensured.")
         except Exception as _e:
             app.logger.warning("Royalties DB create_all failed: %s", _e)
+        # Widen artist_name_map columns if they were created as VARCHAR(255)
+        try:
+            from sqlalchemy import text as _text
+            _roy_engine = db.engines.get('royalties')
+            if _roy_engine:
+                with _roy_engine.connect() as _c:
+                    _c.execute(_text("ALTER TABLE artist_name_map ALTER COLUMN raw_name TYPE TEXT"))
+                    _c.execute(_text("ALTER TABLE artist_name_map ALTER COLUMN canonical_name TYPE TEXT"))
+                    _c.commit()
+        except Exception:
+            pass  # already TEXT, or table doesn't exist yet — both fine
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt
