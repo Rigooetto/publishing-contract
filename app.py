@@ -32,7 +32,7 @@ def _pg_url(url):
     return url
 
 raw_db_url = _pg_url(os.getenv("DATABASE_URL", "sqlite:///writers.db"))
-raw_royalties_url = _pg_url(os.getenv("ROYALTIES_DATABASE_URL", ""))
+raw_royalties_url = _pg_url((os.getenv("ROYALTIES_DATABASE_URL") or "").strip())
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
