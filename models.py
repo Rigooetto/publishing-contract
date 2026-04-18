@@ -163,6 +163,7 @@ class ArtistRelease(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     artist_id = db.Column(db.Integer, db.ForeignKey("artist.id"), nullable=False, index=True)
     release_id = db.Column(db.Integer, db.ForeignKey("release.id"), nullable=False, index=True)
+    royalty_percentage = db.Column(db.Numeric(5, 2), nullable=True)
     __table_args__ = (db.UniqueConstraint("artist_id", "release_id"),)
 
 
@@ -180,6 +181,19 @@ class Artist(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     releases = db.relationship("Release", secondary="artist_release", backref="linked_artists", lazy="dynamic")
+
+
+class ArtistContract(db.Model):
+    """Royalty contract period for an artist — % is locked per release at signing date."""
+    __tablename__ = "artist_contract"
+    id                 = db.Column(db.Integer, primary_key=True)
+    artist_id          = db.Column(db.Integer, db.ForeignKey("artist.id"), nullable=False, index=True)
+    start_date         = db.Column(db.Date, nullable=False)
+    end_date           = db.Column(db.Date, nullable=True)  # NULL = open / current
+    royalty_percentage = db.Column(db.Numeric(5, 2), nullable=False)
+    notes              = db.Column(db.Text, default="")
+    created_at         = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    artist             = db.relationship("Artist", backref="contracts")
 
 
 # ── Phase 3 — PRO Registration & Reports ─────────────────────────────────────

@@ -3988,7 +3988,7 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       </div>
       <div class="field">
         <label class="label">Release Date</label>
-        <input class="inp" type="date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}">
+        <input class="inp" type="date" id="release_date" name="release_date" value="{{ release.release_date.strftime('%Y-%m-%d') if release and release.release_date else '' }}">
       </div>
       <div class="field">
         <label class="label">Number of Tracks</label>
@@ -4012,16 +4012,24 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
       <button type="button" class="btn btn-sec btn-xs" onclick="addArtist('albumArtistList')">+ Add Artist</button>
     </div>
     <div id="albumArtistList" style="margin-top:8px">
-      {% if artists %}
-        {% for a in artists %}
+      {% if artist_rows %}
+        {% for a_name, a_pct, a_id in artist_rows %}
         <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-          <input class="inp" name="artist_1" value="{{ a }}" placeholder="{% if loop.first %}Primary artist *{% else %}Additional artist{% endif %}" style="flex:1">
+          <input class="inp album-artist-inp" name="artist_1" value="{{ a_name }}" data-artist-id="{{ a_id or '' }}" placeholder="{% if loop.first %}Primary artist *{% else %}Additional artist{% endif %}" style="flex:1">
+          <div style="display:flex;flex-direction:column;min-width:90px">
+            <label style="font-size:10px;color:var(--t3);margin-bottom:2px">Royalty %</label>
+            <input class="inp royalty-pct-inp" name="royalty_pct_1" type="number" min="0" max="100" step="0.01" value="{{ '%.2f'|format(a_pct|float) if a_pct else '' }}" placeholder="auto" style="width:90px">
+          </div>
           {% if not loop.first %}<button type="button" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent" onclick="this.closest('.artist-row').remove()">X</button>{% endif %}
         </div>
         {% endfor %}
       {% else %}
         <div class="artist-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-          <input class="inp" name="artist_1" placeholder="Primary artist *" style="flex:1">
+          <input class="inp album-artist-inp" name="artist_1" placeholder="Primary artist *" data-artist-id="" style="flex:1">
+          <div style="display:flex;flex-direction:column;min-width:90px">
+            <label style="font-size:10px;color:var(--t3);margin-bottom:2px">Royalty %</label>
+            <input class="inp royalty-pct-inp" name="royalty_pct_1" type="number" min="0" max="100" step="0.01" placeholder="auto" style="width:90px">
+          </div>
         </div>
       {% endif %}
     </div>
@@ -4154,19 +4162,37 @@ var trackCount = {{ tracks|length if tracks else 0 }};
 function addArtist(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
-  var existing = container.querySelectorAll('.artist-row input');
-  var name = existing.length > 0 ? existing[0].name : 'artist_1';
+  var isAlbum = containerId === 'albumArtistList';
+  var existing = container.querySelectorAll('.artist-row input.inp');
+  var inputName = existing.length > 0 ? existing[0].name : 'artist_1';
   var row = document.createElement('div');
   row.className = 'artist-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
-  var inp = document.createElement('input'); inp.className = 'inp';
-  inp.name = name; inp.placeholder = 'Additional artist'; inp.style.flex = '1';
+  var inp = document.createElement('input');
+  inp.className = isAlbum ? 'inp album-artist-inp' : 'inp';
+  inp.name = inputName; inp.placeholder = 'Additional artist'; inp.style.flex = '1';
+  inp.dataset.artistId = '';
+  row.appendChild(inp);
+  if (isAlbum) {
+    var pctWrap = document.createElement('div');
+    pctWrap.style.cssText = 'display:flex;flex-direction:column;min-width:90px';
+    var pctLabel = document.createElement('label');
+    pctLabel.style.cssText = 'font-size:10px;color:var(--t3);margin-bottom:2px';
+    pctLabel.textContent = 'Royalty %';
+    var pctInp = document.createElement('input');
+    pctInp.className = 'inp royalty-pct-inp'; pctInp.name = 'royalty_pct_1';
+    pctInp.type = 'number'; pctInp.min = '0'; pctInp.max = '100'; pctInp.step = '0.01';
+    pctInp.placeholder = 'auto'; pctInp.style.width = '90px';
+    pctWrap.appendChild(pctLabel); pctWrap.appendChild(pctInp);
+    row.appendChild(pctWrap);
+  }
   var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-xs';
   btn.style.cssText = 'color:var(--ar);border-color:var(--ar);background:transparent';
   btn.textContent = 'X';
   btn.onclick = function(){ this.closest('.artist-row').remove(); };
-  row.appendChild(inp); row.appendChild(btn);
+  row.appendChild(btn);
   container.appendChild(row);
+  if (isAlbum) setupArtistInput(inp);
 }
 
 function makeField(labelText, inputAttrs) {
@@ -4568,6 +4594,24 @@ function _ensureArtistSugg(inp) {
 }
 
 var _artistSuggCounter = 0;
+
+function _autoFillRoyaltyPct(inp, artistId) {
+  var row = inp.closest('.artist-row');
+  if (!row) return;
+  var pctInp = row.querySelector('.royalty-pct-inp');
+  if (!pctInp || pctInp.value.trim() !== '') return; // don't overwrite manual entry
+  if (!artistId) return;
+  var releaseDate = (document.getElementById('release_date') || {}).value || '';
+  if (!releaseDate) return;
+  fetch('/api/artist-contract-rate?artist_id=' + encodeURIComponent(artistId) + '&date=' + encodeURIComponent(releaseDate))
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (data.percentage !== null && data.percentage !== undefined) {
+        pctInp.value = parseFloat(data.percentage).toFixed(2);
+      }
+    }).catch(function(){});
+}
+
 function setupArtistInput(inp) {
   if (inp.dataset.asuggId) return; // already wired
   inp.dataset.asuggId = ++_artistSuggCounter;
@@ -4577,17 +4621,21 @@ function setupArtistInput(inp) {
     if (q.length < 2) { sugg.style.display = 'none'; return; }
     fetch('/artists/search?q=' + encodeURIComponent(q))
       .then(function(r){ return r.json(); })
-      .then(function(names){
-        if (!names.length) { sugg.style.display = 'none'; return; }
+      .then(function(results){
+        if (!results.length) { sugg.style.display = 'none'; return; }
         sugg.innerHTML = '';
-        names.forEach(function(name){
+        results.forEach(function(artist){
+          var name = typeof artist === 'string' ? artist : artist.name;
+          var aid  = typeof artist === 'object' ? (artist.id || '') : '';
           var item = document.createElement('div');
           item.style.cssText = 'padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--b1)';
           item.textContent = name;
           item.addEventListener('mousedown', function(e){
             e.preventDefault();
             inp.value = name;
+            inp.dataset.artistId = aid;
             sugg.style.display = 'none';
+            if (inp.classList.contains('album-artist-inp')) _autoFillRoyaltyPct(inp, aid);
           });
           sugg.appendChild(item);
         });
@@ -4598,6 +4646,21 @@ function setupArtistInput(inp) {
     setTimeout(function(){ var s = _ensureArtistSugg(inp); s.style.display = 'none'; }, 150);
   });
 }
+
+// Re-trigger royalty % auto-fill for all album artists when release date changes
+document.addEventListener('DOMContentLoaded', function(){
+  var dateInp = document.getElementById('release_date');
+  if (dateInp) {
+    dateInp.addEventListener('change', function(){
+      document.querySelectorAll('#albumArtistList .album-artist-inp').forEach(function(inp){
+        var aid = inp.dataset.artistId;
+        var row = inp.closest('.artist-row');
+        var pctInp = row ? row.querySelector('.royalty-pct-inp') : null;
+        if (aid && pctInp && pctInp.value.trim() === '') _autoFillRoyaltyPct(inp, aid);
+      });
+    });
+  }
+});
 
 // Wire existing artist inputs and observe new ones
 document.addEventListener('DOMContentLoaded', function(){
@@ -5075,6 +5138,56 @@ ARTIST_DETAIL_HTML = """<!DOCTYPE html>
       <div class="info-item"><label>Added</label><span>{{ artist.created_at.strftime('%b %d, %Y') if artist.created_at else '--' }}</span></div>
       <div class="info-item"><label>Last Updated</label><span>{{ artist.updated_at.strftime('%b %d, %Y') if artist.updated_at else '--' }}</span></div>
     </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#128200;</div><span class="card-title">Royalty Contracts</span></div>
+  <div class="card-body">
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>{% endif %}
+    {% endwith %}
+    <div class="tbl-wrap" style="margin-bottom:18px">
+      <table class="tbl" style="table-layout:auto">
+        <thead>
+          <tr>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Royalty %</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contracts %}
+          <tr>
+            <td style="font-size:13px">{{ c.start_date.strftime('%b %d, %Y') }}</td>
+            <td style="font-size:13px;color:var(--t2)">{{ c.end_date.strftime('%b %d, %Y') if c.end_date else '<span style="color:var(--s1);font-weight:600">Open</span>' | safe }}</td>
+            <td><span style="background:rgba(99,133,255,.1);color:var(--a);border:1px solid rgba(99,133,255,.2);border-radius:99px;padding:2px 10px;font-size:12px;font-weight:700">{{ '%.2f'|format(c.royalty_percentage|float) }}%</span></td>
+            <td style="font-size:12px;color:var(--t2)">{{ c.notes or '--' }}</td>
+            <td>
+              <form method="POST" action="/artists/{{ artist.id }}/contracts/{{ c.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this contract period?')">
+                <button type="submit" class="btn btn-xs" style="color:var(--ar);border-color:var(--ar);background:transparent">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not contracts %}
+          <tr class="empty"><td colspan="5">No contracts on file. Add one below.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--t1)">Add Contract Period</div>
+    <form method="POST" action="/artists/{{ artist.id }}/contracts/add">
+      <div class="g g4" style="gap:10px;align-items:flex-end">
+        <div class="field"><label class="label">Start Date *</label><input class="inp" type="date" name="start_date" required></div>
+        <div class="field"><label class="label">End Date <span style="color:var(--t3);font-size:10px">leave blank if current</span></label><input class="inp" type="date" name="end_date"></div>
+        <div class="field"><label class="label">Royalty % *</label><input class="inp" type="number" name="royalty_percentage" min="0" max="100" step="0.01" required placeholder="e.g. 25.00"></div>
+        <div class="field"><label class="label">Notes</label><input class="inp" name="notes" placeholder="Optional"></div>
+      </div>
+      <div style="margin-top:10px"><button type="submit" class="btn btn-primary btn-sm">Add Contract</button></div>
+    </form>
   </div>
 </div>
 

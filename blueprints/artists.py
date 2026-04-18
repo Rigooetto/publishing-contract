@@ -5,7 +5,10 @@ from flask import current_app
 from sqlalchemy import func, or_
 
 from extensions import db
-from models import Artist, Release
+import datetime
+import decimal
+
+from models import Artist, Release, ArtistContract
 from utils import auth_required, safe_json_loads
 from ui import ARTISTS_LIST_HTML, ARTIST_DETAIL_HTML, ARTIST_FORM_HTML
 
@@ -84,7 +87,65 @@ def artist_detail(artist_id):
     for r in releases:
         r.artists_list = safe_json_loads(r.artists)
         r.artist_display = ", ".join(r.artists_list)
-    return render_template_string(ARTIST_DETAIL_HTML, artist=artist, releases=releases)
+    contracts = ArtistContract.query.filter_by(artist_id=artist.id).order_by(ArtistContract.start_date.desc()).all()
+    return render_template_string(ARTIST_DETAIL_HTML, artist=artist, releases=releases, contracts=contracts)
+
+
+@bp.route("/artists/<int:artist_id>/contracts/add", methods=["POST"])
+def artist_contract_add(artist_id):
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    artist = Artist.query.get_or_404(artist_id)
+    form = request.form
+    try:
+        start_str = form.get("start_date", "").strip()
+        end_str   = form.get("end_date", "").strip()
+        pct_str   = form.get("royalty_percentage", "").strip()
+        if not start_str or not pct_str:
+            flash("Start date and royalty % are required.")
+            return redirect(url_for("artists.artist_detail", artist_id=artist_id))
+        start_date = datetime.date.fromisoformat(start_str)
+        end_date   = datetime.date.fromisoformat(end_str) if end_str else None
+        pct        = decimal.Decimal(pct_str)
+        if pct < 0 or pct > 100:
+            flash("Royalty % must be between 0 and 100.")
+            return redirect(url_for("artists.artist_detail", artist_id=artist_id))
+        # Overlap check
+        existing = ArtistContract.query.filter_by(artist_id=artist.id).all()
+        for c in existing:
+            c_end = c.end_date or datetime.date(9999, 12, 31)
+            new_end = end_date or datetime.date(9999, 12, 31)
+            if start_date <= c_end and new_end >= c.start_date:
+                flash(f"Date range overlaps with existing contract ({c.start_date} – {c.end_date or 'open'}).")
+                return redirect(url_for("artists.artist_detail", artist_id=artist_id))
+        db.session.add(ArtistContract(
+            artist_id=artist.id,
+            start_date=start_date,
+            end_date=end_date,
+            royalty_percentage=pct,
+            notes=form.get("notes", "").strip(),
+        ))
+        db.session.commit()
+        flash("Contract added.")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error adding contract: {e}")
+    return redirect(url_for("artists.artist_detail", artist_id=artist_id))
+
+
+@bp.route("/artists/<int:artist_id>/contracts/<int:contract_id>/delete", methods=["POST"])
+def artist_contract_delete(artist_id, contract_id):
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    c = ArtistContract.query.filter_by(id=contract_id, artist_id=artist_id).first_or_404()
+    try:
+        db.session.delete(c)
+        db.session.commit()
+        flash("Contract deleted.")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting contract: {e}")
+    return redirect(url_for("artists.artist_detail", artist_id=artist_id))
 
 
 @bp.route("/artists/<int:artist_id>/edit", methods=["GET", "POST"])

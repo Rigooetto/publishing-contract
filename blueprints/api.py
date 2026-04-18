@@ -5,7 +5,7 @@ from sqlalchemy import func, or_
 
 from extensions import db
 
-from models import Writer, Work, WorkWriter, Release, Track
+from models import Writer, Work, WorkWriter, Release, Track, Artist, ArtistContract
 from utils import auth_required, default_publisher_for_pro, default_publisher_ipi_for_pro, build_full_name, normalize_title, build_session_name, safe_json_loads
 from ui import WRITER_MODAL_HTML
 
@@ -211,22 +211,41 @@ def artists_search():
     q = (request.args.get("q") or "").strip()
     if len(q) < 2:
         return jsonify([])
-    # Collect unique artist names from both Release.artists and Track.artists
     like_q = f"%{q.lower()}%"
-    seen = set()
-    results = []
-    for row in Release.query.filter(Release.artists.ilike(like_q)).limit(50).all():
-        for name in (safe_json_loads(row.artists)):
+    # Search the Artist table first for id+name pairs
+    matched = Artist.query.filter(func.lower(Artist.name).like(like_q)).order_by(Artist.name).limit(20).all()
+    seen = {a.name for a in matched}
+    results = [{"id": a.id, "name": a.name} for a in matched]
+    # Fall back to names stored in Release.artists JSON (no Artist row yet)
+    for row in Release.query.filter(Release.artists.ilike(like_q)).limit(30).all():
+        for name in safe_json_loads(row.artists):
             if q.lower() in name.lower() and name not in seen:
                 seen.add(name)
-                results.append(name)
-    for row in Track.query.filter(Track.artists.ilike(like_q)).limit(50).all():
-        for name in (safe_json_loads(row.artists)):
-            if q.lower() in name.lower() and name not in seen:
-                seen.add(name)
-                results.append(name)
-    results.sort(key=lambda s: s.lower())
+                results.append({"id": None, "name": name})
+    results.sort(key=lambda x: x["name"].lower())
     return jsonify(results[:10])
+
+
+@bp.route("/api/artist-contract-rate")
+def artist_contract_rate():
+    if auth_required():
+        return jsonify({"percentage": None})
+    try:
+        artist_id = int(request.args.get("artist_id", 0))
+        date_str = (request.args.get("date") or "").strip()
+        if not artist_id or not date_str:
+            return jsonify({"percentage": None})
+        ref_date = datetime.date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        return jsonify({"percentage": None})
+    contract = ArtistContract.query.filter(
+        ArtistContract.artist_id == artist_id,
+        ArtistContract.start_date <= ref_date,
+        db.or_(ArtistContract.end_date == None, ArtistContract.end_date >= ref_date),  # noqa: E711
+    ).order_by(ArtistContract.start_date.desc()).first()
+    if contract:
+        return jsonify({"percentage": float(contract.royalty_percentage)})
+    return jsonify({"percentage": None})
 
 
 @bp.route("/tracks/search")

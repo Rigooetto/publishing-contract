@@ -1,3 +1,4 @@
+import decimal
 import json
 import datetime
 import traceback
@@ -7,7 +8,7 @@ from flask import current_app
 from sqlalchemy import func as _func
 
 from extensions import db
-from models import Release, Track, TrackWork, GenerationBatch, Artist, ArtistRelease
+from models import Release, Track, TrackWork, GenerationBatch, Artist, ArtistRelease, ArtistRoyaltySplit
 from utils import auth_required, safe_json_loads
 from ui import RELEASES_LIST_HTML, RELEASE_FORM_HTML, RELEASE_DETAIL_HTML
 
@@ -83,7 +84,7 @@ def release_new():
     if request.method == "POST":
         return _save_release(None)
     batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
-    return render_template_string(RELEASE_FORM_HTML, release=None, tracks=[], artists=[], batches=batches)
+    return render_template_string(RELEASE_FORM_HTML, release=None, tracks=[], artist_rows=[], batches=batches)
 
 
 @bp.route("/releases/<int:release_id>/edit", methods=["GET", "POST"])
@@ -94,11 +95,18 @@ def release_edit(release_id):
     if request.method == "POST":
         return _save_release(r)
     artists = safe_json_loads(r.artists)
+    # Build (name, pct, artist_id) triples for the form
+    ar_map = {}
+    for ar in ArtistRelease.query.filter_by(release_id=r.id).all():
+        a = Artist.query.get(ar.artist_id)
+        if a:
+            ar_map[a.name.lower()] = (ar.royalty_percentage, ar.artist_id)
+    artist_rows = [(name, *ar_map.get(name.lower(), (None, None))) for name in artists]
     tracks = r.tracks
     for t in tracks:
         t.artists_list = safe_json_loads(t.artists)
     batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
-    return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artists=artists, batches=batches)
+    return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artist_rows=artist_rows, batches=batches)
 
 
 @bp.route("/releases/<int:release_id>")
@@ -250,8 +258,9 @@ def _save_release(existing):
         r.num_tracks = int(manual_num) if manual_num.isdigit() else len(kept_track_ids)
 
         # --- Sync ArtistRelease join rows ---
+        pcts = form.getlist("royalty_pct_1")
         ArtistRelease.query.filter_by(release_id=r.id).delete(synchronize_session="fetch")
-        for name in artists:
+        for idx, name in enumerate(artists):
             name = name.strip()
             if not name:
                 continue
@@ -260,9 +269,21 @@ def _save_release(existing):
                 artist = Artist(name=name)
                 db.session.add(artist)
                 db.session.flush()
-            db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id))
+            pct_raw = pcts[idx].strip() if idx < len(pcts) else ""
+            try:
+                pct = decimal.Decimal(pct_raw) if pct_raw else None
+            except Exception:
+                pct = None
+            db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id, royalty_percentage=pct))
 
         db.session.commit()
+
+        # Sync ArtistRoyaltySplit for tracks that have ISRCs
+        try:
+            _sync_royalty_splits(r)
+        except Exception as _se:
+            current_app.logger.warning("royalty split sync failed: %s", _se)
+
         flash("Release saved.")
         return redirect(url_for("releases.release_detail", release_id=r.id))
 
@@ -272,3 +293,31 @@ def _save_release(existing):
         current_app.logger.error(traceback.format_exc())
         flash("Error saving release: " + str(e))
         return redirect(request.referrer or url_for("releases.releases_list"))
+
+
+def _sync_royalty_splits(release):
+    """Upsert ArtistRoyaltySplit rows for every ISRC on this release, per artist with a royalty %."""
+    ar_rows = ArtistRelease.query.filter_by(release_id=release.id).all()
+    for ar in ar_rows:
+        if ar.royalty_percentage is None:
+            continue
+        artist = Artist.query.get(ar.artist_id)
+        if not artist:
+            continue
+        for track in release.tracks:
+            if not track.isrc:
+                continue
+            existing = ArtistRoyaltySplit.query.filter_by(
+                isrc=track.isrc, artist_name=artist.name
+            ).first()
+            if existing:
+                existing.percentage = ar.royalty_percentage
+                existing.artist_id  = ar.artist_id
+            else:
+                db.session.add(ArtistRoyaltySplit(
+                    isrc=track.isrc,
+                    artist_name=artist.name,
+                    artist_id=ar.artist_id,
+                    percentage=ar.royalty_percentage,
+                ))
+    db.session.commit()
