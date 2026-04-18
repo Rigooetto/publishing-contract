@@ -301,10 +301,22 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
     from sqlalchemy import text
 
-    # All queries join artist_name_map so canonical names are applied on the fly
-    base_from  = ("streaming_royalty sr "
-                  "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv")
-    artist_col = "COALESCE(anm.canonical_name, sr.artist_name_csv)"
+    # Check whether artist_name_map exists so the LEFT JOIN is safe
+    _engine = _royalties_engine()
+    try:
+        with _engine.connect() as _chk:
+            _chk.execute(text("SELECT 1 FROM artist_name_map LIMIT 1"))
+        _has_map = True
+    except Exception:
+        _has_map = False
+
+    if _has_map:
+        base_from  = ("streaming_royalty sr "
+                      "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv")
+        artist_col = "COALESCE(anm.canonical_name, sr.artist_name_csv)"
+    else:
+        base_from  = "streaming_royalty sr"
+        artist_col = "sr.artist_name_csv"
 
     conditions = ["1=1"]
     params = {}
@@ -336,8 +348,6 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
         )
     else:
         rev_expr = "sr.total_net_revenue"
-
-    _engine = _royalties_engine()
 
     def q(sql, p=None):
         with _engine.connect() as conn:
@@ -396,10 +406,11 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
                for r in catalog_rows]
 
     # Dropdown options — deduplicated canonical names
+    _all_artists_from = ("streaming_royalty sr LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv"
+                         if _has_map else "streaming_royalty sr")
+    _all_artists_col  = "COALESCE(anm.canonical_name, sr.artist_name_csv)" if _has_map else "sr.artist_name_csv"
     all_artists = [r[0] for r in q(
-        "SELECT DISTINCT COALESCE(anm.canonical_name, sr.artist_name_csv) "
-        "FROM streaming_royalty sr "
-        "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv "
+        f"SELECT DISTINCT {_all_artists_col} FROM {_all_artists_from} "
         "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != '' ORDER BY 1",
         {},
     )]
@@ -796,7 +807,10 @@ def artist_names():
             "ORDER BY artist_name_csv"
         )).fetchall()]
 
-    existing_maps = {m.raw_name: m.canonical_name for m in ArtistNameMap.query.all()}
+    try:
+        existing_maps = {m.raw_name: m.canonical_name for m in ArtistNameMap.query.all()}
+    except Exception:
+        existing_maps = {}
     groups = _group_by_normalization(raw_names)
     suggestions = {name: _suggest_canonical(g) for g in groups for name in g}
 
