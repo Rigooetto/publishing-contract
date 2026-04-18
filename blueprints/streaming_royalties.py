@@ -293,10 +293,10 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None):
                                                     rows_aggregated_total, royalties_engine_)
                 agg.clear()
                 meta.clear()
-                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, main_engine)
+                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
 
             if rows_read % 25_000 == 0:
-                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, main_engine)
+                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
 
     # Final flush for whatever remains in agg
     if agg:
@@ -305,7 +305,7 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None):
         rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
                                             rows_aggregated_total, royalties_engine_)
 
-    _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, main_engine,
+    _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_,
                    reporting_month=reporting_month_seen)
 
 

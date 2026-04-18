@@ -175,17 +175,20 @@ with app.app_context():
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt
-        from models import StreamingImport as _SI
-        stuck = _SI.query.filter_by(status="processing").all()
-        for _s in stuck:
-            _s.status        = "error"
-            _s.error_message = "Processing was interrupted by a server restart. Please re-upload the file."
-            _s.finished_at   = _dt.datetime.utcnow()
-        if stuck:
-            db.session.commit()
-            app.logger.warning("Cleaned up %d stuck streaming imports", len(stuck))
-    except Exception:
-        pass
+        from sqlalchemy import text as _text
+        _cleanup_engine = db.engines.get('royalties') or db.engine
+        with _cleanup_engine.connect() as _cc:
+            result = _cc.execute(_text("""
+                UPDATE streaming_import
+                   SET status='error',
+                       error_message='Processing was interrupted by a server restart. Please re-upload the file.',
+                       finished_at=:t
+                 WHERE status='processing'
+            """), {"t": _dt.datetime.utcnow()})
+            _cc.commit()
+            app.logger.warning("Cleaned up %d stuck streaming imports", result.rowcount)
+    except Exception as _ce:
+        app.logger.warning("Stuck import cleanup failed: %s", _ce)
 
 
 if __name__ == "__main__":
