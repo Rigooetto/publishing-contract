@@ -60,18 +60,54 @@ def _parse_decimal(val):
         return decimal.Decimal(0)
 
 
-def _isrc_to_track_map(isrc_set):
-    """Return {isrc: track_id} using a lightweight column-only query (no ORM objects)."""
+def _isrc_to_track_map(isrc_set, main_engine=None):
+    """Return {isrc: track_id}.  Uses main_engine if provided (background thread),
+    otherwise falls back to db.session (request context)."""
+    from sqlalchemy import text as _t
+    if main_engine is not None:
+        with main_engine.connect() as conn:
+            rows = conn.execute(
+                _t("SELECT isrc, id FROM track WHERE isrc = ANY(:isrcs)"),
+                {"isrcs": list(isrc_set)}
+            ).fetchall()
+        return {r[0]: r[1] for r in rows}
     from models import Track
     from sqlalchemy import select
     rows = db.session.execute(
         select(Track.isrc, Track.id).where(Track.isrc.in_(list(isrc_set)))
     ).fetchall()
-    db.session.expunge_all()  # clear identity map so Track objects don't accumulate
+    db.session.expunge_all()
     return {r[0]: r[1] for r in rows}
 
 
-def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
+def _save_progress(rec, rows_read, rows_skipped, rows_aggregated, engine=None,
+                   reporting_month=None):
+    """Persist import progress to the main DB.  Uses engine if given (background thread)."""
+    from sqlalchemy import text as _t
+    if engine is not None:
+        with engine.connect() as conn:
+            conn.execute(_t("""
+                UPDATE streaming_import
+                   SET rows_read=:r, rows_skipped=:s, rows_aggregated=:a
+                       {rm}
+                 WHERE id=:id
+            """.format(rm=", reporting_month=:rm" if reporting_month else "")),
+                {
+                    "r": rows_read, "s": rows_skipped, "a": rows_aggregated,
+                    "id": rec.id,
+                    **({"rm": reporting_month} if reporting_month else {}),
+                })
+            conn.commit()
+    else:
+        rec.rows_read       = rows_read
+        rec.rows_skipped    = rows_skipped
+        rec.rows_aggregated = rows_aggregated
+        if reporting_month:
+            rec.reporting_month = reporting_month
+        db.session.commit()
+
+
+def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total, royalties_engine_=None):
     """UPSERT the current agg dict into StreamingRoyalty via the royalties engine directly."""
     from sqlalchemy import text as _t
 
@@ -91,7 +127,7 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
             track_map.get(isrc), now,
         ))
 
-    _engine = _royalties_engine()
+    _engine = royalties_engine_ if royalties_engine_ is not None else _royalties_engine()
     UPSERT = """
         INSERT INTO streaming_royalty (
             import_id, isrc, platform, country, sales_type,
@@ -131,8 +167,10 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
     return rows_aggregated_total + len(agg)
 
 
-def _aggregate_and_store(rec):
-    """Stream-parse the CSV and flush aggregated rows to the DB in bounded-memory chunks."""
+def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None):
+    """Stream-parse the CSV and flush aggregated rows to the DB in bounded-memory chunks.
+    main_engine / royalties_engine_ are passed by the background thread so it uses
+    its own independent connections instead of the shared gunicorn pool."""
     from models import StreamingRoyalty
 
     agg = {}       # key → dict of accumulated values (cleared every FLUSH_EVERY unique keys)
@@ -250,60 +288,102 @@ def _aggregate_and_store(rec):
             # Flush and clear agg dict when it reaches FLUSH_EVERY unique keys
             if len(agg) >= FLUSH_EVERY:
                 isrc_set = {k[0] for k in agg}
-                track_map = _isrc_to_track_map(isrc_set)
-                rows_aggregated_total = _flush_agg(rec, agg, meta, track_map, rows_aggregated_total)
+                track_map = _isrc_to_track_map(isrc_set, main_engine)
+                rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
+                                                    rows_aggregated_total, royalties_engine_)
                 agg.clear()
                 meta.clear()
-                rec.rows_read       = rows_read
-                rec.rows_skipped    = rows_skipped
-                rec.rows_aggregated = rows_aggregated_total
-                db.session.commit()
+                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, main_engine)
 
             if rows_read % 25_000 == 0:
-                rec.rows_read    = rows_read
-                rec.rows_skipped = rows_skipped
-                db.session.commit()
+                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, main_engine)
 
     # Final flush for whatever remains in agg
     if agg:
         isrc_set = {k[0] for k in agg}
-        tracks = Track.query.filter(Track.isrc.in_(isrc_set)).all()
-        track_map = {t.isrc: t.id for t in tracks}
-        rows_aggregated_total = _flush_agg(rec, agg, meta, track_map, rows_aggregated_total)
+        track_map = _isrc_to_track_map(isrc_set, main_engine)
+        rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
+                                            rows_aggregated_total, royalties_engine_)
 
-    rec.rows_read       = rows_read
-    rec.rows_aggregated = rows_aggregated_total
-    rec.rows_skipped    = rows_skipped
-    if reporting_month_seen:
-        rec.reporting_month = reporting_month_seen
-    db.session.commit()
+    _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, main_engine,
+                   reporting_month=reporting_month_seen)
 
 
 def _process_import(app, import_id):
-    """Background thread: process one StreamingImport record."""
+    """Background thread: process one StreamingImport record.
+    Creates its own NullPool engines so it never contends with gunicorn's connection pool."""
+    from sqlalchemy import create_engine, text as _t
+    from sqlalchemy.pool import NullPool
+
     with app.app_context():
-        from models import StreamingImport
-        rec = StreamingImport.query.get(import_id)
-        if rec is None:
+        main_url      = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        royalties_url = (app.config.get("SQLALCHEMY_BINDS") or {}).get("royalties", "")
+
+    def _pg(url):
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        if url and "sslmode=" not in url and url.startswith("postgresql://"):
+            url += ("&" if "?" in url else "?") + "sslmode=require"
+        return url
+
+    m_engine = create_engine(_pg(main_url),      poolclass=NullPool) if main_url      else None
+    r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
+
+    def _update_status(status, error=None):
+        if m_engine is None:
             return
-        rec.status     = "processing"
-        rec.started_at = datetime.datetime.utcnow()
-        db.session.commit()
+        with m_engine.connect() as conn:
+            if error:
+                conn.execute(_t("""
+                    UPDATE streaming_import
+                       SET status=:s, finished_at=:f, error_message=:e
+                     WHERE id=:id
+                """), {"s": status, "f": datetime.datetime.utcnow(), "e": str(error)[:2000], "id": import_id})
+            else:
+                conn.execute(_t("""
+                    UPDATE streaming_import SET status=:s, finished_at=:f WHERE id=:id
+                """), {"s": status, "f": datetime.datetime.utcnow(), "id": import_id})
+            conn.commit()
+
+    try:
+        # Mark processing + get file_path
+        file_path = None
+        with m_engine.connect() as conn:
+            conn.execute(_t("""
+                UPDATE streaming_import SET status='processing', started_at=:t WHERE id=:id
+            """), {"t": datetime.datetime.utcnow(), "id": import_id})
+            conn.commit()
+            row = conn.execute(_t("SELECT file_path FROM streaming_import WHERE id=:id"),
+                               {"id": import_id}).fetchone()
+            if row:
+                file_path = row[0]
+
+        if not file_path:
+            _update_status("error", "Import record not found")
+            return
+
+        # Build a lightweight rec-like object the helpers can use
+        class _Rec:
+            id = import_id
+            file_path = None
+
+        _rec = _Rec()
+        _rec.file_path = file_path
+
+        _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
+        _update_status("done")
         try:
-            _aggregate_and_store(rec)
-            rec.status      = "done"
-            rec.finished_at = datetime.datetime.utcnow()
-            db.session.commit()
-            try:
-                os.remove(rec.file_path)
-            except OSError:
-                pass
-        except Exception as e:
-            db.session.rollback()
-            rec.status        = "error"
-            rec.error_message = str(e)[:2000]
-            rec.finished_at   = datetime.datetime.utcnow()
-            db.session.commit()
+            os.remove(file_path)
+        except OSError:
+            pass
+
+    except Exception as e:
+        _update_status("error", e)
+    finally:
+        if m_engine:
+            m_engine.dispose()
+        if r_engine:
+            r_engine.dispose()
 
 
 def _process_bulk(app, import_ids):
