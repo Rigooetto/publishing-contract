@@ -239,8 +239,12 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
             try:
                 isrc = raw_row[col["isrc"]].strip().strip('"').upper()
                 if not isrc:
-                    rows_skipped += 1
-                    continue
+                    upc = raw_row[col["upc"]].strip().strip('"') if "upc" in col else ""
+                    if upc:
+                        isrc = f"UPC:{upc}"
+                    else:
+                        rows_skipped += 1
+                        continue
 
                 rep_month = _parse_date(raw_row[col["reporting_month"]])
                 sal_month = _parse_date(raw_row[col["sales_month"]])

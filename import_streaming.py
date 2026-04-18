@@ -162,7 +162,7 @@ ON CONFLICT ON CONSTRAINT uq_streaming_royalty_agg_key DO UPDATE SET
 """
 
 def flush_agg(conn, cur, import_id, agg, meta, track_map):
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     rows = []
     for key, vals in agg.items():
         isrc, platform, country, sales_type, rep_iso, sal_iso = key
@@ -189,13 +189,22 @@ def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
     file_size_mb = os.path.getsize(csv_path) / 1_048_576
     prefix = f"[{file_index}/{total_files}] {fname} ({file_size_mb:.0f} MB)"
 
+    # Skip already-imported files
+    cur.execute(
+        "SELECT id FROM streaming_import WHERE original_filename = %s AND status = 'done'",
+        (fname,)
+    )
+    if cur.fetchone():
+        println(f"{prefix} | SKIPPED (already imported)")
+        return
+
     # Create StreamingImport record
     cur.execute("""
         INSERT INTO streaming_import
             (original_filename, file_path, status, uploaded_by, uploaded_at)
         VALUES (%s, %s, 'processing', 'import_script', %s)
         RETURNING id
-    """, (fname, csv_path, datetime.datetime.utcnow()))
+    """, (fname, csv_path, datetime.datetime.now(datetime.timezone.utc)))
     import_id = cur.fetchone()[0]
     conn.commit()
 
@@ -227,8 +236,12 @@ def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
                 try:
                     isrc = raw_row[col["isrc"]].strip().strip('"').upper()
                     if not isrc:
-                        rows_skipped += 1
-                        continue
+                        upc = raw_row[col["upc"]].strip().strip('"') if "upc" in col else ""
+                        if upc:
+                            isrc = f"UPC:{upc}"
+                        else:
+                            rows_skipped += 1
+                            continue
 
                     rep_month = parse_date(raw_row[col["reporting_month"]])
                     sal_month = parse_date(raw_row[col["sales_month"]])
@@ -299,7 +312,7 @@ def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
                SET status='done', finished_at=%s, rows_read=%s,
                    rows_aggregated=%s, rows_skipped=%s, reporting_month=%s
              WHERE id=%s
-        """, (datetime.datetime.utcnow(), rows_read, rows_aggregated_total,
+        """, (datetime.datetime.now(datetime.timezone.utc), rows_read, rows_aggregated_total,
               rows_skipped, reporting_month, import_id))
         conn.commit()
         println(f"{prefix} | DONE  {rows_read:,} rows → {rows_aggregated_total:,} agg  ({elapsed:.1f}s)")
@@ -310,7 +323,7 @@ def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
             UPDATE streaming_import
                SET status='error', finished_at=%s, error_message=%s
              WHERE id=%s
-        """, (datetime.datetime.utcnow(), str(e)[:2000], import_id))
+        """, (datetime.datetime.now(datetime.timezone.utc), str(e)[:2000], import_id))
         conn.commit()
         println(f"{prefix} | ERROR: {e}")
 
