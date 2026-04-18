@@ -211,6 +211,9 @@ with app.app_context():
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist   ON royalty_summary (artist_name_csv)"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
+                    # Trigram index for fast ILIKE artist filtering
+                    _c.execute(_text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist_trgm ON royalty_summary USING gin (artist_name_csv gin_trgm_ops)"))
                     # One-time backfill — skip if table already has data to avoid blocking startup
                     _rs_count = _c.execute(_text("SELECT COUNT(*) FROM royalty_summary")).fetchone()[0]
                     if _rs_count == 0:

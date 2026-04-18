@@ -695,11 +695,16 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         params["q_start"] = f"{base_year}-{q_start_m:02d}-01"
         params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
     if artist and artist != "all":
-        escaped = re.escape(artist)
-        params["artist_pattern"] = f"(^|,\\s*){escaped}(\\s*,|$)"
         conditions.append(
-            f"COALESCE(anm.canonical_name, sr.artist_name_csv) ~* :artist_pattern"
+            "(sr.artist_name_csv ILIKE :artist_exact"
+            " OR sr.artist_name_csv ILIKE :artist_prefix"
+            " OR sr.artist_name_csv ILIKE :artist_suffix"
+            " OR sr.artist_name_csv ILIKE :artist_middle)"
         )
+        params["artist_exact"]  = artist
+        params["artist_prefix"] = f"{artist},%"
+        params["artist_suffix"] = f"%, {artist}"
+        params["artist_middle"] = f"%, {artist},%"
     where = " AND ".join(conditions)
 
     if view == "artist":
