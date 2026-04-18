@@ -550,7 +550,7 @@ def _prewarm_dashboard_cache():
     # Create a dedicated NullPool engine for this thread so it never shares
     # connections with the main Flask pool — prevents SSL corruption.
     shared_engine = db.engines.get('royalties') or db.engine
-    db_url = str(shared_engine.url)
+    db_url = shared_engine.url.render_as_string(hide_password=False)
     engine = create_engine(db_url, poolclass=NullPool)
     _engine_local.override = engine  # all _royalties_engine() calls in this thread use this
     try:
