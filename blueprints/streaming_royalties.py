@@ -44,6 +44,22 @@ def _parse_date(val):
     return None
 
 
+def _parse_decimal(val):
+    """Parse a decimal string tolerating thousand-separator commas (1,234.56)
+    and European format (1.234,56).  Returns Decimal(0) for blank/unparseable."""
+    val = val.strip().strip('"').replace('\xa0', '').replace(' ', '')
+    if not val:
+        return decimal.Decimal(0)
+    if re.match(r'^-?\d{1,3}(\.\d{3})+(,\d+)?$', val):
+        val = val.replace('.', '').replace(',', '.')
+    else:
+        val = val.replace(',', '')
+    try:
+        return decimal.Decimal(val)
+    except Exception:
+        return decimal.Decimal(0)
+
+
 def _isrc_to_track_map(isrc_set):
     """Return {isrc: track_id} using a lightweight column-only query (no ORM objects)."""
     from models import Track
@@ -191,10 +207,10 @@ def _aggregate_and_store(rec):
                 country    = raw_row[col["country"]].strip().strip('"')
                 sales_type = raw_row[col["sales_type"]].strip().strip('"')
 
-                qty   = int(float(raw_row[col["quantity"]].strip().strip('"') or "0"))
-                gross = decimal.Decimal(raw_row[col["gross_revenue"]].strip().strip('"') or "0")
-                net   = decimal.Decimal(raw_row[col["net_revenue"]].strip().strip('"') or "0")
-                mech  = decimal.Decimal(raw_row[col["mechanical_fee"]].strip().strip('"') or "0")
+                qty   = int(_parse_decimal(raw_row[col["quantity"]].strip()))
+                gross = _parse_decimal(raw_row[col["gross_revenue"]].strip())
+                net   = _parse_decimal(raw_row[col["net_revenue"]].strip())
+                mech  = _parse_decimal(raw_row[col["mechanical_fee"]].strip())
 
                 key = (isrc, platform, country, sales_type,
                        rep_month.isoformat(), sal_month.isoformat())

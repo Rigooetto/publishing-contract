@@ -74,6 +74,24 @@ def _load_env_key(key):
     return None
 
 
+def parse_decimal(val):
+    """Parse a decimal string that may use comma as thousand separator (1,234.56)
+    or European format (1.234,56).  Returns Decimal(0) for blank/unparseable."""
+    val = val.strip().strip('"').replace('\xa0', '').replace(' ', '')
+    if not val:
+        return decimal.Decimal(0)
+    # European format: digits with dot-thousands and comma-decimal  e.g. 1.234,56
+    if re.match(r'^-?\d{1,3}(\.\d{3})+(,\d+)?$', val):
+        val = val.replace('.', '').replace(',', '.')
+    else:
+        # US format: remove thousand-separator commas, keep decimal point
+        val = val.replace(',', '')
+    try:
+        return decimal.Decimal(val)
+    except Exception:
+        return decimal.Decimal(0)
+
+
 def parse_date(val):
     val = val.strip().strip('"')
     for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
@@ -224,10 +242,10 @@ def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
                     platform   = raw_row[col["platform"]].strip().strip('"')
                     country    = raw_row[col["country"]].strip().strip('"')
                     sales_type = raw_row[col["sales_type"]].strip().strip('"')
-                    qty        = int(float(raw_row[col["quantity"]].strip().strip('"') or "0"))
-                    gross      = decimal.Decimal(raw_row[col["gross_revenue"]].strip().strip('"') or "0")
-                    net        = decimal.Decimal(raw_row[col["net_revenue"]].strip().strip('"') or "0")
-                    mech       = decimal.Decimal(raw_row[col["mechanical_fee"]].strip().strip('"') or "0")
+                    qty        = int(parse_decimal(raw_row[col["quantity"]].strip()))
+                    gross      = parse_decimal(raw_row[col["gross_revenue"]].strip())
+                    net        = parse_decimal(raw_row[col["net_revenue"]].strip())
+                    mech       = parse_decimal(raw_row[col["mechanical_fee"]].strip())
 
                     key = (isrc, platform, country, sales_type,
                            rep_month.isoformat(), sal_month.isoformat())
