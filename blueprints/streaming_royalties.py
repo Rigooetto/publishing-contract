@@ -19,6 +19,8 @@ import unicodedata
 _dash_cache: dict = {}
 _CACHE_TTL = 600  # seconds
 
+_prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
+
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
     flash, jsonify, current_app, session, Response, stream_with_context,
@@ -558,11 +560,14 @@ def _prewarm_dashboard_cache():
                     split_artists.add(name)
         artists = ["all"] + sorted(split_artists, key=str.lower)
     except Exception:
+        _prewarm_status["running"] = False
         return
 
     total = len(years) * len(quarters) * len(artists) * 2
     done  = 0
+    _prewarm_status.update({"running": True, "done": 0, "total": total, "current_artist": ""})
     for artist in artists:
+        _prewarm_status["current_artist"] = artist
         for y in years:
             for qtr in quarters:
                 for v in ("label", "artist"):
@@ -571,12 +576,14 @@ def _prewarm_dashboard_cache():
                     except Exception:
                         pass
                     done += 1
+                    _prewarm_status["done"] = done
         try:
             current_app.logger.info(
                 "Cache pre-warm: '%s' done (%d/%d combos)", artist, done, total
             )
         except Exception:
             pass
+    _prewarm_status.update({"running": False, "current_artist": ""})
 
 
 def _clear_dashboard_cache(engine=None):
@@ -1023,6 +1030,11 @@ def purge_all():
     _clear_dashboard_cache(_engine)
     flash("All royalty data purged.", "success")
     return redirect(url_for("streaming_royalties.imports_list"))
+
+
+@bp.route("/streaming-royalties/cache-status")
+def cache_status():
+    return jsonify(_prewarm_status)
 
 
 @bp.route("/streaming-royalties/clear-cache", methods=["POST"])
@@ -1598,6 +1610,18 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% else %}
 <div style="padding:40px;text-align:center;color:var(--t3)">No imports yet. Upload a Believe monthly CSV to get started.</div>
 {% endif %}
+<div id="cache-status-bar" style="margin-top:20px;padding:12px 16px;border-radius:8px;background:var(--b1);border:1px solid var(--b2);font-size:13px;display:none">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="cache-status-icon" style="font-size:16px">⏳</span>
+    <div style="flex:1">
+      <div id="cache-status-text" style="font-weight:600;color:var(--t1)">Cache warming…</div>
+      <div style="margin-top:6px;height:6px;border-radius:3px;background:var(--b2);overflow:hidden">
+        <div id="cache-progress-bar" style="height:100%;border-radius:3px;background:var(--ac,#4f8ef7);width:0%;transition:width 0.4s ease"></div>
+      </div>
+      <div id="cache-progress-label" style="margin-top:4px;color:var(--t3)">0 / 0 combos</div>
+    </div>
+  </div>
+</div>
 <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b2);display:flex;gap:12px;align-items:center">
   <form method="post" action="/streaming-royalties/clear-cache">
     <button class="btn btn-sm">Clear Dashboard Cache</button>
@@ -1608,7 +1632,46 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
   </form>
 </div>
 </div>
-</div></div></div>""" + _SB_JS + """</body></html>"""
+</div></div></div>""" + _SB_JS + """
+<script>
+(function(){
+  var bar = document.getElementById('cache-status-bar');
+  var txt = document.getElementById('cache-status-text');
+  var prg = document.getElementById('cache-progress-bar');
+  var lbl = document.getElementById('cache-progress-label');
+  var ico = document.getElementById('cache-status-icon');
+  var poll;
+
+  function update(){
+    fetch('/streaming-royalties/cache-status')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.running){
+          bar.style.display = 'block';
+          ico.textContent = '⏳';
+          var pct = d.total > 0 ? Math.round(d.done / d.total * 100) : 0;
+          txt.textContent = 'Cache warming — ' + (d.current_artist || '…');
+          prg.style.width = pct + '%';
+          lbl.textContent = d.done.toLocaleString() + ' / ' + d.total.toLocaleString() + ' combos (' + pct + '%)';
+        } else if(d.total > 0){
+          bar.style.display = 'block';
+          ico.textContent = '✅';
+          txt.textContent = 'Cache ready';
+          prg.style.width = '100%';
+          lbl.textContent = d.total.toLocaleString() + ' combos cached — all artists load instantly';
+          clearInterval(poll);
+        } else {
+          bar.style.display = 'none';
+        }
+      })
+      .catch(function(){ /* ignore */ });
+  }
+
+  update();
+  poll = setInterval(update, 4000);
+})();
+</script>
+</body></html>"""
 
 # ── Import form ───────────────────────────────────────────────────────────────
 
