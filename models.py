@@ -246,6 +246,7 @@ class User(db.Model):
 
 class StreamingImport(db.Model):
     """Tracks the lifecycle of one uploaded Believe monthly CSV file."""
+    __bind_key__ = 'royalties'
     id                = db.Column(db.Integer, primary_key=True)
     original_filename = db.Column(db.String(255), nullable=False)
     file_path         = db.Column(db.String(512), nullable=False)
@@ -265,8 +266,9 @@ class StreamingImport(db.Model):
 class StreamingRoyalty(db.Model):
     """One aggregated row per unique (isrc, platform, country, sales_type,
     reporting_month, sales_month) per import."""
+    __bind_key__ = 'royalties'
     id               = db.Column(db.Integer, primary_key=True)
-    import_id        = db.Column(db.Integer, db.ForeignKey("streaming_import.id"), nullable=False, index=True)
+    import_id        = db.Column(db.Integer, nullable=False, index=True)
     isrc             = db.Column(db.String(20), nullable=False, index=True)
     platform         = db.Column(db.String(100), nullable=False, index=True)
     country          = db.Column(db.String(100), nullable=False)
@@ -287,8 +289,8 @@ class StreamingRoyalty(db.Model):
     total_gross_revenue   = db.Column(db.Numeric(16, 6), default=0)
     total_net_revenue     = db.Column(db.Numeric(16, 6), default=0)
     total_mechanical_fee  = db.Column(db.Numeric(16, 6), default=0)
-    # FK to Track (nullable — unmatched ISRCs are valid)
-    track_id         = db.Column(db.Integer, db.ForeignKey("track.id"), nullable=True, index=True)
+    # track_id references track.id in the main DB — no FK constraint across databases
+    track_id         = db.Column(db.Integer, nullable=True, index=True)
     created_at       = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     __table_args__ = (
         db.UniqueConstraint(
@@ -301,10 +303,12 @@ class StreamingRoyalty(db.Model):
 
 class ArtistRoyaltySplit(db.Model):
     """Per-ISRC artist royalty percentage loaded from the catalog upload."""
+    __bind_key__ = 'royalties'
     id          = db.Column(db.Integer, primary_key=True)
     isrc        = db.Column(db.String(20), nullable=False, index=True)
     artist_name = db.Column(db.String(255), nullable=False)
-    artist_id   = db.Column(db.Integer, db.ForeignKey("artist.id"), nullable=True, index=True)
+    # artist_id references artist.id in the main DB — no FK constraint across databases
+    artist_id   = db.Column(db.Integer, nullable=True, index=True)
     percentage  = db.Column(db.Numeric(7, 4), nullable=False)  # e.g. 90.0000
     notes       = db.Column(db.String(255), default="")
     created_at  = db.Column(db.DateTime, default=datetime.datetime.utcnow)

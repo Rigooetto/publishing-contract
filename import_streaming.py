@@ -60,15 +60,15 @@ COL_ALIASES = {
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def load_db_url():
-    """Read DATABASE_URL from .env file."""
+def _load_env_key(key):
+    """Read a specific key from .env file."""
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     if not os.path.exists(env_path):
         return None
     with open(env_path) as f:
         for line in f:
             line = line.strip()
-            if line.startswith("DATABASE_URL"):
+            if line.startswith(key + "="):
                 _, _, val = line.partition("=")
                 return val.strip().strip('"').strip("'")
     return None
@@ -305,9 +305,9 @@ def main():
     parser.add_argument("--db", help="PostgreSQL DATABASE_URL (overrides env/.env)")
     args = parser.parse_args()
 
-    db_url = args.db or os.environ.get("DATABASE_URL") or load_db_url()
+    db_url = args.db or os.environ.get("ROYALTIES_DATABASE_URL") or _load_env_key("ROYALTIES_DATABASE_URL")
     if not db_url:
-        print("ERROR: No DATABASE_URL found. Pass --db or set DATABASE_URL in .env")
+        print("ERROR: No ROYALTIES_DATABASE_URL found. Pass --db or set ROYALTIES_DATABASE_URL in .env")
         sys.exit(1)
 
     # Collect files

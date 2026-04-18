@@ -21,15 +21,23 @@ if not _secret_key:
 app.secret_key = _secret_key
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024
 
-raw_db_url = os.getenv("DATABASE_URL", "sqlite:///writers.db")
-if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
-if raw_db_url.startswith("postgresql://") and "sslmode=" not in raw_db_url:
-    joiner = "&" if "?" in raw_db_url else "?"
-    raw_db_url = raw_db_url + joiner + "sslmode=require"
+def _pg_url(url):
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if url.startswith("postgresql://") and "sslmode=" not in url:
+        joiner = "&" if "?" in url else "?"
+        url = url + joiner + "sslmode=require"
+    return url
+
+raw_db_url = _pg_url(os.getenv("DATABASE_URL", "sqlite:///writers.db"))
+raw_royalties_url = _pg_url(os.getenv("ROYALTIES_DATABASE_URL", ""))
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+if raw_royalties_url:
+    app.config["SQLALCHEMY_BINDS"] = {"royalties": raw_royalties_url}
 
 db.init_app(app)
 migrate.init_app(app, db)
@@ -145,6 +153,13 @@ def backfill_artists_cmd():
 
 with app.app_context():
     _run_artist_backfill()
+    # Create royalties DB tables if they don't exist yet
+    if raw_royalties_url:
+        try:
+            db.create_all(bind_key='royalties')
+            app.logger.warning("Royalties DB tables ensured.")
+        except Exception as _e:
+            app.logger.warning("Royalties DB create_all failed: %s", _e)
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt
