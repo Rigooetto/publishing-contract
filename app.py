@@ -101,7 +101,14 @@ def _run_artist_backfill():
     """Sync ArtistRelease rows from Release.artists JSON. Idempotent — safe to run on every startup."""
     import json
     from models import Release, Artist, ArtistRelease
+    from sqlalchemy import text as _t2
     try:
+        # Skip if schema is mid-migration (royalty_percentage column not yet added)
+        with db.engine.connect() as _chk:
+            cols = [r[1] for r in _chk.execute(_t2("PRAGMA table_info(artist_release)")).fetchall()] if db.engine.dialect.name == 'sqlite' else [r[0] for r in _chk.execute(_t2("SELECT column_name FROM information_schema.columns WHERE table_name='artist_release'")).fetchall()]
+            if 'royalty_percentage' not in cols:
+                app.logger.warning("ARTIST BACKFILL: skipped — schema migration pending")
+                return
         releases = Release.query.all()
         created_artists = 0
         created_links = 0
