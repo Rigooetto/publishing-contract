@@ -20,6 +20,7 @@ _dash_cache: dict = {}
 _CACHE_TTL = 600  # seconds
 
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
+_prewarm_lock = threading.Lock()
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
@@ -35,14 +36,6 @@ _ADMIN_ONLY = {"admin"}
 
 bp = Blueprint("streaming_royalties", __name__)
 
-@bp.record_once
-def _startup_prewarm(state):
-    """Warm missing cache entries in the background on every deploy/restart."""
-    app = state.app
-    def _run():
-        with app.app_context():
-            _prewarm_dashboard_cache()
-    threading.Thread(target=_run, daemon=True).start()
 
 _UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "streaming_imports")
 
@@ -1056,6 +1049,17 @@ def purge_all():
 
 @bp.route("/streaming-royalties/cache-status")
 def cache_status():
+    # Lazy-start: kick off pre-warm in this worker process on first poll
+    if not _prewarm_status["running"] and _prewarm_status["total"] == 0:
+        if _prewarm_lock.acquire(blocking=False):
+            _app = current_app._get_current_object()
+            def _run_lazy():
+                try:
+                    with _app.app_context():
+                        _prewarm_dashboard_cache()
+                finally:
+                    _prewarm_lock.release()
+            threading.Thread(target=_run_lazy, daemon=True).start()
     return jsonify(_prewarm_status)
 
 
