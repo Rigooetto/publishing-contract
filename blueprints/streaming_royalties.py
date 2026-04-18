@@ -40,6 +40,17 @@ def _parse_date(val):
     return None
 
 
+def _isrc_to_track_map(isrc_set):
+    """Return {isrc: track_id} using a lightweight column-only query (no ORM objects)."""
+    from models import Track
+    from sqlalchemy import select
+    rows = db.session.execute(
+        select(Track.isrc, Track.id).where(Track.isrc.in_(list(isrc_set)))
+    ).fetchall()
+    db.session.expunge_all()  # clear identity map so Track objects don't accumulate
+    return {r[0]: r[1] for r in rows}
+
+
 def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
     """UPSERT the current agg dict into StreamingRoyalty, then return new total."""
     from models import StreamingRoyalty
@@ -86,13 +97,14 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total):
         )
         db.session.execute(stmt)
         db.session.commit()
+        db.session.expunge_all()  # release ORM identity map after each commit
 
     return rows_aggregated_total + len(agg)
 
 
 def _aggregate_and_store(rec):
     """Stream-parse the CSV and flush aggregated rows to the DB in bounded-memory chunks."""
-    from models import StreamingRoyalty, Track
+    from models import StreamingRoyalty
 
     agg = {}       # key → dict of accumulated values (cleared every FLUSH_EVERY unique keys)
     meta = {}      # key → snapshot fields (first row wins)
@@ -209,8 +221,7 @@ def _aggregate_and_store(rec):
             # Flush and clear agg dict when it reaches FLUSH_EVERY unique keys
             if len(agg) >= FLUSH_EVERY:
                 isrc_set = {k[0] for k in agg}
-                tracks = Track.query.filter(Track.isrc.in_(isrc_set)).all()
-                track_map = {t.isrc: t.id for t in tracks}
+                track_map = _isrc_to_track_map(isrc_set)
                 rows_aggregated_total = _flush_agg(rec, agg, meta, track_map, rows_aggregated_total)
                 agg.clear()
                 meta.clear()
