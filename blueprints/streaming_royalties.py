@@ -15,6 +15,7 @@ from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
     flash, jsonify, current_app, session,
 )
+from markupsafe import Markup
 from werkzeug.utils import secure_filename
 
 from extensions import db
@@ -741,6 +742,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Streaming Royalties — AfinArte</title>""" + _STYLE + """
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 .sr-dash{background:#0d1117;min-height:100vh;padding:0 0 60px}
 .sr-header{background:#161b27;border-bottom:1px solid rgba(255,255,255,.07);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -806,13 +808,13 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Artist</div>
       {% if data.by_artist %}
-      <canvas id="chartArtist" height="220"></canvas>
+      <canvas id="chartArtist" height="280"></canvas>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Month</div>
       {% if data.by_month %}
-      <canvas id="chartMonth" height="220"></canvas>
+      <canvas id="chartMonth" height="280"></canvas>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
   </div>
@@ -838,66 +840,131 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Country</div>
       {% if data.by_country %}
-      <canvas id="chartCountry" height="260"></canvas>
+      <canvas id="chartCountry" height="280"></canvas>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Platform</div>
       {% if data.by_platform %}
-      <canvas id="chartPlatform" height="260"></canvas>
+      <canvas id="chartPlatform" height="280"></canvas>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
   </div>
 </div>
 </div></div>""" + _SB_JS + """
 <script>
+const BLUE = '#5eb8ff';
 const PALETTE = ['#5eb8ff','#6385ff','#34d399','#f59e0b','#ff4f6a','#22d3ee','#a55bff','#fb923c','#84cc16','#e879f9'];
-const chartOpts = (type, labels, datasets, horizontal) => ({
-  type, data:{labels, datasets},
-  options:{
-    responsive:true, maintainAspectRatio:false,
-    indexAxis: horizontal ? 'y' : 'x',
-    plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{color:'#8a96b0',font:{size:11}}},
-             tooltip:{callbacks:{label:(ctx)=>'$'+ctx.parsed.x?.toLocaleString('en-US',{minimumFractionDigits:2})||'$'+ctx.parsed.toLocaleString('en-US',{minimumFractionDigits:2})}}},
-    scales: type==='doughnut' ? {} : {
-      x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#8a96b0',font:{size:10}}},
-      y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#8a96b0',font:{size:10}}}
-    }
-  }
-});
+const DL = ChartDataLabels;
+
+function fmtK(n){ n=Number(n); if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M'; if(n>=1e3) return '$'+(n/1e3).toFixed(0)+'K'; return '$'+n.toFixed(0); }
+function fmt2(n){ return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 let charts = {};
 function destroyCharts(){ Object.values(charts).forEach(c=>c.destroy()); charts={}; }
 
 function buildCharts(d){
   destroyCharts();
-  if(d.by_artist?.length){
-    const el=document.getElementById('chartArtist');
-    if(el) charts.artist=new Chart(el, chartOpts('bar',
-      d.by_artist.map(r=>r.name), [{data:d.by_artist.map(r=>r.revenue),backgroundColor:PALETTE[0],borderRadius:4}], true));
+
+  const elA = document.getElementById('chartArtist');
+  if(elA && d.by_artist?.length){
+    charts.artist = new Chart(elA, {
+      type:'bar', plugins:[DL],
+      data:{
+        labels: d.by_artist.map(r=>r.name),
+        datasets:[{data:d.by_artist.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.x)}},
+          datalabels:{anchor:'end',align:'end',color:'#8a96b0',font:{size:10},formatter:fmtK,clamp:true}
+        },
+        scales:{
+          x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#8a96b0',font:{size:10},callback:v=>fmtK(v)},border:{display:false}},
+          y:{grid:{display:false},ticks:{color:'#edf0f8',font:{size:11}}}
+        },
+        layout:{padding:{right:60}}
+      }
+    });
   }
-  if(d.by_month?.length){
-    const el=document.getElementById('chartMonth');
-    if(el) charts.month=new Chart(el, chartOpts('bar',
-      d.by_month.map(r=>r.month), [{data:d.by_month.map(r=>r.revenue),backgroundColor:PALETTE[1],borderRadius:4}], false));
+
+  const elM = document.getElementById('chartMonth');
+  if(elM && d.by_month?.length){
+    charts.month = new Chart(elM, {
+      type:'bar', plugins:[DL],
+      data:{
+        labels: d.by_month.map(r=>r.month),
+        datasets:[{data:d.by_month.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.y)}},
+          datalabels:{anchor:'end',align:'top',color:'#8a96b0',font:{size:10},formatter:fmtK}
+        },
+        scales:{
+          x:{grid:{display:false},ticks:{color:'#8a96b0',font:{size:11}}},
+          y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#8a96b0',font:{size:10},callback:v=>fmtK(v)},border:{display:false}}
+        },
+        layout:{padding:{top:24}}
+      }
+    });
   }
-  if(d.by_country?.length){
-    const el=document.getElementById('chartCountry');
-    if(el) charts.country=new Chart(el, chartOpts('doughnut',
-      d.by_country.map(r=>r.country), [{data:d.by_country.map(r=>r.revenue),backgroundColor:PALETTE}], false));
+
+  const elC = document.getElementById('chartCountry');
+  if(elC && d.by_country?.length){
+    const tot = d.by_country.reduce((s,r)=>s+r.revenue,0);
+    charts.country = new Chart(elC, {
+      type:'doughnut', plugins:[DL],
+      data:{
+        labels: d.by_country.map(r=>r.country),
+        datasets:[{data:d.by_country.map(r=>r.revenue), backgroundColor:PALETTE, borderWidth:2, borderColor:'#161b27'}]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:true,position:'bottom',labels:{color:'#8a96b0',font:{size:11},padding:8,boxWidth:12}},
+          tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmt2(ctx.parsed)} (${(ctx.parsed/tot*100).toFixed(1)}%)`}},
+          datalabels:{color:'#fff',font:{size:10,weight:'bold'},formatter:(v)=>{const p=(v/tot*100);return p>4?p.toFixed(1)+'%':''}}
+        }
+      }
+    });
   }
-  if(d.by_platform?.length){
-    const el=document.getElementById('chartPlatform');
-    if(el) charts.platform=new Chart(el, chartOpts('bar',
-      d.by_platform.map(r=>r.platform), [{data:d.by_platform.map(r=>r.revenue),backgroundColor:PALETTE[2],borderRadius:4}], false));
+
+  const elP = document.getElementById('chartPlatform');
+  if(elP && d.by_platform?.length){
+    charts.platform = new Chart(elP, {
+      type:'bar', plugins:[DL],
+      data:{
+        labels: d.by_platform.map(r=>r.platform),
+        datasets:[{data:d.by_platform.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.y)}},
+          datalabels:{anchor:'end',align:'top',color:'#8a96b0',font:{size:9},rotation:-45,formatter:fmtK}
+        },
+        scales:{
+          x:{grid:{display:false},ticks:{color:'#8a96b0',font:{size:9},maxRotation:45}},
+          y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#8a96b0',font:{size:10},callback:v=>fmtK(v)},border:{display:false}}
+        },
+        layout:{padding:{top:28}}
+      }
+    });
   }
 }
 
-// Initial render with server-side data
 const initialData = {{ data|tojson }};
-buildCharts(initialData);
-
 let currentView = '{{ view }}';
+
+document.addEventListener('DOMContentLoaded', function(){
+  buildCharts(initialData);
+});
 
 function setView(v){
   currentView=v;
@@ -910,20 +977,19 @@ function applyFilters(){
   const artist=document.getElementById('selArtist').value;
   const year=document.getElementById('selYear').value;
   const quarter=document.getElementById('selQuarter').value;
-  const url=`/streaming-royalties/data?year=${year}&quarter=${quarter}&artist=${encodeURIComponent(artist)}&view=${currentView}`;
-  fetch(url).then(r=>r.json()).then(d=>{
-    document.getElementById('kpiVal').textContent='$'+d.kpi_total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-    // Update catalog table
-    const tbody=document.getElementById('catalogBody');
-    if(tbody && d.catalog){
-      tbody.innerHTML=d.catalog.map(t=>`<tr>
-        <td class="num">${t.streams.toLocaleString()}</td>
-        <td>${t.title.substring(0,35)}${t.title.length>35?'…':''}</td>
-        <td class="num">$${t.revenue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      </tr>`).join('');
-    }
-    buildCharts(d);
-  });
+  fetch(`/streaming-royalties/data?year=${year}&quarter=${quarter}&artist=${encodeURIComponent(artist)}&view=${currentView}`)
+    .then(r=>r.json()).then(d=>{
+      document.getElementById('kpiVal').textContent='$'+d.kpi_total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+      const tbody=document.getElementById('catalogBody');
+      if(tbody && d.catalog){
+        tbody.innerHTML=d.catalog.map(t=>`<tr>
+          <td class="num">${t.streams.toLocaleString()}</td>
+          <td>${t.title.substring(0,35)}${t.title.length>35?'…':''}</td>
+          <td class="num">$${t.revenue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        </tr>`).join('');
+      }
+      buildCharts(d);
+    });
 }
 </script>
 </body></html>"""
@@ -934,7 +1000,7 @@ _orig_dashboard_html = _DASHBOARD_HTML
 
 @bp.app_template_filter("tojson")
 def _tojson_filter(value):
-    return json.dumps(value)
+    return Markup(json.dumps(value))
 
 
 # ── Imports list page ─────────────────────────────────────────────────────────
