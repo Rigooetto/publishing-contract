@@ -33,6 +33,11 @@ _ADMIN_ONLY = {"admin"}
 
 bp = Blueprint("streaming_royalties", __name__)
 
+@bp.record_once
+def _startup_prewarm(state):
+    """Warm missing cache entries in the background on every deploy/restart."""
+    threading.Thread(target=_prewarm_dashboard_cache, daemon=True).start()
+
 _UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "streaming_imports")
 
 
@@ -522,25 +527,48 @@ def _royalties_engine():
 
 
 def _prewarm_dashboard_cache():
-    """Background thread: pre-compute all year/quarter × view combos into dashboard_cache."""
+    """Background thread: pre-compute every artist × year × quarter × view combo into dashboard_cache."""
     from sqlalchemy import text as _t
     engine = _royalties_engine()
     try:
         with engine.connect() as conn:
-            rows = conn.execute(_t(
-                "SELECT DISTINCT EXTRACT(year FROM reporting_month)::int FROM royalty_summary "
-                "WHERE reporting_month IS NOT NULL ORDER BY 1"
+            year_rows = conn.execute(_t(
+                "SELECT DISTINCT EXTRACT(year FROM reporting_month)::int "
+                "FROM royalty_summary WHERE reporting_month IS NOT NULL ORDER BY 1"
             )).fetchall()
-        years = [str(r[0]) for r in rows]
+            artist_rows = conn.execute(_t(
+                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
+                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY 1"
+            )).fetchall()
+        years    = ["all"] + [str(r[0]) for r in year_rows]
+        quarters = ["all", "1", "2", "3", "4"]
+        split_artists: set = set()
+        for r in artist_rows:
+            for part in r[0].split(','):
+                name = part.strip()
+                if name:
+                    split_artists.add(name)
+        artists = ["all"] + sorted(split_artists, key=str.lower)
     except Exception:
         return
-    combos = [("all", "all")] + [(y, "all") for y in years]
-    for y, qtr in combos:
-        for v in ("label", "artist"):
-            try:
-                _dashboard_data(y, qtr, "all", v)
-            except Exception:
-                pass
+
+    total = len(years) * len(quarters) * len(artists) * 2
+    done  = 0
+    for artist in artists:
+        for y in years:
+            for qtr in quarters:
+                for v in ("label", "artist"):
+                    try:
+                        _dashboard_data(y, qtr, artist, v)
+                    except Exception:
+                        pass
+                    done += 1
+        try:
+            current_app.logger.info(
+                "Cache pre-warm: '%s' done (%d/%d combos)", artist, done, total
+            )
+        except Exception:
+            pass
 
 
 def _clear_dashboard_cache(engine=None):
