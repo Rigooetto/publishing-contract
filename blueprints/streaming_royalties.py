@@ -6,10 +6,12 @@ serve a Power BI-style dashboard with Label View and Artist View.
 import csv
 import datetime
 import decimal
+import difflib
 import io
 import json
 import os
 import threading
+import unicodedata
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
@@ -299,24 +301,27 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
     from sqlalchemy import text
 
-    # Build WHERE clause fragments
+    # All queries join artist_name_map so canonical names are applied on the fly
+    base_from  = ("streaming_royalty sr "
+                  "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv")
+    artist_col = "COALESCE(anm.canonical_name, sr.artist_name_csv)"
+
     conditions = ["1=1"]
     params = {}
     if year and year != "all":
-        conditions.append("EXTRACT(year FROM reporting_month) = :year")
+        conditions.append("EXTRACT(year FROM sr.reporting_month) = :year")
         params["year"] = int(year)
     if quarter and quarter != "all":
         month_ranges = {"1": (1, 3), "2": (4, 6), "3": (7, 9), "4": (10, 12)}
         m_start, m_end = month_ranges.get(str(quarter), (1, 12))
-        conditions.append("EXTRACT(month FROM reporting_month) BETWEEN :m_start AND :m_end")
+        conditions.append("EXTRACT(month FROM sr.reporting_month) BETWEEN :m_start AND :m_end")
         params["m_start"] = m_start
         params["m_end"]   = m_end
     if artist and artist != "all":
-        conditions.append("artist_name_csv = :artist")
+        conditions.append(f"COALESCE(anm.canonical_name, sr.artist_name_csv) = :artist")
         params["artist"] = artist
     where = " AND ".join(conditions)
 
-    # Revenue expression: label view uses net directly; artist view joins split percentages
     if view == "artist":
         rev_expr = """
             sr.total_net_revenue * COALESCE(
@@ -329,14 +334,8 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
         """.format(
             artist_filter="AND LOWER(ars.artist_name) = LOWER(:artist)" if (artist and artist != "all") else ""
         )
-        table_alias = "sr"
-        from_clause  = "streaming_royalty sr"
-        where_clause = where.replace("reporting_month", "sr.reporting_month").replace("artist_name_csv", "sr.artist_name_csv")
     else:
-        rev_expr     = "total_net_revenue"
-        table_alias  = "streaming_royalty"
-        from_clause  = "streaming_royalty"
-        where_clause = where
+        rev_expr = "sr.total_net_revenue"
 
     _engine = _royalties_engine()
 
@@ -345,36 +344,36 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
             return conn.execute(text(sql), p or params).fetchall()
 
     # KPI
-    kpi_row = q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {from_clause} WHERE {where_clause}")
-    kpi_total = float(kpi_row[0][0])
+    kpi_total = float(q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {base_from} WHERE {where}")[0][0])
 
-    # By artist (top 10)
+    # By artist (top 10) — grouped by canonical name
     by_artist = q(f"""
-        SELECT artist_name_csv, COALESCE(SUM({rev_expr}), 0) AS rev
-          FROM {from_clause} WHERE {where_clause} AND artist_name_csv IS NOT NULL AND artist_name_csv != ''
-         GROUP BY artist_name_csv ORDER BY rev DESC LIMIT 10
+        SELECT {artist_col} AS artist, COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {base_from}
+         WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
+         GROUP BY {artist_col} ORDER BY rev DESC LIMIT 10
     """)
 
     # By month (chronological)
     by_month = q(f"""
-        SELECT TO_CHAR(reporting_month, 'Mon YYYY') AS mo, reporting_month,
+        SELECT TO_CHAR(sr.reporting_month, 'Mon YYYY') AS mo, sr.reporting_month,
                COALESCE(SUM({rev_expr}), 0) AS rev
-          FROM {from_clause} WHERE {where_clause}
-         GROUP BY reporting_month ORDER BY reporting_month
+          FROM {base_from} WHERE {where}
+         GROUP BY sr.reporting_month ORDER BY sr.reporting_month
     """)
 
-    # By platform
+    # By platform (top 15)
     by_platform = q(f"""
-        SELECT platform, COALESCE(SUM({rev_expr}), 0) AS rev
-          FROM {from_clause} WHERE {where_clause} AND platform IS NOT NULL
-         GROUP BY platform ORDER BY rev DESC LIMIT 15
+        SELECT sr.platform, COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {base_from} WHERE {where} AND sr.platform IS NOT NULL
+         GROUP BY sr.platform ORDER BY rev DESC LIMIT 15
     """)
 
     # By country (top 5 + Other)
     by_country_all = q(f"""
-        SELECT country, COALESCE(SUM({rev_expr}), 0) AS rev
-          FROM {from_clause} WHERE {where_clause} AND country IS NOT NULL
-         GROUP BY country ORDER BY rev DESC
+        SELECT sr.country, COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {base_from} WHERE {where} AND sr.country IS NOT NULL
+         GROUP BY sr.country ORDER BY rev DESC
     """)
     top5 = by_country_all[:5]
     other = sum(float(r[1]) for r in by_country_all[5:])
@@ -384,22 +383,24 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
 
     # Catalog top 50
     catalog_rows = q(f"""
-        SELECT isrc,
-               MAX(track_title_csv) AS title,
-               MAX(artist_name_csv) AS artist,
-               COALESCE(SUM(total_quantity), 0) AS streams,
+        SELECT sr.isrc,
+               MAX(sr.track_title_csv) AS title,
+               MAX({artist_col}) AS artist,
+               COALESCE(SUM(sr.total_quantity), 0) AS streams,
                COALESCE(SUM({rev_expr}), 0) AS rev
-          FROM {from_clause} WHERE {where_clause}
-         GROUP BY isrc ORDER BY rev DESC LIMIT 50
+          FROM {base_from} WHERE {where}
+         GROUP BY sr.isrc ORDER BY rev DESC LIMIT 50
     """)
     catalog = [{"title": r[1] or r[0], "artist": r[2] or "",
                 "streams": int(r[3]), "revenue": float(r[4])}
                for r in catalog_rows]
 
-    # Filter options
+    # Dropdown options — deduplicated canonical names
     all_artists = [r[0] for r in q(
-        "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
-        "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY artist_name_csv",
+        "SELECT DISTINCT COALESCE(anm.canonical_name, sr.artist_name_csv) "
+        "FROM streaming_royalty sr "
+        "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv "
+        "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != '' ORDER BY 1",
         {},
     )]
     all_years = [int(r[0]) for r in q(
@@ -715,6 +716,97 @@ def catalog_upload():
         return redirect(url_for("streaming_royalties.catalog_upload"))
 
 
+# ── Artist Name Consolidation ─────────────────────────────────────────────────
+
+def _norm(s):
+    return unicodedata.normalize('NFD', s.lower()).encode('ascii', 'ignore').decode().strip()
+
+def _group_similar(names, threshold=0.62):
+    """Cluster names by string similarity. Returns list of lists (largest first)."""
+    names = sorted(set(n for n in names if n))
+    taken = set()
+    groups = []
+    for name in names:
+        if name in taken:
+            continue
+        group = [name]
+        taken.add(name)
+        ni = _norm(name)
+        for other in names:
+            if other in taken:
+                continue
+            if difflib.SequenceMatcher(None, ni, _norm(other)).ratio() >= threshold:
+                group.append(other)
+                taken.add(other)
+        groups.append(group)
+    groups.sort(key=lambda g: -len(g))
+    return groups
+
+
+@bp.route("/streaming-royalties/artist-names", methods=["GET", "POST"])
+def artist_names():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from models import ArtistNameMap
+    _engine = _royalties_engine()
+
+    if request.method == "POST":
+        count = int(request.form.get("count", 0))
+        saved = deleted = 0
+        for i in range(count):
+            raw = request.form.get(f"raw_{i}", "").strip()
+            canonical = request.form.get(f"canonical_{i}", "").strip()
+            if not raw:
+                continue
+            existing = ArtistNameMap.query.filter_by(raw_name=raw).first()
+            if not canonical or canonical == raw:
+                if existing:
+                    db.session.delete(existing)
+                    deleted += 1
+            else:
+                if existing:
+                    existing.canonical_name = canonical
+                    existing.updated_at = datetime.datetime.utcnow()
+                else:
+                    db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical))
+                saved += 1
+        db.session.commit()
+        flash(f"Saved {saved} mapping(s), removed {deleted} mapping(s).", "success")
+        return redirect(url_for("streaming_royalties.artist_names"))
+
+    # GET — load all distinct raw names + existing mappings
+    from sqlalchemy import text
+    with _engine.connect() as conn:
+        raw_names = [r[0] for r in conn.execute(text(
+            "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
+            "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' "
+            "ORDER BY artist_name_csv"
+        )).fetchall()]
+
+    existing_maps = {m.raw_name: m.canonical_name for m in ArtistNameMap.query.all()}
+    groups = _group_similar(raw_names)
+
+    # Build flat ordered list for the form (multi-name groups first, then singletons)
+    ordered = []
+    for g in groups:
+        for name in g:
+            ordered.append({"raw": name, "canonical": existing_maps.get(name, ""), "group_size": len(g)})
+
+    return render_template_string(
+        _ARTIST_NAMES_HTML,
+        ordered=ordered,
+        groups=groups,
+        existing_maps=existing_maps,
+        total=len(raw_names),
+        mapped=len(existing_maps),
+        _sidebar_html=_sb("streaming_artist_names"),
+    )
+
+
 # ── HTML Templates ─────────────────────────────────────────────────────────────
 
 from ui import _STYLE, _sidebar, _SB_JS  # noqa: E402
@@ -1003,10 +1095,6 @@ function applyFilters(){
 </script>
 </body></html>"""
 
-# Patch dashboard to inject sidebar
-_orig_dashboard_html = _DASHBOARD_HTML
-
-
 @bp.app_template_filter("tojson")
 def _tojson_filter(value):
     return Markup(json.dumps(value))
@@ -1263,3 +1351,102 @@ _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
 </div>
 {% endif %}
 </div></div></div>""" + _SB_JS + """</body></html>"""
+
+# ── Artist Name Consolidation UI ──────────────────────────────────────────────
+
+_ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Artist Names — AfinArte</title>""" + _STYLE + """
+<style>
+.an-stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.an-stat{background:var(--c2);border:1px solid var(--bdr);border-radius:8px;padding:10px 18px;font-size:13px;color:var(--t2)}
+.an-stat strong{color:var(--t1);font-size:18px;display:block}
+.an-group{background:var(--c2);border:1px solid var(--bdr);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.an-group-hd{background:rgba(99,133,255,.08);border-bottom:1px solid var(--bdr);padding:9px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.an-badge{background:#6385ff22;color:#6385ff;border:1px solid #6385ff44;border-radius:4px;font-size:11px;padding:2px 7px;font-weight:600;white-space:nowrap}
+.an-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,.04)}
+.an-row:last-child{border-bottom:none}
+.an-raw{font-size:12.5px;color:var(--t2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-clear{background:none;border:none;color:var(--t3);cursor:pointer;padding:2px 8px;font-size:13px;border-radius:4px}
+.an-clear:hover{color:var(--err);background:rgba(255,79,106,.1)}
+</style>
+</head><body><div class="app">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph">
+  <div class="ph-left"><h1 class="ph-title">Artist Name Consolidation</h1>
+  <div class="ph-sub">Map CSV name variants to a single canonical artist name. Similar names are auto-grouped.</div></div>
+  <div class="ph-actions"><a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a></div>
+</div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}{% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<div class="an-stats">
+  <div class="an-stat"><strong>{{ total }}</strong>Distinct raw names</div>
+  <div class="an-stat"><strong>{{ mapped }}</strong>Mapped</div>
+  <div class="an-stat"><strong>{{ total - mapped }}</strong>Unmapped</div>
+  <div class="an-stat"><strong>{{ groups|length }}</strong>Groups</div>
+</div>
+
+<div style="margin-bottom:14px">
+  <input class="inp" id="srch" placeholder="&#128269; Search..." style="max-width:360px" oninput="doSearch(this.value)">
+</div>
+
+<form method="post">
+  <input type="hidden" name="count" value="{{ ordered|length }}">
+  {% for item in ordered %}
+  <input type="hidden" name="raw_{{ loop.index0 }}" value="{{ item.raw }}">
+  {% endfor %}
+
+  {% set flat = namespace(i=0) %}
+  {% for group in groups %}
+  {% set gi = loop.index0 %}
+  <div class="an-group" data-search="{{ group|join('|||')|lower }}">
+    <div class="an-group-hd">
+      {% if group|length > 1 %}
+      <span class="an-badge">{{ group|length }} variants</span>
+      {% else %}
+      <span class="an-badge" style="background:#34d39916;color:#34d399;border-color:#34d39940">1 name</span>
+      {% endif %}
+      <span style="font-size:13px;color:var(--t1);font-weight:500">{{ group[0][:60] }}{% if group[0]|length > 60 %}…{% endif %}</span>
+      {% if group|length > 1 %}
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <input class="inp" id="gc_{{ gi }}" placeholder="Set canonical for all {{ group|length }}…" style="width:280px;font-size:12px">
+        <button type="button" class="btn btn-sm" onclick="applyGroup({{ gi }})">Apply to group</button>
+      </div>
+      {% endif %}
+    </div>
+    {% for name in group %}
+    <div class="an-row">
+      <span class="an-raw" title="{{ name }}">{{ name }}</span>
+      <input class="inp row-can" name="canonical_{{ flat.i }}"
+             value="{{ existing_maps.get(name, '') }}"
+             placeholder="Leave blank = keep as-is"
+             style="font-size:12.5px" data-gi="{{ gi }}">
+      <button type="button" class="an-clear" onclick="this.closest('.an-row').querySelector('.row-can').value=''" title="Clear">&#10005;</button>
+    </div>
+    {% set flat.i = flat.i + 1 %}
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bdr);display:flex;gap:12px">
+    <button type="submit" class="btn btn-primary">&#10003; Save All Mappings</button>
+    <a href="/streaming-royalties" class="btn btn-sec">Cancel</a>
+  </div>
+</form>
+</div></div></div>""" + _SB_JS + """
+<script>
+function applyGroup(gi){
+  const val = document.getElementById('gc_'+gi).value.trim();
+  if(!val) return;
+  document.querySelectorAll('.row-can[data-gi="'+gi+'"]').forEach(el => el.value = val);
+}
+function doSearch(q){
+  q = q.toLowerCase();
+  document.querySelectorAll('.an-group').forEach(g => {
+    g.style.display = (!q || g.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+</script>
+</body></html>"""

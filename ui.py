@@ -828,6 +828,7 @@ def _sidebar(active):
     html += "<a href='/streaming-royalties'" + (" class='on'" if active == "streaming_royalties" else "") + " title='Streaming Royalties'><span class='ni'>&#127925;</span><span class='nl'>Streaming Royalties</span></a>"
     html += "<a href='/streaming-royalties/imports'" + (" class='on'" if active == "streaming_imports" else "") + " title='Streaming Imports'><span class='ni'>&#8679;</span><span class='nl'>Streaming Imports</span></a>"
     html += "<a href='/streaming-royalties/catalog-upload'" + (" class='on'" if active == "streaming_catalog" else "") + " title='Artist Royalty Catalog'><span class='ni'>&#128209;</span><span class='nl'>Royalty Catalog</span></a>"
+    html += "<a href='/streaming-royalties/artist-names'" + (" class='on'" if active == "streaming_artist_names" else "") + " title='Artist Name Consolidation'><span class='ni'>&#127968;</span><span class='nl'>Artist Names</span></a>"
     html += "{% endif %}"
     html += "</nav>"
     html += "<div class='sb-sec'>Admin</div>"

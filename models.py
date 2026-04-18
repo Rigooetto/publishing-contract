@@ -315,3 +315,13 @@ class ArtistRoyaltySplit(db.Model):
     __table_args__ = (
         db.UniqueConstraint("isrc", "artist_name", name="uq_artist_royalty_split"),
     )
+
+
+class ArtistNameMap(db.Model):
+    """Maps raw artist_name_csv variants to a single canonical display name."""
+    __bind_key__ = 'royalties'
+    __tablename__ = 'artist_name_map'
+    id             = db.Column(db.Integer, primary_key=True)
+    raw_name       = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    canonical_name = db.Column(db.String(255), nullable=False)
+    updated_at     = db.Column(db.DateTime, default=datetime.datetime.utcnow)
