@@ -113,16 +113,16 @@ def println(msg):
     print(f"\r{msg}")
 
 
-# ── ISRC → track_id lookup ────────────────────────────────────────────────────
+# ── ISRC → track_id lookup (queries main DB, not royalties DB) ───────────────
 
-def isrc_to_track_map(cur, isrc_set):
+def isrc_to_track_map(main_cur, isrc_set):
     if not isrc_set:
         return {}
-    cur.execute(
+    main_cur.execute(
         "SELECT isrc, id FROM track WHERE isrc = ANY(%s)",
         (list(isrc_set),)
     )
-    return {row[0]: row[1] for row in cur.fetchall()}
+    return {row[0]: row[1] for row in main_cur.fetchall()}
 
 
 # ── Flush aggregated batch to DB (UPSERT) ────────────────────────────────────
@@ -166,7 +166,7 @@ def flush_agg(conn, cur, import_id, agg, meta, track_map):
 
 # ── Process one CSV file ───────────────────────────────────────────────────────
 
-def process_file(conn, cur, csv_path, file_index, total_files):
+def process_file(conn, cur, main_cur, csv_path, file_index, total_files):
     fname = os.path.basename(csv_path)
     file_size_mb = os.path.getsize(csv_path) / 1_048_576
     prefix = f"[{file_index}/{total_files}] {fname} ({file_size_mb:.0f} MB)"
@@ -257,7 +257,7 @@ def process_file(conn, cur, csv_path, file_index, total_files):
 
                 # Periodic flush to keep memory bounded
                 if len(agg) >= FLUSH_EVERY:
-                    track_map = isrc_to_track_map(cur, {k[0] for k in agg})
+                    track_map = isrc_to_track_map(main_cur, {k[0] for k in agg})
                     flush_agg(conn, cur, import_id, agg, meta, track_map)
                     rows_aggregated_total += len(agg)
                     agg.clear()
@@ -271,7 +271,7 @@ def process_file(conn, cur, csv_path, file_index, total_files):
 
         # Final flush
         if agg:
-            track_map = isrc_to_track_map(cur, {k[0] for k in agg})
+            track_map = isrc_to_track_map(main_cur, {k[0] for k in agg})
             flush_agg(conn, cur, import_id, agg, meta, track_map)
             rows_aggregated_total += len(agg)
 
@@ -310,6 +310,8 @@ def main():
         print("ERROR: No ROYALTIES_DATABASE_URL found. Pass --db or set ROYALTIES_DATABASE_URL in .env")
         sys.exit(1)
 
+    main_db_url = os.environ.get("DATABASE_URL") or _load_env_key("DATABASE_URL")
+
     # Collect files
     target = args.path
     if os.path.isfile(target):
@@ -331,16 +333,21 @@ def main():
     print(f"Found {total} file(s) to import")
     print(f"Connecting to database...")
 
-    conn = psycopg2.connect(db_url)
-    cur  = conn.cursor()
+    conn      = psycopg2.connect(db_url)
+    cur       = conn.cursor()
+    main_conn = psycopg2.connect(main_db_url) if main_db_url else conn
+    main_cur  = main_conn.cursor()
     print(f"Connected.\n")
 
     overall_start = time.time()
     for i, fpath in enumerate(files, 1):
-        process_file(conn, cur, fpath, i, total)
+        process_file(conn, cur, main_cur, fpath, i, total)
 
     cur.close()
     conn.close()
+    main_cur.close()
+    if main_conn is not conn:
+        main_conn.close()
     elapsed = time.time() - overall_start
     print(f"\nAll done in {elapsed:.1f}s")
 
