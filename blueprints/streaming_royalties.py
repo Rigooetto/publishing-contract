@@ -36,7 +36,11 @@ bp = Blueprint("streaming_royalties", __name__)
 @bp.record_once
 def _startup_prewarm(state):
     """Warm missing cache entries in the background on every deploy/restart."""
-    threading.Thread(target=_prewarm_dashboard_cache, daemon=True).start()
+    app = state.app
+    def _run():
+        with app.app_context():
+            _prewarm_dashboard_cache()
+    threading.Thread(target=_run, daemon=True).start()
 
 _UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "streaming_imports")
 
@@ -485,7 +489,11 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
                 "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
             ), {"id": import_id}).fetchone()
         _clear_dashboard_cache(r_engine)
-        threading.Thread(target=_prewarm_dashboard_cache, daemon=True).start()
+        _app = current_app._get_current_object()
+        def _run_prewarm():
+            with _app.app_context():
+                _prewarm_dashboard_cache()
+        threading.Thread(target=_run_prewarm, daemon=True).start()
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
