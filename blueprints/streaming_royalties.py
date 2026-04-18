@@ -558,7 +558,8 @@ def _prewarm_dashboard_cache():
                 name = part.strip()
                 if name:
                     split_artists.add(name)
-        artists = ["all"] + sorted(split_artists, key=str.lower)
+        # Skip "all" — those queries scan millions of rows and are cached on first user visit
+        artists = sorted(split_artists, key=str.lower)
     except Exception:
         _prewarm_status["running"] = False
         return
