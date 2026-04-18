@@ -360,30 +360,20 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     # KPI
     kpi_total = float(q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {base_from} WHERE {where}")[0][0])
 
-    # By artist (top 10) — split on comma, apply royalty split %
-    try:
-        by_artist = q(f"""
-            SELECT TRIM(ind.name) AS artist,
-                   COALESCE(SUM(sr.total_net_revenue * ars.percentage / 100.0), 0) AS rev
-              FROM {base_from}
-              JOIN LATERAL regexp_split_to_table(
-                  COALESCE({artist_col}, ''), '\\s*,\\s*'
-              ) AS ind(name) ON true
-              JOIN artist_royalty_split ars
-                ON ars.isrc = sr.isrc
-               AND LOWER(TRIM(ars.artist_name)) = LOWER(TRIM(ind.name))
-             WHERE {where}
-               AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
-             GROUP BY TRIM(ind.name)
-             ORDER BY rev DESC LIMIT 10
-        """)
-    except Exception:
-        by_artist = q(f"""
-            SELECT {artist_col} AS artist, COALESCE(SUM({rev_expr}), 0) AS rev
-              FROM {base_from}
-             WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
-             GROUP BY {artist_col} ORDER BY rev DESC LIMIT 10
-        """)
+    # By artist (top 10) — split collab strings on comma, credit full track revenue to each artist
+    by_artist = q(f"""
+        SELECT TRIM(ind.name) AS artist,
+               COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {base_from}
+          JOIN LATERAL regexp_split_to_table(
+              COALESCE({artist_col}, ''), '\\s*,\\s*'
+          ) AS ind(name) ON true
+         WHERE {where}
+           AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
+           AND TRIM(ind.name) != ''
+         GROUP BY TRIM(ind.name)
+         ORDER BY rev DESC LIMIT 10
+    """)
 
     # By month (chronological)
     by_month = q(f"""
