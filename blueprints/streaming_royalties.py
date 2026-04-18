@@ -863,10 +863,19 @@ function fmt2(n){ return '$'+Number(n).toLocaleString('en-US',{minimumFractionDi
 let charts = {};
 function destroyCharts(){ Object.values(charts).forEach(c=>c.destroy()); charts={}; }
 
+const H = 280;
+function mkCanvas(id){
+  const el = document.getElementById(id);
+  if(!el) return null;
+  el.width  = el.parentElement.clientWidth  || 500;
+  el.height = H;
+  return el;
+}
+
 function buildCharts(d){
   destroyCharts();
 
-  const elA = document.getElementById('chartArtist');
+  const elA = mkCanvas('chartArtist');
   if(elA && d.by_artist?.length){
     charts.artist = new Chart(elA, {
       type:'bar', plugins:[DL],
@@ -875,7 +884,7 @@ function buildCharts(d){
         datasets:[{data:d.by_artist.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        responsive:false, indexAxis:'y',
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.x)}},
@@ -890,7 +899,7 @@ function buildCharts(d){
     });
   }
 
-  const elM = document.getElementById('chartMonth');
+  const elM = mkCanvas('chartMonth');
   if(elM && d.by_month?.length){
     charts.month = new Chart(elM, {
       type:'bar', plugins:[DL],
@@ -899,7 +908,7 @@ function buildCharts(d){
         datasets:[{data:d.by_month.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:true, maintainAspectRatio:false,
+        responsive:false,
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.y)}},
@@ -914,7 +923,7 @@ function buildCharts(d){
     });
   }
 
-  const elC = document.getElementById('chartCountry');
+  const elC = mkCanvas('chartCountry');
   if(elC && d.by_country?.length){
     const tot = d.by_country.reduce((s,r)=>s+r.revenue,0);
     charts.country = new Chart(elC, {
@@ -924,7 +933,7 @@ function buildCharts(d){
         datasets:[{data:d.by_country.map(r=>r.revenue), backgroundColor:PALETTE, borderWidth:2, borderColor:'#161b27'}]
       },
       options:{
-        responsive:true, maintainAspectRatio:false,
+        responsive:false,
         plugins:{
           legend:{display:true,position:'bottom',labels:{color:'#8a96b0',font:{size:11},padding:8,boxWidth:12}},
           tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmt2(ctx.parsed)} (${(ctx.parsed/tot*100).toFixed(1)}%)`}},
@@ -934,7 +943,7 @@ function buildCharts(d){
     });
   }
 
-  const elP = document.getElementById('chartPlatform');
+  const elP = mkCanvas('chartPlatform');
   if(elP && d.by_platform?.length){
     charts.platform = new Chart(elP, {
       type:'bar', plugins:[DL],
@@ -943,7 +952,7 @@ function buildCharts(d){
         datasets:[{data:d.by_platform.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:true, maintainAspectRatio:false,
+        responsive:false,
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.y)}},
