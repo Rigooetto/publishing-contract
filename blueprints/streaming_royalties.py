@@ -13,7 +13,11 @@ import os
 import queue as _queue_mod
 import re
 import threading
+import time as _time
 import unicodedata
+
+_dash_cache: dict = {}
+_CACHE_TTL = 600  # seconds
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
@@ -475,6 +479,7 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             row = conn.execute(_t(
                 "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
             ), {"id": import_id}).fetchone()
+        _dash_cache.clear()
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
@@ -516,6 +521,17 @@ def _royalties_engine():
 
 
 def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
+    """Cache wrapper around _compute_dashboard_data."""
+    key = (year, quarter, artist, view)
+    cached = _dash_cache.get(key)
+    if cached and (_time.time() - cached["ts"]) < _CACHE_TTL:
+        return cached["data"]
+    result = _compute_dashboard_data(year, quarter, artist, view)
+    _dash_cache[key] = {"data": result, "ts": _time.time()}
+    return result
+
+
+def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
     from sqlalchemy import text
 
@@ -539,14 +555,18 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     conditions = ["1=1"]
     params = {}
     if year and year != "all":
-        conditions.append("EXTRACT(year FROM sr.reporting_month) = :year")
-        params["year"] = int(year)
+        year_int = int(year)
+        conditions.append("sr.reporting_month >= :year_start AND sr.reporting_month < :year_end")
+        params["year_start"] = f"{year_int}-01-01"
+        params["year_end"]   = f"{year_int + 1}-01-01"
     if quarter and quarter != "all":
-        month_ranges = {"1": (1, 3), "2": (4, 6), "3": (7, 9), "4": (10, 12)}
-        m_start, m_end = month_ranges.get(str(quarter), (1, 12))
-        conditions.append("EXTRACT(month FROM sr.reporting_month) BETWEEN :m_start AND :m_end")
-        params["m_start"] = m_start
-        params["m_end"]   = m_end
+        q_ranges = {"1": (1, 4), "2": (4, 7), "3": (7, 10), "4": (10, 1)}
+        q_start_m, q_end_m = q_ranges.get(str(quarter), (1, 1))
+        base_year = int(year) if (year and year != "all") else 2000
+        q_end_year = base_year + 1 if q_end_m == 1 else base_year
+        conditions.append("sr.reporting_month >= :q_start AND sr.reporting_month < :q_end")
+        params["q_start"] = f"{base_year}-{q_start_m:02d}-01"
+        params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
     if artist and artist != "all":
         escaped = re.escape(artist)
         params["artist_pattern"] = f"(^|,\\s*){escaped}(\\s*,|$)"
@@ -556,23 +576,21 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     where = " AND ".join(conditions)
 
     if view == "artist":
-        rev_expr = """
-            sr.total_net_revenue * COALESCE(
-                (SELECT SUM(ars.percentage) / 100.0
-                   FROM artist_royalty_split ars
-                  WHERE ars.isrc = sr.isrc
-                    {artist_filter}
-                ), 1.0
-            )
-        """.format(
-            artist_filter="AND ars.artist_name ~* :artist_pattern" if (artist and artist != "all") else ""
+        # Pre-aggregate splits once via CTE — avoids one correlated subquery per result row
+        cte = (
+            "WITH _splits AS ("
+            "SELECT isrc, SUM(percentage)/100.0 AS pct FROM artist_royalty_split GROUP BY isrc"
+            ") "
         )
+        base_from += " LEFT JOIN _splits _s ON _s.isrc = sr.isrc"
+        rev_expr   = "sr.total_net_revenue * COALESCE(_s.pct, 1.0)"
     else:
+        cte      = ""
         rev_expr = "sr.total_net_revenue"
 
     def q(sql, p=None):
         with _engine.connect() as conn:
-            return conn.execute(text(sql), p or params).fetchall()
+            return conn.execute(text(cte + sql), p or params).fetchall()
 
     # KPI
     kpi_total = float(q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {base_from} WHERE {where}")[0][0])

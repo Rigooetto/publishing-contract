@@ -172,6 +172,17 @@ with app.app_context():
                     _c.commit()
         except Exception:
             pass  # already TEXT, or table doesn't exist yet — both fine
+        # Add indexes for dashboard GROUP BY / WHERE columns if not present
+        try:
+            from sqlalchemy import text as _text
+            _roy_engine = db.engines.get('royalties')
+            if _roy_engine:
+                with _roy_engine.connect() as _c:
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_sr_artist_name_csv ON streaming_royalty (artist_name_csv)"))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_sr_country ON streaming_royalty (country)"))
+                    _c.commit()
+        except Exception:
+            pass
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt
