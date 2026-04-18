@@ -80,23 +80,23 @@ def _isrc_to_track_map(isrc_set, main_engine=None):
     return {r[0]: r[1] for r in rows}
 
 
-def _save_progress(rec, rows_read, rows_skipped, rows_aggregated, engine=None,
+def _save_progress(rec, rows_read, rows_skipped, rows_aggregated, royalties_engine=None,
                    reporting_month=None):
-    """Persist import progress to the main DB.  Uses engine if given (background thread)."""
+    """Persist import progress.  streaming_import is in the royalties DB."""
     from sqlalchemy import text as _t
-    if engine is not None:
-        with engine.connect() as conn:
-            conn.execute(_t("""
-                UPDATE streaming_import
-                   SET rows_read=:r, rows_skipped=:s, rows_aggregated=:a
-                       {rm}
-                 WHERE id=:id
-            """.format(rm=", reporting_month=:rm" if reporting_month else "")),
-                {
-                    "r": rows_read, "s": rows_skipped, "a": rows_aggregated,
-                    "id": rec.id,
-                    **({"rm": reporting_month} if reporting_month else {}),
-                })
+    if royalties_engine is not None:
+        sql = """
+            UPDATE streaming_import
+               SET rows_read=:r, rows_skipped=:s, rows_aggregated=:a
+                   {rm}
+             WHERE id=:id
+        """.format(rm=", reporting_month=:rm" if reporting_month else "")
+        with royalties_engine.connect() as conn:
+            conn.execute(_t(sql), {
+                "r": rows_read, "s": rows_skipped, "a": rows_aggregated,
+                "id": rec.id,
+                **({"rm": reporting_month} if reporting_month else {}),
+            })
             conn.commit()
     else:
         rec.rows_read       = rows_read
@@ -329,10 +329,12 @@ def _process_import(app, import_id):
     m_engine = create_engine(_pg(main_url),      poolclass=NullPool) if main_url      else None
     r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
 
+    # streaming_import and streaming_royalty both live in the royalties DB.
+    # m_engine is only needed for the track ISRC lookup.
     def _update_status(status, error=None):
-        if m_engine is None:
+        if r_engine is None:
             return
-        with m_engine.connect() as conn:
+        with r_engine.connect() as conn:
             if error:
                 conn.execute(_t("""
                     UPDATE streaming_import
@@ -346,9 +348,9 @@ def _process_import(app, import_id):
             conn.commit()
 
     try:
-        # Mark processing + get file_path
+        # Mark processing + get file_path (all in royalties DB)
         file_path = None
-        with m_engine.connect() as conn:
+        with r_engine.connect() as conn:
             conn.execute(_t("""
                 UPDATE streaming_import SET status='processing', started_at=:t WHERE id=:id
             """), {"t": datetime.datetime.utcnow(), "id": import_id})
