@@ -211,19 +211,23 @@ with app.app_context():
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist   ON royalty_summary (artist_name_csv)"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
-                    # One-time backfill from existing streaming_royalty data
-                    _c.execute(_text("""
-                        INSERT INTO royalty_summary
-                            (reporting_month, isrc, artist_name_csv, platform, country,
-                             track_title_csv, streams, net_revenue)
-                        SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
-                               MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
-                          FROM streaming_royalty
-                         GROUP BY reporting_month, isrc, platform, country
-                        ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
-                    """))
-                    _c.commit()
-                    app.logger.warning("royalty_summary table ensured and backfilled.")
+                    # One-time backfill — skip if table already has data to avoid blocking startup
+                    _rs_count = _c.execute(_text("SELECT COUNT(*) FROM royalty_summary")).fetchone()[0]
+                    if _rs_count == 0:
+                        _c.execute(_text("""
+                            INSERT INTO royalty_summary
+                                (reporting_month, isrc, artist_name_csv, platform, country,
+                                 track_title_csv, streams, net_revenue)
+                            SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                                   MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                              FROM streaming_royalty
+                             GROUP BY reporting_month, isrc, platform, country
+                            ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
+                        """))
+                        _c.commit()
+                        app.logger.warning("royalty_summary table ensured and backfilled.")
+                    else:
+                        app.logger.warning("royalty_summary table ensured (%d rows, skipped backfill).", _rs_count)
         except Exception as _rse:
             app.logger.warning("royalty_summary setup failed: %s", _rse)
     # Mark any imports that were mid-flight when the server last restarted
