@@ -637,12 +637,33 @@ def delete_import(import_id):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
-    from models import StreamingImport, StreamingRoyalty
+    from models import StreamingImport
+    from sqlalchemy import text as _t
     rec = StreamingImport.query.get_or_404(import_id)
-    StreamingRoyalty.query.filter_by(import_id=import_id).delete()
-    db.session.delete(rec)
-    db.session.commit()
+    _engine = _royalties_engine()
+    with _engine.connect() as _c:
+        _c.execute(_t("DELETE FROM streaming_royalty WHERE import_id = :id"), {"id": import_id})
+        _c.execute(_t("DELETE FROM streaming_import WHERE id = :id"), {"id": import_id})
+        _c.commit()
     flash("Import deleted.", "success")
+    return redirect(url_for("streaming_royalties.imports_list"))
+
+
+@bp.route("/streaming-royalties/purge-all", methods=["POST"])
+def purge_all():
+    """Delete every streaming_royalty and streaming_import row — full reset."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+    from sqlalchemy import text as _t
+    _engine = _royalties_engine()
+    with _engine.connect() as _c:
+        _c.execute(_t("DELETE FROM streaming_royalty"))
+        _c.execute(_t("DELETE FROM streaming_import"))
+        _c.commit()
+    flash("All royalty data purged.", "success")
     return redirect(url_for("streaming_royalties.imports_list"))
 
 
@@ -1207,6 +1228,12 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% else %}
 <div style="padding:40px;text-align:center;color:var(--t3)">No imports yet. Upload a Believe monthly CSV to get started.</div>
 {% endif %}
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b2)">
+  <form method="post" action="/streaming-royalties/purge-all"
+        onsubmit="return confirm('This will delete ALL royalty rows from the database. Are you sure?')">
+    <button class="btn btn-sm" style="color:var(--ar)">Purge All Royalty Data</button>
+  </form>
+</div>
 </div>
 </div></div></div>""" + _SB_JS + """</body></html>"""
 
