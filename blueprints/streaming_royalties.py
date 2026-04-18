@@ -808,13 +808,13 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Artist</div>
       {% if data.by_artist %}
-      <canvas id="chartArtist" height="280"></canvas>
+      <div style="position:relative;height:280px"><canvas id="chartArtist"></canvas></div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Month</div>
       {% if data.by_month %}
-      <canvas id="chartMonth" height="280"></canvas>
+      <div style="position:relative;height:280px"><canvas id="chartMonth"></canvas></div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
   </div>
@@ -840,13 +840,13 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Country</div>
       {% if data.by_country %}
-      <canvas id="chartCountry" height="280"></canvas>
+      <div style="position:relative;height:280px"><canvas id="chartCountry"></canvas></div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Platform</div>
       {% if data.by_platform %}
-      <canvas id="chartPlatform" height="280"></canvas>
+      <div style="position:relative;height:280px"><canvas id="chartPlatform"></canvas></div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
   </div>
