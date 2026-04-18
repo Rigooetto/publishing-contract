@@ -367,7 +367,7 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     by_platform = q(f"""
         SELECT platform, COALESCE(SUM({rev_expr}), 0) AS rev
           FROM {from_clause} WHERE {where_clause} AND platform IS NOT NULL
-         GROUP BY platform ORDER BY rev DESC
+         GROUP BY platform ORDER BY rev DESC LIMIT 15
     """)
 
     # By country (top 5 + Other)
