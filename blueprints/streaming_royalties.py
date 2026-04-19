@@ -582,15 +582,16 @@ def _prewarm_dashboard_cache():
                 "SELECT DISTINCT artist_name_csv FROM royalty_summary "
                 "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY 1"
             )).fetchall()
-        years    = ["all"] + [str(r[0]) for r in year_rows]
-        quarters = ["all", "1", "2", "3", "4"]
+        # Skip year="all" and quarter="all" — those scan the full 6M-row table and are
+        # cached on first user visit. Warm only specific year/quarter combos which are fast.
+        years    = [str(r[0]) for r in year_rows]
+        quarters = ["1", "2", "3", "4"]
         split_artists: set = set()
         for r in artist_rows:
             for part in r[0].split(','):
                 name = part.strip()
                 if name:
                     split_artists.add(name)
-        # Skip "all" — those queries scan millions of rows and are cached on first user visit
         artists = sorted(split_artists, key=str.lower)
     except Exception:
         _prewarm_status["running"] = False
@@ -749,14 +750,18 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     # KPI
     kpi_total = float(q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {base_from} WHERE {where}")[0][0])
 
-    # By artist (top 10) — split collaboration strings so each individual artist
-    # gets their own bar (full attributed revenue, not divided among collaborators)
+    # By artist (top 10) — aggregate by full collab string first (collapses 6M→few-hundred rows),
+    # then unnest individual names so the outer GROUP BY runs on hundreds of rows, not millions.
     by_artist = q(f"""
-        SELECT TRIM(a.name) AS artist, COALESCE(SUM({rev_expr}), 0) AS rev
-          FROM {base_from}
-          CROSS JOIN LATERAL unnest(string_to_array(sr.artist_name_csv, ',')) AS a(name)
-         WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
-           AND TRIM(a.name) != ''
+        SELECT TRIM(a.name) AS artist, COALESCE(SUM(sub.rev), 0) AS rev
+          FROM (
+              SELECT sr.artist_name_csv AS csv_val, COALESCE(SUM({rev_expr}), 0) AS rev
+                FROM {base_from}
+               WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
+               GROUP BY sr.artist_name_csv
+          ) sub
+          CROSS JOIN LATERAL unnest(string_to_array(sub.csv_val, ',')) AS a(name)
+         WHERE TRIM(a.name) != ''
          GROUP BY 1 ORDER BY rev DESC LIMIT 10
     """)
 
