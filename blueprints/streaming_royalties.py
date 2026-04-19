@@ -687,6 +687,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     base_from  = "royalty_summary sr"
     artist_col = "sr.artist_name_csv"
 
+
     conditions = ["1=1"]
     params = {}
     if year and year != "all":
@@ -703,16 +704,10 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         params["q_start"] = f"{base_year}-{q_start_m:02d}-01"
         params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
     if artist and artist != "all":
-        conditions.append(
-            "(sr.artist_name_csv ILIKE :artist_exact"
-            " OR sr.artist_name_csv ILIKE :artist_prefix"
-            " OR sr.artist_name_csv ILIKE :artist_suffix"
-            " OR sr.artist_name_csv ILIKE :artist_middle)"
-        )
-        params["artist_exact"]  = artist
-        params["artist_prefix"] = f"{artist},%"
-        params["artist_suffix"] = f"%, {artist}"
-        params["artist_middle"] = f"%, {artist},%"
+        # Single %artist% pattern lets the GIN trigram index on artist_name_csv do the work.
+        # Multiple OR'd ILIKE conditions prevent the planner from using the GIN index efficiently.
+        conditions.append("sr.artist_name_csv ILIKE :artist_pat")
+        params["artist_pat"] = f"%{artist}%"
     where = " AND ".join(conditions)
 
     if view == "artist":
@@ -740,6 +735,10 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
 
     def q(sql, p=None):
         with _engine.connect() as conn:
+            try:
+                conn.execute(text("SET statement_timeout = '45s'"))
+            except Exception:
+                pass
             return conn.execute(text(cte + sql), p or params).fetchall()
 
     # KPI
@@ -1509,6 +1508,11 @@ def _normalize_royalty_summary_bg():
                 _log.info("_normalize_royalty_summary_bg: updated %d distinct values", len(updates))
 
         _clear_dashboard_cache()
+        # Pre-warm the cache in background so users don't hit cold 5-minute queries
+        try:
+            _prewarm_dashboard_cache()
+        except Exception as _pw_e:
+            _log.warning("_normalize_royalty_summary_bg: prewarm failed: %s", _pw_e)
     except Exception as e:
         _log.warning("_normalize_royalty_summary_bg error: %s", e)
 
