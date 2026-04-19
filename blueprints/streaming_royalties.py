@@ -1433,10 +1433,16 @@ def _normalize_royalty_summary_bg():
             return ', '.join(name_map.get(p, p) for p in parts)
 
         with engine.connect() as conn:
-            rows = conn.execute(_t(
-                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
-                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
-            )).fetchall()
+            # Use in-memory cache if warm to avoid slow SELECT DISTINCT over 6M rows
+            _AN_CACHE_KEY = "artist_names_raw_csvs"
+            _cached = _dash_cache.get(_AN_CACHE_KEY)
+            if _cached and (_time.time() - _cached["ts"]) < 300:
+                rows = [(_v,) for _v in _cached["data"]]
+            else:
+                rows = conn.execute(_t(
+                    "SELECT DISTINCT artist_name_csv FROM royalty_summary "
+                    "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
+                )).fetchall()
 
             updates = []
             for (raw,) in rows:
@@ -1549,12 +1555,8 @@ def artist_names():
             # Targeted sync normalization for just-saved names (fast, uses trigram index)
             # so the dashboard reflects changes immediately without waiting for full background pass
             if saved_raws:
-                all_confirmed = {m.raw_name: m.canonical_name
-                                 for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
-                _normalize_specific_sync(saved_raws, all_confirmed)
-            _clear_dashboard_cache()
-            _start_normalize_bg()  # full background pass for any remaining names
-            flash(f"Saved {saved} mapping(s), removed {deleted}. Dashboard updated.", "success")
+            _start_normalize_bg()  # background pass updates royalty_summary + clears cache when done
+            flash(f"Saved {saved} mapping(s), removed {deleted}. Dashboard updating in the background — reload in ~15 seconds.", "success")
             return redirect(url_for("streaming_royalties.artist_names"))
 
         except Exception as _post_err:
@@ -1603,17 +1605,28 @@ def artist_names():
     for g in groups:
         for name in g:
             m = existing_maps.get(name)
+            sugg = suggestions.get(name, "")
+            # A name with no explicit map entry is "auto" if the suggestion equals itself
+            # (already in canonical form, no action needed). Only "unmapped" if it would change.
+            if m:
+                status = m.status
+            elif sugg == name:
+                status = "auto"
+            else:
+                status = "unmapped"
             ordered.append({
                 "raw":        name,
                 "canonical":  m.canonical_name if m else "",
                 "confidence": float(m.confidence) if (m and m.confidence is not None) else None,
-                "status":     m.status if m else "unmapped",
+                "status":     status,
                 "group_size": len(g),
-                "suggestion": suggestions.get(name, ""),
+                "suggestion": sugg,
             })
 
     n_confirmed = sum(1 for m in all_map_entries if m.status == 'confirmed')
-    n_unmapped  = sum(1 for n in all_individuals if n not in existing_maps)
+    n_auto      = sum(1 for row in ordered if row["status"] == "auto")
+    # Only count as unmapped if the name would actually change after normalization
+    n_unmapped  = sum(1 for row in ordered if row["status"] == "unmapped")
 
     return render_template_string(
         _ARTIST_NAMES_HTML,
@@ -1621,6 +1634,7 @@ def artist_names():
         pending=pending,
         total=len(all_individuals),
         n_confirmed=n_confirmed,
+        n_auto=n_auto,
         n_pending=len(pending),
         n_unmapped=n_unmapped,
         _sidebar_html=_sb("streaming_artist_names"),
@@ -2298,9 +2312,10 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 
 <div class="an-stats">
   <div class="an-stat"><strong>{{ total }}</strong>Individual names</div>
-  <div class="an-stat"><strong>{{ n_confirmed }}</strong>Confirmed</div>
+  <div class="an-stat"><strong>{{ n_confirmed }}</strong>Mapped</div>
+  <div class="an-stat"><strong style="color:#6385ff">{{ n_auto }}</strong>Already canonical</div>
   <div class="an-stat" style="{{ 'border-color:#f59e0b66' if n_pending else '' }}"><strong style="{{ 'color:#f59e0b' if n_pending else '' }}">{{ n_pending }}</strong>Pending review</div>
-  <div class="an-stat"><strong>{{ n_unmapped }}</strong>Unmapped</div>
+  <div class="an-stat" style="{{ 'border-color:#ff4f6a66' if n_unmapped else '' }}"><strong style="{{ 'color:var(--err)' if n_unmapped else '' }}">{{ n_unmapped }}</strong>Needs mapping</div>
 </div>
 
 {% if pending %}
@@ -2376,9 +2391,11 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="an-row">
       <span class="an-raw" title="{{ item.raw }}">{{ item.raw }}
         {% if item.status == 'confirmed' and item.confidence is not none %}
-          <span class="conf-pct" style="color:#22c55e">&#10003; auto</span>
+          <span class="conf-pct" style="color:#22c55e">&#10003; auto-mapped</span>
+        {% elif item.status == 'auto' %}
+          <span class="conf-pct" style="color:#6385ff">&#10003; canonical</span>
         {% elif item.status == 'unmapped' %}
-          <span class="conf-pct" style="color:var(--err)">unmapped</span>
+          <span class="conf-pct" style="color:var(--err)">needs mapping</span>
         {% endif %}
       </span>
       <input class="inp row-can" name="canonical_{{ gi }}"
