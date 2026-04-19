@@ -701,12 +701,22 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     where = " AND ".join(conditions)
 
     if view == "artist":
-        # Pre-aggregate splits once via CTE — avoids one correlated subquery per result row
-        cte = (
-            "WITH _splits AS ("
-            "SELECT isrc, SUM(percentage)/100.0 AS pct FROM artist_royalty_split GROUP BY isrc"
-            ") "
-        )
+        if artist and artist != "all":
+            # Single-artist view: use only that artist's percentage per ISRC
+            cte = (
+                "WITH _splits AS ("
+                "SELECT isrc, percentage/100.0 AS pct FROM artist_royalty_split "
+                "WHERE artist_name = :split_artist"
+                ") "
+            )
+            params["split_artist"] = artist
+        else:
+            # All-artists view: sum all splits per ISRC (total artist payout)
+            cte = (
+                "WITH _splits AS ("
+                "SELECT isrc, SUM(percentage)/100.0 AS pct FROM artist_royalty_split GROUP BY isrc"
+                ") "
+            )
         base_from += " LEFT JOIN _splits _s ON _s.isrc = sr.isrc"
         rev_expr   = "sr.net_revenue * COALESCE(_s.pct, 1.0)"
     else:
