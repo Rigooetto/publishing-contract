@@ -2669,7 +2669,7 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
 
 <div class="gaps-banner {{ 'gaps-ok' if not mismatches and not missing else '' }}">
   <div class="gaps-stat"><strong style="color:var(--err)">{{ mismatches|length }}</strong><span>Name Mismatches</span></div>
-  <div class="gaps-stat"><strong style="color:var(--err)">{{ missing|length }}</strong><span>Missing Splits</span></div>
+  <div class="gaps-stat"><strong style="color:var(--err)">{{ missing|length }}</strong><span>ISRCs Missing Splits</span></div>
   <div class="gaps-stat"><strong style="color:#f59e0b">${{ "{:,.0f}".format(total_at_risk) }}</strong><span>Label Rev at Risk</span></div>
   {% if not mismatches and not missing %}
   <div style="color:#22c55e;font-weight:600;font-size:14px;margin-left:auto">&#10003; All ISRCs have splits assigned</div>
@@ -2722,31 +2722,32 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="card" style="padding:0;overflow:hidden">
 <table class="gaps-tbl">
   <thead><tr>
-    <th>ISRC</th><th>Track</th><th>Artists in Data</th><th>Artist Name</th><th>%</th><th class="rev-cell">Label Rev</th><th></th>
+    <th>ISRC</th><th>Track</th><th>Artist &amp; Split %</th><th class="rev-cell">Label Rev</th>
   </tr></thead>
   <tbody>
   {% for r in missing %}
-  <tr>
-    <td style="font-family:monospace;font-size:11px;color:var(--t3)">{{ r.isrc }}</td>
-    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.title }}">{{ r.title or r.isrc }}</td>
-    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);font-size:12px" title="{{ r.artists }}">{{ r.artists or '—' }}</td>
-    <td>
-      <form method="post" action="/streaming-royalties/split-gaps/save-split" style="display:flex;gap:6px;align-items:center">
-        <input type="hidden" name="isrc" value="{{ r.isrc }}">
-        <input class="inp-sm" name="artist_name" placeholder="Artist name"
-               value="{{ r.suggested_artist or '' }}" required>
-        <input class="inp-sm inp-pct" name="percentage" type="number" min="0" max="100" step="0.01"
-               placeholder="%" value="{{ r.suggested_pct or '' }}" required>
-        {% if r.suggested_artist %}
-        <span class="sugg-pct" title="Suggested from artist contract">&#9733; contract</span>
-        {% endif %}
-        <button type="submit" class="btn-save">Save</button>
-      </form>
-    </td>
-    <td></td>
-    <td class="rev-cell">${{ "{:,.0f}".format(r.label_rev or 0) }}</td>
-    <td></td>
-  </tr>
+    {% for row in r.artist_rows %}
+    <tr>
+      {% if loop.first %}
+      <td rowspan="{{ r.artist_rows|length }}" style="font-family:monospace;font-size:11px;color:var(--t3);vertical-align:top;padding-top:10px">{{ r.isrc }}</td>
+      <td rowspan="{{ r.artist_rows|length }}" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:top;padding-top:10px" title="{{ r.title }}">{{ r.title }}</td>
+      {% endif %}
+      <td>
+        <form method="post" action="/streaming-royalties/split-gaps/save-split" style="display:flex;gap:6px;align-items:center">
+          <input type="hidden" name="isrc" value="{{ r.isrc }}">
+          <input class="inp-sm" name="artist_name" value="{{ row.artist_name }}" required>
+          <input class="inp-sm inp-pct" name="percentage" type="number" min="0" max="100" step="0.01"
+                 value="{{ row.pct if row.pct is not none else '' }}" placeholder="%" required>
+          {% if row.source == 'contract' %}<span class="sugg-pct" title="From artist contract">&#9733; contract</span>
+          {% elif row.source == 'release' %}<span class="sugg-pct" style="color:#6385ff" title="From release data">&#128209; release</span>{% endif %}
+          <button type="submit" class="btn-save">Save</button>
+        </form>
+      </td>
+      {% if loop.first %}
+      <td rowspan="{{ r.artist_rows|length }}" class="rev-cell" style="vertical-align:top;padding-top:10px">${{ "{:,.0f}".format(r.label_rev or 0) }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
   {% endfor %}
   </tbody>
 </table>
@@ -2817,7 +2818,7 @@ def split_gaps():
     except Exception:
         missing_rows = []
 
-    # Pre-load artist_name_map and artist_contract for suggestions
+    # Pre-load artist_name_map and active contracts
     try:
         from models import ArtistNameMap as _ANM, ArtistContract as _AC, Artist as _Art
         import datetime as _dt
@@ -2829,28 +2830,58 @@ def split_gaps():
         _artist_pct = {}
         for c in _contracts:
             art = _Art.query.get(c.artist_id)
-            if art and art.name not in _artist_pct:
+            if art and art.name.lower() not in _artist_pct:
                 _artist_pct[art.name.lower()] = (art.name, float(c.royalty_percentage))
     except Exception:
         _name_map = {}
         _artist_pct = {}
 
+    # Pre-load ArtistRelease data: ISRC → {artist_name_lower: (canonical, pct)}
+    _release_pct = {}
+    try:
+        from models import Track as _Track, ArtistRelease as _AR, Artist as _Art2
+        _missing_isrcs = [r[0] for r in missing_rows]
+        if _missing_isrcs:
+            _tracks = _Track.query.filter(_Track.isrc.in_(_missing_isrcs)).all()
+            for _trk in _tracks:
+                _ar_rows = _AR.query.filter_by(release_id=_trk.release_id).all()
+                for _ar in _ar_rows:
+                    _art2 = _Art2.query.get(_ar.artist_id)
+                    if _art2 and _ar.royalty_percentage is not None:
+                        _release_pct.setdefault(_trk.isrc, {})[_art2.name.lower()] = \
+                            (_art2.name, float(_ar.royalty_percentage))
+    except Exception:
+        _release_pct = {}
+
     missing = []
     for r in missing_rows:
+        isrc = r[0]
         artists_raw = r[2] or ""
-        suggested_artist = None
-        suggested_pct = None
-        for part in artists_raw.split(','):
-            canonical = _name_map.get(part.strip(), part.strip())
-            match = _artist_pct.get(canonical.lower())
-            if match:
-                suggested_artist, suggested_pct = match
-                break
+        parts = [p.strip() for p in artists_raw.split(',') if p.strip()]
+        is_collab = len(parts) > 1
+        release_map = _release_pct.get(isrc, {})
+
+        artist_rows = []
+        for part in parts:
+            canonical = _name_map.get(part, part)
+            rel_match = release_map.get(canonical.lower()) or release_map.get(part.lower())
+            if rel_match:
+                artist_rows.append({"artist_name": rel_match[0], "pct": rel_match[1], "source": "release"})
+            elif not is_collab:
+                contract_match = _artist_pct.get(canonical.lower())
+                if contract_match:
+                    artist_rows.append({"artist_name": contract_match[0], "pct": contract_match[1], "source": "contract"})
+                else:
+                    artist_rows.append({"artist_name": canonical, "pct": None, "source": None})
+            else:
+                # Collab: name pre-filled from canonical, % blank — no contract suggestion
+                artist_rows.append({"artist_name": canonical, "pct": None, "source": None})
+
         missing.append({
-            "isrc": r[0], "title": r[1], "artists": artists_raw,
+            "isrc": isrc,
+            "title": r[1] or isrc,
             "label_rev": float(r[3]),
-            "suggested_artist": suggested_artist,
-            "suggested_pct": suggested_pct,
+            "artist_rows": artist_rows,
         })
 
     total_at_risk = sum(r["label_rev"] for r in mismatches) + sum(r["label_rev"] for r in missing)
