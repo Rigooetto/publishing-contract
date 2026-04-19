@@ -507,7 +507,16 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
         except Exception:
             _new_individuals = set()
 
-        _clear_dashboard_cache(r_engine)
+        # Collect reporting months from this import for selective cache invalidation
+        _import_months = []
+        try:
+            with r_engine.connect() as _mc:
+                _import_months = [r[0] for r in _mc.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
+                ), {"id": import_id}).fetchall()]
+        except Exception:
+            pass
+        _clear_cache_for_months(r_engine, _import_months)
         _app = current_app._get_current_object()
         def _run_post_import():
             with _app.app_context():
@@ -566,61 +575,51 @@ def _royalties_engine():
 
 
 def _prewarm_dashboard_cache():
-    """Background thread: pre-compute every artist × year × quarter × view combo into dashboard_cache."""
+    """Background: pre-compute artist=all for every year×quarter into dashboard_cache.
+    Per-artist combos are computed on-demand and cached on first access.
+    Historical quarters already in DB cache are served instantly without recomputation.
+    """
     from sqlalchemy import text as _t, create_engine
     from sqlalchemy.pool import NullPool
-    # Create a dedicated NullPool engine for this thread so it never shares
-    # connections with the main Flask pool — prevents SSL corruption.
     shared_engine = db.engines.get('royalties') or db.engine
     db_url = shared_engine.url.render_as_string(hide_password=False)
     engine = create_engine(db_url, poolclass=NullPool)
-    _engine_local.override = engine  # all _royalties_engine() calls in this thread use this
+    _engine_local.override = engine
     try:
         with engine.connect() as conn:
             year_rows = conn.execute(_t(
                 "SELECT DISTINCT EXTRACT(year FROM reporting_month)::int "
                 "FROM royalty_summary WHERE reporting_month IS NOT NULL ORDER BY 1"
             )).fetchall()
-            artist_rows = conn.execute(_t(
-                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
-                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' ORDER BY 1"
-            )).fetchall()
-        # Skip year="all" and quarter="all" — those scan the full 6M-row table and are
-        # cached on first user visit. Warm only specific year/quarter combos which are fast.
-        years    = [str(r[0]) for r in year_rows]
-        quarters = ["1", "2", "3", "4"]
-        split_artists: set = set()
-        for r in artist_rows:
-            for part in r[0].split(','):
-                name = part.strip()
-                if name:
-                    split_artists.add(name)
-        artists = sorted(split_artists, key=str.lower)
+        years = [str(r[0]) for r in year_rows]
     except Exception:
         _prewarm_status["running"] = False
+        _engine_local.override = None
+        engine.dispose()
         return
 
-    total = len(years) * len(quarters) * len(artists) * 2
+    # Only warm artist=all combos: specific year×quarter + year totals, both views.
+    # Skips year=all (full 6M-row scan) — cached on first user visit.
+    combos = []
+    for y in years:
+        for qtr in ("1", "2", "3", "4"):
+            combos.append((y, qtr, "all", "label"))
+            combos.append((y, qtr, "all", "artist"))
+        combos.append((y, "all", "all", "label"))
+        combos.append((y, "all", "all", "artist"))
+
+    total = len(combos)
     done  = 0
-    _prewarm_status.update({"running": True, "done": 0, "total": total, "current_artist": ""})
-    for artist in artists:
-        _prewarm_status["current_artist"] = artist
-        for y in years:
-            for qtr in quarters:
-                for v in ("label", "artist"):
-                    try:
-                        _dashboard_data(y, qtr, artist, v)
-                    except Exception:
-                        pass
-                    done += 1
-                    _prewarm_status["done"] = done
-                    _time.sleep(0.05)  # throttle to avoid SSL connection pool exhaustion
+    _prewarm_status.update({"running": True, "done": 0, "total": total, "current_artist": "Warming cache…"})
+    for (y, qtr, artist, view) in combos:
+        _prewarm_status["current_artist"] = f"{y} Q{qtr}" if qtr != "all" else str(y)
         try:
-            current_app.logger.info(
-                "Cache pre-warm: '%s' done (%d/%d combos)", artist, done, total
-            )
+            _dashboard_data(y, qtr, artist, view)
         except Exception:
             pass
+        done += 1
+        _prewarm_status["done"] = done
+        _time.sleep(0.02)
     _prewarm_status.update({"running": False, "current_artist": ""})
     _engine_local.override = None
     engine.dispose()
@@ -632,11 +631,51 @@ def _clear_dashboard_cache(engine=None):
     eng = engine or _royalties_engine()
     try:
         with eng.connect() as conn:
-            conn.execute(text("DELETE FROM dashboard_cache"))
+            conn.execute(text("DELETE FROM dashboard_cache WHERE cache_key != '_recovery_v2'"))
             conn.commit()
     except Exception:
         pass
     _dash_cache.clear()
+
+
+def _clear_cache_for_months(engine, reporting_months):
+    """Selective cache invalidation: only clear entries covering the given reporting months.
+    Historical quarters not in reporting_months are preserved — their data never changes.
+    Falls back to full clear if reporting_months is empty.
+    """
+    from sqlalchemy import text
+    if not reporting_months:
+        _clear_dashboard_cache(engine)
+        return
+    affected_years = set()
+    affected_yq = set()
+    for m in reporting_months:
+        y = str(getattr(m, 'year', None) or str(m)[:4])
+        month_num = getattr(m, 'month', None) or int(str(m)[5:7])
+        q = str((month_num - 1) // 3 + 1)
+        affected_years.add(y)
+        affected_yq.add((y, q))
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("DELETE FROM dashboard_cache WHERE cache_key LIKE 'all|%'"))
+            for y in affected_years:
+                conn.execute(text("DELETE FROM dashboard_cache WHERE cache_key LIKE :p"),
+                             {"p": f"{y}|all|%"})
+            for y, q in affected_yq:
+                conn.execute(text("DELETE FROM dashboard_cache WHERE cache_key LIKE :p"),
+                             {"p": f"{y}|{q}|%"})
+            conn.commit()
+    except Exception:
+        pass
+    for key in list(_dash_cache.keys()):
+        if not isinstance(key, tuple) or len(key) < 2:
+            continue
+        k_year, k_quarter = str(key[0]), str(key[1])
+        if k_year == "all":
+            _dash_cache.pop(key, None)
+        elif k_year in affected_years:
+            if k_quarter == "all" or (k_year, k_quarter) in affected_yq:
+                _dash_cache.pop(key, None)
 
 
 def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
@@ -810,7 +849,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     if other > 0:
         country_data.append(("Other", other))
 
-    # Catalog top 50
+    # Full catalog
     catalog_rows = q(f"""
         SELECT sr.isrc,
                MAX(sr.track_title_csv) AS title,
@@ -818,7 +857,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                COALESCE(SUM(sr.streams), 0) AS streams,
                COALESCE(SUM({rev_expr}), 0) AS rev
           FROM {base_from} WHERE {where}
-         GROUP BY sr.isrc ORDER BY rev DESC LIMIT 50
+         GROUP BY sr.isrc ORDER BY rev DESC
     """)
     catalog = [{"title": r[1] or r[0], "artist": r[2] or "",
                 "streams": int(r[3]), "revenue": float(r[4])}
@@ -1847,9 +1886,25 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 
   <div class="sr-grid">
     <div class="sr-panel">
-      <div class="sr-panel-title">Revenue by Artist</div>
+      <div class="sr-panel-title">Revenue by Artist <span style="color:var(--t2);font-size:11px;font-weight:400;margin-left:6px">Top 10</span></div>
       {% if data.by_artist %}
       <div style="position:relative;height:280px"><canvas id="chartArtist"></canvas></div>
+      <div style="max-height:300px;overflow-y:auto;margin-top:14px;border-top:1px solid rgba(255,255,255,.07);padding-top:10px">
+        <table class="sr-tbl" style="width:100%">
+          <thead style="position:sticky;top:0;background:#161b27;z-index:1">
+            <tr><th style="width:32px;color:var(--t2)">#</th><th>Artist</th><th class="num">Net Revenue</th></tr>
+          </thead>
+          <tbody id="artistBody">
+          {% for row in data.by_artist %}
+          <tr>
+            <td style="color:var(--t2);font-size:11px">{{ loop.index }}</td>
+            <td>{{ row.name }}</td>
+            <td class="num">${{ "{:,.0f}".format(row.revenue) }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
     <div class="sr-panel">
@@ -1861,16 +1916,19 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
   </div>
 
   <div class="sr-grid-3">
-    <div class="sr-panel" style="grid-column:span 1;max-height:340px;overflow-y:auto">
-      <div class="sr-panel-title">Catalog</div>
+    <div class="sr-panel" style="grid-column:span 1;max-height:500px;overflow-y:auto">
+      <div class="sr-panel-title" style="position:sticky;top:0;background:#161b27;z-index:2;padding-bottom:8px">Catalog</div>
       {% if data.catalog %}
-      <table class="sr-tbl">
-        <thead><tr><th>Streams</th><th>Track</th><th class="num">Net Revenue</th></tr></thead>
+      <table class="sr-tbl" style="width:100%">
+        <thead style="position:sticky;top:32px;background:#161b27;z-index:1">
+          <tr><th class="num">Streams</th><th>Track</th><th>Artist</th><th class="num">Net Revenue</th></tr>
+        </thead>
         <tbody id="catalogBody">
         {% for t in data.catalog %}
         <tr>
           <td class="num">{{ "{:,}".format(t.streams) }}</td>
-          <td>{{ t.title[:35] }}{% if t.title|length > 35 %}…{% endif %}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.title }}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);font-size:11.5px">{{ t.artist }}</td>
           <td class="num">${{ "{:,.2f}".format(t.revenue) }}</td>
         </tr>
         {% endfor %}
@@ -1918,11 +1976,12 @@ function buildCharts(d){
 
   const elA = mkCanvas('chartArtist');
   if(elA && d.by_artist?.length){
+    const top10 = d.by_artist.slice(0,10);
     charts.artist = new Chart(elA, {
       type:'bar', plugins:[DL],
       data:{
-        labels: d.by_artist.map(r=>r.name),
-        datasets:[{data:d.by_artist.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
+        labels: top10.map(r=>r.name),
+        datasets:[{data:top10.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
         responsive:false, indexAxis:'y',
@@ -2027,21 +2086,46 @@ function applyFilters(){
   const artist=document.getElementById('selArtist').value;
   const year=document.getElementById('selYear').value;
   const quarter=document.getElementById('selQuarter').value;
+  const overlay=document.getElementById('loading-overlay');
+  var _loadTimer=setTimeout(function(){ overlay.style.display='flex'; }, 1000);
   fetch(`/streaming-royalties/data?year=${year}&quarter=${quarter}&artist=${encodeURIComponent(artist)}&view=${currentView}`)
     .then(r=>r.json()).then(d=>{
+      clearTimeout(_loadTimer);
+      overlay.style.display='none';
       document.getElementById('kpiVal').textContent='$'+d.kpi_total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+      // Full catalog table
       const tbody=document.getElementById('catalogBody');
       if(tbody && d.catalog){
         tbody.innerHTML=d.catalog.map(t=>`<tr>
           <td class="num">${t.streams.toLocaleString()}</td>
-          <td>${t.title.substring(0,35)}${t.title.length>35?'…':''}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);font-size:11.5px">${t.artist||''}</td>
           <td class="num">$${t.revenue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
         </tr>`).join('');
       }
+      // Full artist table
+      const abody=document.getElementById('artistBody');
+      if(abody && d.by_artist){
+        abody.innerHTML=d.by_artist.map((r,i)=>`<tr>
+          <td style="color:var(--t2);font-size:11px">${i+1}</td>
+          <td>${r.name}</td>
+          <td class="num">$${Math.round(r.revenue).toLocaleString()}</td>
+        </tr>`).join('');
+      }
       buildCharts(d);
+    }).catch(function(){
+      clearTimeout(_loadTimer);
+      overlay.style.display='none';
     });
 }
 </script>
+
+<div id="loading-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(10,13,20,.78);backdrop-filter:blur(3px);align-items:center;justify-content:center;flex-direction:column;gap:18px">
+  <div style="font-size:52px;animation:spin-gear 1.4s linear infinite">⚙️</div>
+  <div style="color:#edf0f8;font-size:15px;font-weight:600;letter-spacing:.4px">Computing dashboard…</div>
+  <div style="color:rgba(255,255,255,.45);font-size:12px">Large date ranges take up to 30 s on first load</div>
+</div>
+<style>@keyframes spin-gear{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 </body></html>"""
 
 @bp.app_template_filter("tojson")

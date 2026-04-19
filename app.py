@@ -257,29 +257,42 @@ with app.app_context():
                         app.logger.warning("royalty_summary table ensured (%d rows, skipped backfill).", _rs_count)
         except Exception as _rse:
             app.logger.warning("royalty_summary setup failed: %s", _rse)
-    # One-time revenue data recovery: rebuild royalty_summary from raw streaming_royalty
-    # (Removes corrupt artist_name_map entries created by old comma-splitting migration,
-    #  then re-aggregates royalty_summary from the immutable streaming_royalty source.)
+    # One-time revenue data recovery: runs exactly once (gated by sentinel in dashboard_cache).
     try:
         from sqlalchemy import text as _text
         _roy_engine = db.engines.get('royalties')
         if _roy_engine:
-            with _roy_engine.connect() as _c:
-                _c.execute(_text("DELETE FROM artist_name_map"))
-                _c.execute(_text("TRUNCATE royalty_summary"))
-                _c.execute(_text("""
-                    INSERT INTO royalty_summary
-                        (reporting_month, isrc, artist_name_csv, platform, country,
-                         track_title_csv, streams, net_revenue)
-                    SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
-                           MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
-                      FROM streaming_royalty
-                     GROUP BY reporting_month, isrc, platform, country
-                    ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
-                """))
-                _c.execute(_text("DELETE FROM dashboard_cache"))
-                _c.commit()
-                app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty, artist_name_map cleared.")
+            _already_done = False
+            try:
+                with _roy_engine.connect() as _c:
+                    _already_done = bool(_c.execute(_text(
+                        "SELECT 1 FROM dashboard_cache WHERE cache_key = '_recovery_v2'"
+                    )).fetchone())
+            except Exception:
+                pass
+            if not _already_done:
+                with _roy_engine.connect() as _c:
+                    _c.execute(_text("DELETE FROM artist_name_map"))
+                    _c.execute(_text("TRUNCATE royalty_summary"))
+                    _c.execute(_text("""
+                        INSERT INTO royalty_summary
+                            (reporting_month, isrc, artist_name_csv, platform, country,
+                             track_title_csv, streams, net_revenue)
+                        SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                               MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                          FROM streaming_royalty
+                         GROUP BY reporting_month, isrc, platform, country
+                        ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
+                    """))
+                    _c.execute(_text("DELETE FROM dashboard_cache"))
+                    _c.execute(_text("""
+                        INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
+                        VALUES ('_recovery_v2', '{}', NOW())
+                    """))
+                    _c.commit()
+                    app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty (one-time).")
+            else:
+                app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
     except Exception as _re:
         app.logger.warning("DATA RECOVERY failed: %s", _re)
     # Mark any imports that were mid-flight when the server last restarted
