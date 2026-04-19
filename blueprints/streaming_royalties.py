@@ -804,22 +804,13 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     # KPI
     kpi_total = float(q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {base_from} WHERE {where}")[0][0])
 
-    # By artist (top 10) — aggregate by full collab string first (collapses 6M→few-hundred rows),
-    # then unnest individual names so the outer GROUP BY runs on hundreds of rows, not millions.
+    # By artist — group by full collab string so "El Fantasma, Los Dos Carnales" is one bar.
     by_artist = q(f"""
-        SELECT COALESCE(anm.canonical_name, TRIM(a.name)) AS artist,
-               COALESCE(SUM(sub.rev), 0) AS rev
-          FROM (
-              SELECT sr.artist_name_csv AS csv_val, COALESCE(SUM({rev_expr}), 0) AS rev
-                FROM {base_from}
-               WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
-               GROUP BY sr.artist_name_csv
-          ) sub
-          CROSS JOIN LATERAL unnest(string_to_array(sub.csv_val, ',')) AS a(name)
-          LEFT JOIN artist_name_map anm
-                 ON anm.status = 'confirmed' AND anm.raw_name = TRIM(a.name)
-         WHERE TRIM(a.name) != ''
-         GROUP BY 1 ORDER BY rev DESC LIMIT 10
+        SELECT sr.artist_name_csv AS artist,
+               COALESCE(SUM({rev_expr}), 0) AS rev
+          FROM {base_from}
+         WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
+         GROUP BY sr.artist_name_csv ORDER BY rev DESC
     """)
 
     # By month (chronological)
@@ -1886,24 +1877,10 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 
   <div class="sr-grid">
     <div class="sr-panel">
-      <div class="sr-panel-title">Revenue by Artist <span style="color:var(--t2);font-size:11px;font-weight:400;margin-left:6px">Top 10</span></div>
+      <div class="sr-panel-title">Revenue by Artist</div>
       {% if data.by_artist %}
-      <div style="position:relative;height:280px"><canvas id="chartArtist"></canvas></div>
-      <div style="max-height:300px;overflow-y:auto;margin-top:14px;border-top:1px solid rgba(255,255,255,.07);padding-top:10px">
-        <table class="sr-tbl" style="width:100%">
-          <thead style="position:sticky;top:0;background:#161b27;z-index:1">
-            <tr><th style="width:32px;color:var(--t2)">#</th><th>Artist</th><th class="num">Net Revenue</th></tr>
-          </thead>
-          <tbody id="artistBody">
-          {% for row in data.by_artist %}
-          <tr>
-            <td style="color:var(--t2);font-size:11px">{{ loop.index }}</td>
-            <td>{{ row.name }}</td>
-            <td class="num">${{ "{:,.0f}".format(row.revenue) }}</td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
+      <div id="chartArtistWrap" style="overflow-y:auto;max-height:380px">
+        <canvas id="chartArtist"></canvas>
       </div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
@@ -1921,18 +1898,24 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
       {% if data.catalog %}
       <table class="sr-tbl" style="width:100%">
         <thead style="position:sticky;top:32px;background:#161b27;z-index:1">
-          <tr><th class="num">Streams</th><th>Track</th><th>Artist</th><th class="num">Net Revenue</th></tr>
+          <tr><th class="num">Streams</th><th>Track</th><th class="num">Net Revenue</th></tr>
         </thead>
         <tbody id="catalogBody">
         {% for t in data.catalog %}
         <tr>
           <td class="num">{{ "{:,}".format(t.streams) }}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.title }}</td>
-          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);font-size:11.5px">{{ t.artist }}</td>
+          <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.title }}</td>
           <td class="num">${{ "{:,.2f}".format(t.revenue) }}</td>
         </tr>
         {% endfor %}
         </tbody>
+        <tfoot style="position:sticky;bottom:0;background:#161b27;border-top:1px solid rgba(255,255,255,.12)">
+          <tr>
+            <td class="num" id="catalogTotalStreams" style="font-weight:600;color:#edf0f8;padding-top:7px">{{ "{:,}".format(data.catalog|sum(attribute='streams')) }}</td>
+            <td style="color:var(--t2);font-size:11px;padding-top:7px">Total</td>
+            <td class="num" id="catalogTotalRevenue" style="font-weight:600;color:#edf0f8;padding-top:7px">${{ "{:,.2f}".format(data.catalog|sum(attribute='revenue')) }}</td>
+          </tr>
+        </tfoot>
       </table>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
@@ -1974,14 +1957,17 @@ function mkCanvas(id){
 function buildCharts(d){
   destroyCharts();
 
-  const elA = mkCanvas('chartArtist');
+  const elA = document.getElementById('chartArtist');
   if(elA && d.by_artist?.length){
-    const top10 = d.by_artist.slice(0,10);
+    const rowH = 26;
+    const w = elA.parentElement.clientWidth || 500;
+    const h = Math.max(280, d.by_artist.length * rowH);
+    elA.width = w; elA.height = h;
     charts.artist = new Chart(elA, {
       type:'bar', plugins:[DL],
       data:{
-        labels: top10.map(r=>r.name),
-        datasets:[{data:top10.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
+        labels: d.by_artist.map(r=>r.name),
+        datasets:[{data:d.by_artist.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
         responsive:false, indexAxis:'y',
@@ -2093,24 +2079,20 @@ function applyFilters(){
       clearTimeout(_loadTimer);
       overlay.style.display='none';
       document.getElementById('kpiVal').textContent='$'+d.kpi_total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-      // Full catalog table
+      // Catalog table + totals
       const tbody=document.getElementById('catalogBody');
       if(tbody && d.catalog){
         tbody.innerHTML=d.catalog.map(t=>`<tr>
           <td class="num">${t.streams.toLocaleString()}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</td>
-          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);font-size:11.5px">${t.artist||''}</td>
+          <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</td>
           <td class="num">$${t.revenue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
         </tr>`).join('');
-      }
-      // Full artist table
-      const abody=document.getElementById('artistBody');
-      if(abody && d.by_artist){
-        abody.innerHTML=d.by_artist.map((r,i)=>`<tr>
-          <td style="color:var(--t2);font-size:11px">${i+1}</td>
-          <td>${r.name}</td>
-          <td class="num">$${Math.round(r.revenue).toLocaleString()}</td>
-        </tr>`).join('');
+        const totalStreams=d.catalog.reduce((s,t)=>s+t.streams,0);
+        const totalRev=d.catalog.reduce((s,t)=>s+t.revenue,0);
+        const ts=document.getElementById('catalogTotalStreams');
+        const tr2=document.getElementById('catalogTotalRevenue');
+        if(ts) ts.textContent=totalStreams.toLocaleString();
+        if(tr2) tr2.textContent='$'+totalRev.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
       }
       buildCharts(d);
     }).catch(function(){
