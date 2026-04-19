@@ -1470,30 +1470,29 @@ def _normalize_royalty_summary_bg():
                     "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
                 )).fetchall()
 
-            # Repair pass: deduplicate names within any artist_name_csv that has repeated parts
-            # (caused by prior normalization applying map entries whose canonical contained commas)
-            def _dedup(csv_str):
-                parts = [p.strip() for p in csv_str.split(',') if p.strip()]
-                seen, out = set(), []
-                for p in parts:
-                    if p not in seen:
-                        seen.add(p)
-                        out.append(p)
-                return ', '.join(out)
+            # Repair pass: runs once per server session to fix rows corrupted by a prior bug
+            # where canonical_name contained commas, causing names to be duplicated on split/join.
+            if not _dash_cache.get("_repair_done"):
+                def _dedup(csv_str):
+                    parts = [p.strip() for p in csv_str.split(',') if p.strip()]
+                    seen, out = set(), []
+                    for p in parts:
+                        if p not in seen:
+                            seen.add(p)
+                            out.append(p)
+                    return ', '.join(out)
 
-            repair_updates = [{"c": _dedup(raw), "r": raw} for (raw,) in rows
-                              if _dedup(raw) != raw]
-            if repair_updates:
-                for u in repair_updates:
-                    conn.execute(_t(
-                        "UPDATE royalty_summary SET artist_name_csv = :c WHERE artist_name_csv = :r"
-                    ), u)
-                conn.commit()
-                _log.warning("_normalize_royalty_summary_bg: repaired %d rows with duplicate artist names", len(repair_updates))
-                # Refresh rows list after repair so normalization uses clean values
-                rows = [(u["c"],) for (raw,) in rows
-                        for u in repair_updates if u["r"] == raw] + \
-                       [(raw,) for (raw,) in rows if not any(u["r"] == raw for u in repair_updates)]
+                repair_updates = {raw: _dedup(raw) for (raw,) in rows if _dedup(raw) != raw}
+                if repair_updates:
+                    for raw, fixed in repair_updates.items():
+                        conn.execute(_t(
+                            "UPDATE royalty_summary SET artist_name_csv = :c WHERE artist_name_csv = :r"
+                        ), {"c": fixed, "r": raw})
+                    conn.commit()
+                    _log.warning("_normalize_royalty_summary_bg: repaired %d rows with duplicate artist names", len(repair_updates))
+                    # Refresh rows to use clean values for the normalization pass below
+                    rows = [(repair_updates.get(raw, raw),) for (raw,) in rows]
+                _dash_cache["_repair_done"] = True
 
             updates = []
             for (raw,) in rows:
