@@ -1109,34 +1109,28 @@ def catalog_upload():
         isrc_col = next((v for k, v in col.items() if "isrc" in k.lower()), None)
         upc_col  = next((v for k, v in col.items() if "upc"  in k.lower()), None)
 
-        from models import ArtistRoyaltySplit, Artist
-        rows_loaded = 0
-        rows_updated = 0
-        rows_skipped = 0
-        first_error = None
-        artists_matched = set()
-        artists_unmatched = set()
+        from models import Artist
+        from sqlalchemy import text as _text
 
-        def _upsert(isrc, artist_name, pct):
-            nonlocal rows_loaded, rows_updated
-            artist_obj = Artist.query.filter(
-                db.func.lower(Artist.name) == artist_name.lower()
-            ).first()
-            artist_id = artist_obj.id if artist_obj else None
+        # Pre-load artist name → id map (1 query, avoids per-row lookups)
+        artist_map = {a.name.lower(): a.id for a in Artist.query.all()}
+
+        rows_skipped = 0
+        first_error  = None
+        artists_matched   = set()
+        artists_unmatched = set()
+        pending = []  # list of dicts for bulk insert
+
+        def _collect(isrc, artist_name, pct):
+            artist_id = artist_map.get(artist_name.lower())
             if artist_id:
                 artists_matched.add(artist_name)
             else:
                 artists_unmatched.add(artist_name)
-            existing = ArtistRoyaltySplit.query.filter_by(isrc=isrc, artist_name=artist_name).first()
-            if existing:
-                existing.percentage = pct
-                existing.artist_id  = artist_id
-                rows_updated += 1
-            else:
-                db.session.add(ArtistRoyaltySplit(
-                    isrc=isrc, artist_name=artist_name, artist_id=artist_id, percentage=pct,
-                ))
-                rows_loaded += 1
+            pending.append({
+                "isrc": isrc, "artist_name": artist_name,
+                "artist_id": artist_id, "percentage": float(pct),
+            })
 
         def _resolve_isrc(row):
             isrc = str(row[isrc_col]).strip().upper() if (isrc_col is not None and row[isrc_col]) else ""
@@ -1147,7 +1141,6 @@ def catalog_upload():
             return isrc
 
         if is_multi:
-            # Multi-artist catalog format: Artist 1 / Artist 1 % / ... / Artist 9 / Artist 9 %
             if isrc_col is None:
                 raise ValueError(f"Could not find ISRC column. Found: {hdr}")
             artist_pairs = []
@@ -1175,7 +1168,7 @@ def catalog_upload():
                             continue
                         if abs(pct) <= 1:
                             pct = pct * 100
-                        _upsert(isrc, artist_name, pct)
+                        _collect(isrc, artist_name, pct)
                 except Exception as row_err:
                     rows_skipped += 1
                     if first_error is None:
@@ -1203,13 +1196,31 @@ def catalog_upload():
                         rows_skipped += 1
                         continue
                     pct = decimal.Decimal(str(pct_raw))
-                    _upsert(isrc, artist_name, pct)
+                    _collect(isrc, artist_name, pct)
                 except Exception as row_err:
                     rows_skipped += 1
                     if first_error is None:
                         first_error = str(row_err)
 
-        db.session.commit()
+        # Bulk upsert in batches of 500
+        roy_engine = db.engines.get('royalties') or db.engine
+        rows_loaded = rows_updated = 0
+        _upsert_sql = _text("""
+            INSERT INTO artist_royalty_split (isrc, artist_name, artist_id, percentage)
+            VALUES (:isrc, :artist_name, :artist_id, :percentage)
+            ON CONFLICT (isrc, artist_name) DO UPDATE SET
+                percentage = EXCLUDED.percentage,
+                artist_id  = EXCLUDED.artist_id
+        """)
+        BATCH = 500
+        with roy_engine.connect() as _conn:
+            for i in range(0, len(pending), BATCH):
+                chunk = pending[i:i + BATCH]
+                result = _conn.execute(_upsert_sql, chunk)
+                # rowcount == 1 per insert (new) or 1 per update — treat all as loaded
+                rows_loaded += len(chunk)
+            _conn.commit()
+        rows_updated = 0  # ON CONFLICT merges — report total as loaded
         stats = {
             "rows_loaded":        rows_loaded,
             "rows_updated":       rows_updated,
