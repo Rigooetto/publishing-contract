@@ -195,22 +195,6 @@ with app.app_context():
                     _c.commit()
         except Exception:
             pass
-        # Migrate old full-string entries in artist_name_map: split on commas into individual rows
-        try:
-            from models import ArtistNameMap as _ANM
-            _comma_entries = _ANM.query.filter(_ANM.raw_name.like('%,%')).all()
-            for _entry in _comma_entries:
-                _parts = [p.strip() for p in _entry.raw_name.split(',') if p.strip()]
-                for _part in _parts:
-                    if not _ANM.query.filter_by(raw_name=_part).first():
-                        db.session.add(_ANM(raw_name=_part, canonical_name=_entry.canonical_name, status='confirmed'))
-                db.session.delete(_entry)
-            if _comma_entries:
-                db.session.commit()
-                app.logger.warning("artist_name_map: migrated %d comma-entries to individual rows", len(_comma_entries))
-        except Exception as _me:
-            db.session.rollback()
-            app.logger.warning("artist_name_map migration failed: %s", _me)
         # Create dashboard_cache table
         try:
             from sqlalchemy import text as _text
@@ -273,18 +257,31 @@ with app.app_context():
                         app.logger.warning("royalty_summary table ensured (%d rows, skipped backfill).", _rs_count)
         except Exception as _rse:
             app.logger.warning("royalty_summary setup failed: %s", _rse)
-    # Run initial artist name normalization pass in background (idempotent)
+    # One-time revenue data recovery: rebuild royalty_summary from raw streaming_royalty
+    # (Removes corrupt artist_name_map entries created by old comma-splitting migration,
+    #  then re-aggregates royalty_summary from the immutable streaming_royalty source.)
     try:
-        from blueprints.streaming_royalties import _normalize_royalty_summary_bg as _norm_fn
-        import threading as _norm_thread
-        _norm_app = app
-        def _startup_normalize():
-            with _norm_app.app_context():
-                _norm_fn()
-        _norm_thread.Thread(target=_startup_normalize, daemon=True).start()
-        app.logger.warning("Artist name normalization pass started in background.")
-    except Exception as _norm_e:
-        app.logger.warning("Startup normalization failed to start: %s", _norm_e)
+        from sqlalchemy import text as _text
+        _roy_engine = db.engines.get('royalties')
+        if _roy_engine:
+            with _roy_engine.connect() as _c:
+                _c.execute(_text("DELETE FROM artist_name_map"))
+                _c.execute(_text("TRUNCATE royalty_summary"))
+                _c.execute(_text("""
+                    INSERT INTO royalty_summary
+                        (reporting_month, isrc, artist_name_csv, platform, country,
+                         track_title_csv, streams, net_revenue)
+                    SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                           MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                      FROM streaming_royalty
+                     GROUP BY reporting_month, isrc, platform, country
+                    ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
+                """))
+                _c.execute(_text("DELETE FROM dashboard_cache"))
+                _c.commit()
+                app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty, artist_name_map cleared.")
+    except Exception as _re:
+        app.logger.warning("DATA RECOVERY failed: %s", _re)
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt

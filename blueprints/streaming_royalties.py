@@ -392,7 +392,7 @@ def _process_import(app, import_id):
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
         _update_status("done")
 
-        # Auto-normalize artist names from this import
+        # Auto-map new individual artist names (display only — does not modify royalty_summary)
         try:
             with r_engine.connect() as _nc:
                 _new_csvs = [r[0] for r in _nc.execute(_t(
@@ -401,7 +401,6 @@ def _process_import(app, import_id):
                 ), {"id": import_id}).fetchall()]
             with app.app_context():
                 _auto_map_individuals(_extract_individuals(_new_csvs))
-                _normalize_royalty_summary_bg()
         except Exception:
             pass
 
@@ -513,7 +512,11 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
         def _run_post_import():
             with _app.app_context():
                 _auto_map_individuals(_new_individuals)
-                _normalize_royalty_summary_bg()  # clears cache + prewarns internally
+                if _prewarm_lock.acquire(blocking=False):
+                    try:
+                        _prewarm_dashboard_cache()
+                    finally:
+                        _prewarm_lock.release()
         threading.Thread(target=_run_post_import, daemon=True).start()
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
@@ -688,7 +691,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
     from sqlalchemy import text
 
-    # royalty_summary.artist_name_csv is pre-normalized by _normalize_royalty_summary_bg
+    # royalty_summary stores raw artist names; artist_name_map applied via JOIN at query time
     _engine = _royalties_engine()
     base_from  = "royalty_summary sr"
     artist_col = "sr.artist_name_csv"
@@ -710,9 +713,21 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         params["q_start"] = f"{base_year}-{q_start_m:02d}-01"
         params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
     if artist and artist != "all":
-        # Single %artist% pattern lets the GIN trigram index on artist_name_csv do the work.
-        # Multiple OR'd ILIKE conditions prevent the planner from using the GIN index efficiently.
-        conditions.append("sr.artist_name_csv ILIKE :artist_pat")
+        # Find raw name aliases that map to this canonical (e.g. "EL FANTASMA" → "El Fantasma")
+        try:
+            from models import ArtistNameMap as _ANM_filter
+            _raw_aliases = [m.raw_name for m in _ANM_filter.query.filter_by(
+                canonical_name=artist, status='confirmed').all()
+                if m.raw_name != artist]
+        except Exception:
+            _raw_aliases = []
+        if _raw_aliases:
+            _alias_clauses = [f"sr.artist_name_csv ILIKE :alias_{i}" for i in range(len(_raw_aliases))]
+            conditions.append(f"(sr.artist_name_csv ILIKE :artist_pat OR {' OR '.join(_alias_clauses)})")
+            for _i, _alias in enumerate(_raw_aliases):
+                params[f"alias_{_i}"] = f"%{_alias}%"
+        else:
+            conditions.append("sr.artist_name_csv ILIKE :artist_pat")
         params["artist_pat"] = f"%{artist}%"
     where = " AND ".join(conditions)
 
@@ -753,7 +768,8 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     # By artist (top 10) — aggregate by full collab string first (collapses 6M→few-hundred rows),
     # then unnest individual names so the outer GROUP BY runs on hundreds of rows, not millions.
     by_artist = q(f"""
-        SELECT TRIM(a.name) AS artist, COALESCE(SUM(sub.rev), 0) AS rev
+        SELECT COALESCE(anm.canonical_name, TRIM(a.name)) AS artist,
+               COALESCE(SUM(sub.rev), 0) AS rev
           FROM (
               SELECT sr.artist_name_csv AS csv_val, COALESCE(SUM({rev_expr}), 0) AS rev
                 FROM {base_from}
@@ -761,6 +777,8 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                GROUP BY sr.artist_name_csv
           ) sub
           CROSS JOIN LATERAL unnest(string_to_array(sub.csv_val, ',')) AS a(name)
+          LEFT JOIN artist_name_map anm
+                 ON anm.status = 'confirmed' AND anm.raw_name = TRIM(a.name)
          WHERE TRIM(a.name) != ''
          GROUP BY 1 ORDER BY rev DESC LIMIT 10
     """)
@@ -806,18 +824,25 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                 "streams": int(r[3]), "revenue": float(r[4])}
                for r in catalog_rows]
 
-    # Dropdown options — split collab strings on comma, deduplicate to individual names
+    # Dropdown options — split collab strings, apply name_map for display, deduplicate
     _raw_strings = [r[0] for r in q(
         "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
         "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
         {},
     )]
+    _dd_name_map = {}
+    try:
+        from models import ArtistNameMap as _ANM_dd
+        _dd_name_map = {m.raw_name: m.canonical_name
+                        for m in _ANM_dd.query.filter_by(status='confirmed').all()}
+    except Exception:
+        pass
     _artist_names: set = set()
     for s in _raw_strings:
         for part in s.split(','):
             name = part.strip()
             if name:
-                _artist_names.add(name)
+                _artist_names.add(_dd_name_map.get(name, name))
     all_artists = sorted(_artist_names, key=str.lower)
     all_years = [int(r[0]) for r in q(
         "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
@@ -1645,8 +1670,8 @@ def artist_names():
                     saved += 1
                     saved_raws.append(raw)
             db.session.commit()
-            _start_normalize_bg()  # background pass updates royalty_summary + clears cache when done
-            flash(f"Saved {saved} mapping(s), removed {deleted}. Dashboard updating in the background — reload in ~15 seconds.", "success")
+            _clear_dashboard_cache()
+            flash(f"Saved {saved} mapping(s), removed {deleted}. Artist name display updated.", "success")
             return redirect(url_for("streaming_royalties.artist_names"))
 
         except Exception as _post_err:
