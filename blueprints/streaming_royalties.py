@@ -1552,9 +1552,6 @@ def artist_names():
                     saved += 1
                     saved_raws.append(raw)
             db.session.commit()
-            # Targeted sync normalization for just-saved names (fast, uses trigram index)
-            # so the dashboard reflects changes immediately without waiting for full background pass
-            if saved_raws:
             _start_normalize_bg()  # background pass updates royalty_summary + clears cache when done
             flash(f"Saved {saved} mapping(s), removed {deleted}. Dashboard updating in the background — reload in ~15 seconds.", "success")
             return redirect(url_for("streaming_royalties.artist_names"))
