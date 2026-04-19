@@ -1450,53 +1450,60 @@ def artist_names():
     _engine = _royalties_engine()
 
     if request.method == "POST":
-        action = request.form.get("action", "save")
+        try:
+            action = request.form.get("action", "save")
 
-        if action == "confirm_single":
-            raw = request.form.get("raw", "").strip()
-            m = ArtistNameMap.query.filter_by(raw_name=raw).first()
-            if m:
-                m.status = 'confirmed'
-                db.session.commit()
-                threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
-                flash(f"Confirmed mapping: {raw} → {m.canonical_name}. Normalizing in background.", "success")
-            return redirect(url_for("streaming_royalties.artist_names"))
+            if action == "confirm_single":
+                raw = request.form.get("raw", "").strip()
+                m = ArtistNameMap.query.filter_by(raw_name=raw).first()
+                if m:
+                    m.status = 'confirmed'
+                    db.session.commit()
+                    threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+                    flash(f"Confirmed mapping: {raw} → {m.canonical_name}. Normalizing in background.", "success")
+                return redirect(url_for("streaming_royalties.artist_names"))
 
-        if action == "reject_single":
-            raw = request.form.get("raw", "").strip()
-            m = ArtistNameMap.query.filter_by(raw_name=raw).first()
-            if m:
-                db.session.delete(m)
-                db.session.commit()
-                flash(f"Rejected mapping for: {raw}", "success")
-            return redirect(url_for("streaming_royalties.artist_names"))
+            if action == "reject_single":
+                raw = request.form.get("raw", "").strip()
+                m = ArtistNameMap.query.filter_by(raw_name=raw).first()
+                if m:
+                    db.session.delete(m)
+                    db.session.commit()
+                    flash(f"Rejected mapping for: {raw}", "success")
+                return redirect(url_for("streaming_royalties.artist_names"))
 
-        # Default: save manual mappings form
-        count = int(request.form.get("count", 0))
-        saved = deleted = 0
-        for i in range(count):
-            raw = request.form.get(f"raw_{i}", "").strip()
-            canonical = request.form.get(f"canonical_{i}", "").strip()
-            if not raw:
-                continue
-            existing = ArtistNameMap.query.filter_by(raw_name=raw).first()
-            if not canonical or canonical == raw:
-                if existing:
-                    db.session.delete(existing)
-                    deleted += 1
-            else:
-                if existing:
-                    existing.canonical_name = canonical
-                    existing.status = 'confirmed'
-                    existing.updated_at = datetime.datetime.utcnow()
+            # Default: save manual mappings form
+            count = int(request.form.get("count", 0))
+            saved = deleted = 0
+            for i in range(count):
+                raw = request.form.get(f"raw_{i}", "").strip()
+                canonical = request.form.get(f"canonical_{i}", "").strip()
+                if not raw:
+                    continue
+                existing = ArtistNameMap.query.filter_by(raw_name=raw).first()
+                if not canonical or canonical == raw:
+                    if existing:
+                        db.session.delete(existing)
+                        deleted += 1
                 else:
-                    db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical,
-                                                  confidence=None, status='confirmed'))
-                saved += 1
-        db.session.commit()
-        threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
-        flash(f"Saved {saved} mapping(s), removed {deleted}. Normalizing data in background.", "success")
-        return redirect(url_for("streaming_royalties.artist_names"))
+                    if existing:
+                        existing.canonical_name = canonical
+                        existing.status = 'confirmed'
+                        existing.updated_at = datetime.datetime.utcnow()
+                    else:
+                        db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical,
+                                                      confidence=None, status='confirmed'))
+                    saved += 1
+            db.session.commit()
+            threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+            flash(f"Saved {saved} mapping(s), removed {deleted}. Normalizing data in background.", "success")
+            return redirect(url_for("streaming_royalties.artist_names"))
+
+        except Exception as _post_err:
+            db.session.rollback()
+            current_app.logger.error("artist_names POST error: %s", _post_err)
+            flash("Database connection error — please try again.", "error")
+            return redirect(url_for("streaming_royalties.artist_names"))
 
     # GET — collect all individual names seen in streaming data + map entries
     from sqlalchemy import text
