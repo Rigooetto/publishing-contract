@@ -1376,6 +1376,40 @@ def _auto_map_individuals(individual_names):
             current_app.logger.warning("_auto_map_individuals error: %s", e)
 
 
+def _normalize_specific_sync(raw_names, name_map):
+    """Fast targeted normalization for a small set of just-saved raw names.
+    Uses trigram-indexed ILIKE so it avoids scanning all 6M rows.
+    Runs synchronously — call before clearing cache so the effect is immediate.
+    """
+    if not raw_names:
+        return
+    import logging as _log
+    _lg = _log.getLogger(__name__)
+    from sqlalchemy import text as _t
+
+    def _canon(csv_str):
+        parts = [p.strip() for p in csv_str.split(',')]
+        return ', '.join(name_map.get(p, p) for p in parts)
+
+    try:
+        engine = _royalties_engine()
+        conditions = " OR ".join(f"artist_name_csv ILIKE :p{i}" for i in range(len(raw_names)))
+        params = {f"p{i}": f"%{n}%" for i, n in enumerate(raw_names)}
+        with engine.connect() as conn:
+            affected = [r[0] for r in conn.execute(_t(
+                f"SELECT DISTINCT artist_name_csv FROM royalty_summary "
+                f"WHERE artist_name_csv IS NOT NULL AND ({conditions})"
+            ), params).fetchall()]
+            updates = [{"c": _canon(v), "r": v} for v in affected if _canon(v) != v]
+            for u in updates:
+                conn.execute(_t("UPDATE royalty_summary SET artist_name_csv = :c WHERE artist_name_csv = :r"), u)
+            if updates:
+                conn.commit()
+                _lg.info("_normalize_specific_sync: updated %d rows for %d names", len(updates), len(raw_names))
+    except Exception as e:
+        _lg.warning("_normalize_specific_sync error: %s", e)
+
+
 def _normalize_royalty_summary_bg():
     """Background thread: apply confirmed artist_name_map to royalty_summary.artist_name_csv.
     Splits each value on commas, maps each individual part, rejoins.
@@ -1490,6 +1524,7 @@ def artist_names():
             existing_map = {m.raw_name: m for m in ArtistNameMap.query.all()}
             count = int(request.form.get("count", 0))
             saved = deleted = 0
+            saved_raws = []
             for i in range(count):
                 raw = request.form.get(f"raw_{i}", "").strip()
                 canonical = request.form.get(f"canonical_{i}", "").strip()
@@ -1509,9 +1544,17 @@ def artist_names():
                         db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical,
                                                       confidence=None, status='confirmed'))
                     saved += 1
+                    saved_raws.append(raw)
             db.session.commit()
-            _start_normalize_bg()
-            flash(f"Saved {saved} mapping(s), removed {deleted}. Normalizing data in background.", "success")
+            # Targeted sync normalization for just-saved names (fast, uses trigram index)
+            # so the dashboard reflects changes immediately without waiting for full background pass
+            if saved_raws:
+                all_confirmed = {m.raw_name: m.canonical_name
+                                 for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
+                _normalize_specific_sync(saved_raws, all_confirmed)
+            _clear_dashboard_cache()
+            _start_normalize_bg()  # full background pass for any remaining names
+            flash(f"Saved {saved} mapping(s), removed {deleted}. Dashboard updated.", "success")
             return redirect(url_for("streaming_royalties.artist_names"))
 
         except Exception as _post_err:
