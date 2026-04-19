@@ -1521,16 +1521,23 @@ def artist_names():
             return redirect(url_for("streaming_royalties.artist_names"))
 
     # GET — collect all individual names seen in streaming data + map entries
-    # Use royalty_summary (pre-aggregated, much smaller) instead of streaming_royalty
+    # Cache the DISTINCT query result — it only changes after a new import
     from sqlalchemy import text
-    try:
-        with _engine.connect() as conn:
-            raw_csvs = [r[0] for r in conn.execute(text(
-                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
-                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
-            )).fetchall()]
-    except Exception:
-        raw_csvs = []
+    _AN_CACHE_KEY = "artist_names_raw_csvs"
+    _AN_TTL = 300  # 5 minutes
+    _cached = _dash_cache.get(_AN_CACHE_KEY)
+    if _cached and (_time.time() - _cached["ts"]) < _AN_TTL:
+        raw_csvs = _cached["data"]
+    else:
+        try:
+            with _engine.connect() as conn:
+                raw_csvs = [r[0] for r in conn.execute(text(
+                    "SELECT DISTINCT artist_name_csv FROM royalty_summary "
+                    "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
+                )).fetchall()]
+            _dash_cache[_AN_CACHE_KEY] = {"data": raw_csvs, "ts": _time.time()}
+        except Exception:
+            raw_csvs = _cached["data"] if _cached else []
 
     all_individuals = sorted(_extract_individuals(raw_csvs))
 
