@@ -2671,6 +2671,11 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
   <div class="gaps-stat"><strong style="color:var(--err)">{{ mismatches|length }}</strong><span>Name Mismatches</span></div>
   <div class="gaps-stat"><strong style="color:var(--err)">{{ missing|length }}</strong><span>ISRCs Missing Splits</span></div>
   <div class="gaps-stat"><strong style="color:#f59e0b">${{ "{:,.0f}".format(total_at_risk) }}</strong><span>Label Rev at Risk</span></div>
+  {% if format_mismatch_count %}
+  <div class="gaps-stat" title="Splits exist in catalog but ISRC format differs (hyphens). These are now matched automatically.">
+    <strong style="color:#f59e0b">{{ format_mismatch_count }}</strong><span>Format Mismatches Fixed</span>
+  </div>
+  {% endif %}
   {% if not mismatches and not missing %}
   <div style="color:#22c55e;font-weight:600;font-size:14px;margin-left:auto">&#10003; All ISRCs have splits assigned</div>
   {% endif %}
@@ -2802,6 +2807,7 @@ def split_gaps():
     ]
 
     # Section B: ISRCs in royalty_summary with no artist_royalty_split entry
+    # Use REPLACE to normalize hyphens on both sides — catalog and streaming may differ in format
     try:
         with eng.connect() as _c:
             missing_rows = _c.execute(_t("""
@@ -2811,13 +2817,27 @@ def split_gaps():
                        COALESCE(SUM(rs.net_revenue), 0) AS label_rev
                   FROM royalty_summary rs
                  WHERE NOT EXISTS (
-                       SELECT 1 FROM artist_royalty_split s WHERE s.isrc = rs.isrc
+                       SELECT 1 FROM artist_royalty_split s
+                        WHERE REPLACE(s.isrc, '-', '') = REPLACE(rs.isrc, '-', '')
                  )
                  GROUP BY rs.isrc
                  ORDER BY label_rev DESC
             """)).fetchall()
+            # Count splits that exist in catalog but with mismatched hyphen format
+            format_mismatch_count = _c.execute(_t("""
+                SELECT COUNT(DISTINCT s.isrc)
+                  FROM artist_royalty_split s
+                 WHERE NOT EXISTS (
+                       SELECT 1 FROM royalty_summary rs WHERE rs.isrc = s.isrc
+                 )
+                   AND EXISTS (
+                       SELECT 1 FROM royalty_summary rs
+                        WHERE REPLACE(rs.isrc, '-', '') = REPLACE(s.isrc, '-', '')
+                 )
+            """)).scalar() or 0
     except Exception:
         missing_rows = []
+        format_mismatch_count = 0
 
     # Pre-load artist_name_map and active contracts
     try:
@@ -2899,6 +2919,7 @@ def split_gaps():
         mismatches=mismatches,
         missing=missing,
         total_at_risk=total_at_risk,
+        format_mismatch_count=format_mismatch_count,
         _sidebar_html=_sb("streaming_split_gaps"),
     )
 
