@@ -1685,18 +1685,20 @@ def artist_names():
                 if not raw:
                     continue
                 existing = existing_map.get(raw)
-                if not canonical or canonical == raw:
+                if not canonical:
+                    # Empty field = remove mapping
                     if existing:
                         db.session.delete(existing)
                         deleted += 1
                 else:
+                    # canonical == raw means "confirm this name is already canonical"
                     if existing:
                         existing.canonical_name = canonical
                         existing.status = 'confirmed'
                         existing.updated_at = datetime.datetime.utcnow()
                     else:
                         db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical,
-                                                      confidence=None, status='confirmed'))
+                                                      confidence=1.0, status='confirmed'))
                     saved += 1
                     saved_raws.append(raw)
             db.session.commit()
