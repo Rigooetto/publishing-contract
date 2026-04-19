@@ -1104,19 +1104,10 @@ def catalog_upload():
         hdr = [str(h).strip() if h else "" for h in header_row]
         col = {name: idx for idx, name in enumerate(hdr)}
 
-        # Find columns (case-insensitive)
-        isrc_col = artist_col = pct_col = None
-        for k, v in col.items():
-            kl = k.lower()
-            if "isrc" in kl:
-                isrc_col = v
-            elif "artist" in kl:
-                artist_col = v
-            elif "percent" in kl or "%" in kl or "split" in kl or "share" in kl:
-                pct_col = v
+        is_multi = any("artist 1" in h.lower() for h in hdr)
 
-        if isrc_col is None or artist_col is None or pct_col is None:
-            raise ValueError(f"Could not find ISRC, Artist, and Percentage columns. Found: {hdr}")
+        isrc_col = next((v for k, v in col.items() if "isrc" in k.lower()), None)
+        upc_col  = next((v for k, v in col.items() if "upc"  in k.lower()), None)
 
         from models import ArtistRoyaltySplit, Artist
         rows_loaded = 0
@@ -1126,46 +1117,97 @@ def catalog_upload():
         artists_matched = set()
         artists_unmatched = set()
 
-        for row in rows_iter:
-            try:
-                isrc       = str(row[isrc_col]).strip().upper() if row[isrc_col] else ""
-                artist_name = str(row[artist_col]).strip() if row[artist_col] else ""
-                pct_raw    = row[pct_col]
-                if not isrc or not artist_name or pct_raw is None:
+        def _upsert(isrc, artist_name, pct):
+            nonlocal rows_loaded, rows_updated
+            artist_obj = Artist.query.filter(
+                db.func.lower(Artist.name) == artist_name.lower()
+            ).first()
+            artist_id = artist_obj.id if artist_obj else None
+            if artist_id:
+                artists_matched.add(artist_name)
+            else:
+                artists_unmatched.add(artist_name)
+            existing = ArtistRoyaltySplit.query.filter_by(isrc=isrc, artist_name=artist_name).first()
+            if existing:
+                existing.percentage = pct
+                existing.artist_id  = artist_id
+                rows_updated += 1
+            else:
+                db.session.add(ArtistRoyaltySplit(
+                    isrc=isrc, artist_name=artist_name, artist_id=artist_id, percentage=pct,
+                ))
+                rows_loaded += 1
+
+        def _resolve_isrc(row):
+            isrc = str(row[isrc_col]).strip().upper() if (isrc_col is not None and row[isrc_col]) else ""
+            if not isrc:
+                upc = str(row[upc_col]).strip() if (upc_col is not None and row[upc_col]) else ""
+                if upc:
+                    isrc = f"UPC:{upc}"
+            return isrc
+
+        if is_multi:
+            # Multi-artist catalog format: Artist 1 / Artist 1 % / ... / Artist 9 / Artist 9 %
+            if isrc_col is None:
+                raise ValueError(f"Could not find ISRC column. Found: {hdr}")
+            artist_pairs = []
+            for i in range(1, 10):
+                a_key = next((h for h in hdr if h.lower() in (f"artist {i}", f"artist{i}")), None)
+                p_key = next((h for h in hdr if h.lower() in (
+                    f"artist {i} %", f"artist{i}%", f"artist {i}%", f"artist{i} %", f"artist{i}%"
+                )), None)
+                if a_key and p_key:
+                    artist_pairs.append((col[a_key], col[p_key]))
+
+            for row in rows_iter:
+                try:
+                    isrc = _resolve_isrc(row)
+                    if not isrc:
+                        rows_skipped += 1
+                        continue
+                    for a_idx, p_idx in artist_pairs:
+                        artist_name = str(row[a_idx]).strip() if row[a_idx] else ""
+                        pct_raw     = row[p_idx]
+                        if not artist_name or pct_raw is None:
+                            continue
+                        pct = decimal.Decimal(str(pct_raw))
+                        if pct < 0:
+                            continue
+                        if abs(pct) <= 1:
+                            pct = pct * 100
+                        _upsert(isrc, artist_name, pct)
+                except Exception as row_err:
                     rows_skipped += 1
-                    continue
-                pct = decimal.Decimal(str(pct_raw))
+                    if first_error is None:
+                        first_error = str(row_err)
 
-                # Try to match artist
-                artist_obj = Artist.query.filter(
-                    db.func.lower(Artist.name) == artist_name.lower()
-                ).first()
-                artist_id = artist_obj.id if artist_obj else None
-                if artist_id:
-                    artists_matched.add(artist_name)
-                else:
-                    artists_unmatched.add(artist_name)
+        else:
+            # Simple 3-column format: ISRC | Artist Name | Percentage
+            artist_col = pct_col = None
+            for k, v in col.items():
+                kl = k.lower()
+                if "artist" in kl:
+                    artist_col = v
+                elif "percent" in kl or "%" in kl or "split" in kl or "share" in kl:
+                    pct_col = v
 
-                # Upsert
-                existing = ArtistRoyaltySplit.query.filter_by(
-                    isrc=isrc, artist_name=artist_name
-                ).first()
-                if existing:
-                    existing.percentage = pct
-                    existing.artist_id  = artist_id
-                    rows_updated += 1
-                else:
-                    db.session.add(ArtistRoyaltySplit(
-                        isrc=isrc,
-                        artist_name=artist_name,
-                        artist_id=artist_id,
-                        percentage=pct,
-                    ))
-                    rows_loaded += 1
-            except Exception as row_err:
-                rows_skipped += 1
-                if first_error is None:
-                    first_error = str(row_err)
+            if isrc_col is None or artist_col is None or pct_col is None:
+                raise ValueError(f"Could not find ISRC, Artist, and Percentage columns. Found: {hdr}")
+
+            for row in rows_iter:
+                try:
+                    isrc        = str(row[isrc_col]).strip().upper() if row[isrc_col] else ""
+                    artist_name = str(row[artist_col]).strip() if row[artist_col] else ""
+                    pct_raw     = row[pct_col]
+                    if not isrc or not artist_name or pct_raw is None:
+                        rows_skipped += 1
+                        continue
+                    pct = decimal.Decimal(str(pct_raw))
+                    _upsert(isrc, artist_name, pct)
+                except Exception as row_err:
+                    rows_skipped += 1
+                    if first_error is None:
+                        first_error = str(row_err)
 
         db.session.commit()
         stats = {
@@ -1173,7 +1215,7 @@ def catalog_upload():
             "rows_updated":       rows_updated,
             "rows_skipped":       rows_skipped,
             "first_error":        first_error,
-            "header_detected":    {"isrc": isrc_col, "artist": artist_col, "pct": pct_col},
+            "header_detected":    {"isrc": isrc_col, "artist": "multi" if is_multi else artist_col, "pct": "multi" if is_multi else pct_col},
             "artists_matched":    sorted(artists_matched),
             "artists_unmatched":  sorted(artists_unmatched),
         }
@@ -1899,9 +1941,10 @@ _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% else %}
 <div class="card" style="max-width:560px;margin-top:18px;padding:28px 24px">
 <p style="color:var(--t2);font-size:14px;margin-bottom:20px">
-  Upload the artist royalty percentage catalog (.xlsx). Expected columns:
-  <strong>ISRC</strong>, <strong>Artist Name</strong>, <strong>Percentage</strong>.
-  Column names are flexible — the importer will detect them automatically.
+  Upload the artist royalty percentage catalog (.xlsx). Two formats accepted:<br>
+  <strong>Simple:</strong> ISRC | Artist Name | Percentage<br>
+  <strong>Multi-artist catalog:</strong> ISRC (or UPC), Artist 1, Artist 1 %, Artist 2, Artist 2 %, … Artist 9, Artist 9 %<br>
+  Percentages can be decimals (0.35) or whole numbers (35) — auto-detected. Column names are flexible.
 </p>
 <form method="post" enctype="multipart/form-data">
   <div class="form-row">
