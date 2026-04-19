@@ -1247,7 +1247,7 @@ def catalog_upload():
         # Register catalog artist names as canonicals, then normalize royalty_summary
         catalog_names = {row["artist_name"] for row in pending if row.get("artist_name")}
         _auto_map_individuals(catalog_names)
-        threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+        _start_normalize_bg()
 
         stats = {
             "rows_loaded":        rows_loaded,
@@ -1380,7 +1380,10 @@ def _normalize_royalty_summary_bg():
     """Background thread: apply confirmed artist_name_map to royalty_summary.artist_name_csv.
     Splits each value on commas, maps each individual part, rejoins.
     Clears dashboard cache when done.
+    Must be called from within an app context (or via _start_normalize_bg).
     """
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
     try:
         from models import ArtistNameMap
         from sqlalchemy import text as _t
@@ -1413,11 +1416,22 @@ def _normalize_royalty_summary_bg():
                         "UPDATE royalty_summary SET artist_name_csv = :c WHERE artist_name_csv = :r"
                     ), u)
                 conn.commit()
-                current_app.logger.info("_normalize_royalty_summary_bg: updated %d distinct values", len(updates))
+                _log.info("_normalize_royalty_summary_bg: updated %d distinct values", len(updates))
 
         _clear_dashboard_cache()
     except Exception as e:
-        current_app.logger.warning("_normalize_royalty_summary_bg error: %s", e)
+        _log.warning("_normalize_royalty_summary_bg error: %s", e)
+
+
+def _start_normalize_bg():
+    """Start _normalize_royalty_summary_bg in a daemon thread with a captured app context.
+    Call this from any request handler instead of starting the thread directly.
+    """
+    _app = current_app._get_current_object()
+    def _run():
+        with _app.app_context():
+            _normalize_royalty_summary_bg()
+    threading.Thread(target=_run, daemon=True).start()
 
 
 @bp.route("/streaming-royalties/artist-names/confirm-pending", methods=["POST"])
@@ -1433,7 +1447,7 @@ def artist_names_confirm_pending():
     for m in pending:
         m.status = 'confirmed'
     db.session.commit()
-    threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+    _start_normalize_bg()
     flash(f"Confirmed {len(pending)} pending mapping(s). Normalizing data in background.", "success")
     return redirect(url_for("streaming_royalties.artist_names"))
 
@@ -1459,7 +1473,7 @@ def artist_names():
                 if m:
                     m.status = 'confirmed'
                     db.session.commit()
-                    threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+                    _start_normalize_bg()
                     flash(f"Confirmed mapping: {raw} → {m.canonical_name}. Normalizing in background.", "success")
                 return redirect(url_for("streaming_royalties.artist_names"))
 
@@ -1495,7 +1509,7 @@ def artist_names():
                                                       confidence=None, status='confirmed'))
                     saved += 1
             db.session.commit()
-            threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+            _start_normalize_bg()
             flash(f"Saved {saved} mapping(s), removed {deleted}. Normalizing data in background.", "success")
             return redirect(url_for("streaming_royalties.artist_names"))
 
