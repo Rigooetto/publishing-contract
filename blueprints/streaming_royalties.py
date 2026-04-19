@@ -1376,6 +1376,24 @@ def _auto_map_individuals(individual_names):
             current_app.logger.warning("_auto_map_individuals error: %s", e)
 
 
+def _safe_canon(csv_str, name_map):
+    """Apply name_map to each individual part of a comma-separated artist string.
+    Skips any map entry whose canonical value itself contains a comma (corrupt entry).
+    Also deduplicates parts while preserving order.
+    """
+    parts = [p.strip() for p in csv_str.split(',') if p.strip()]
+    mapped = []
+    seen = set()
+    for p in parts:
+        c = name_map.get(p, p)
+        if ',' in c:
+            c = p  # canonical contains commas → corrupt entry, use original
+        if c not in seen:
+            seen.add(c)
+            mapped.append(c)
+    return ', '.join(mapped)
+
+
 def _normalize_specific_sync(raw_names, name_map):
     """Fast targeted normalization for a small set of just-saved raw names.
     Uses trigram-indexed ILIKE so it avoids scanning all 6M rows.
@@ -1388,8 +1406,7 @@ def _normalize_specific_sync(raw_names, name_map):
     from sqlalchemy import text as _t
 
     def _canon(csv_str):
-        parts = [p.strip() for p in csv_str.split(',')]
-        return ', '.join(name_map.get(p, p) for p in parts)
+        return _safe_canon(csv_str, name_map)
 
     try:
         engine = _royalties_engine()
@@ -1423,14 +1440,23 @@ def _normalize_royalty_summary_bg():
         from sqlalchemy import text as _t
         engine = _royalties_engine()
 
+        # Delete corrupt map entries (canonical contains a comma → was never valid individual mapping)
+        bad_entries = [m for m in ArtistNameMap.query.filter_by(status='confirmed').all()
+                       if ',' in (m.canonical_name or '')]
+        if bad_entries:
+            for m in bad_entries:
+                db.session.delete(m)
+            db.session.commit()
+            _log.warning("_normalize_royalty_summary_bg: deleted %d corrupt map entries (canonical had commas)", len(bad_entries))
+
         name_map = {m.raw_name: m.canonical_name
                     for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
         if not name_map:
+            _clear_dashboard_cache()
             return
 
         def _canon(csv_str):
-            parts = [p.strip() for p in csv_str.split(',')]
-            return ', '.join(name_map.get(p, p) for p in parts)
+            return _safe_canon(csv_str, name_map)
 
         with engine.connect() as conn:
             # Use in-memory cache if warm to avoid slow SELECT DISTINCT over 6M rows
@@ -1443,6 +1469,31 @@ def _normalize_royalty_summary_bg():
                     "SELECT DISTINCT artist_name_csv FROM royalty_summary "
                     "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
                 )).fetchall()
+
+            # Repair pass: deduplicate names within any artist_name_csv that has repeated parts
+            # (caused by prior normalization applying map entries whose canonical contained commas)
+            def _dedup(csv_str):
+                parts = [p.strip() for p in csv_str.split(',') if p.strip()]
+                seen, out = set(), []
+                for p in parts:
+                    if p not in seen:
+                        seen.add(p)
+                        out.append(p)
+                return ', '.join(out)
+
+            repair_updates = [{"c": _dedup(raw), "r": raw} for (raw,) in rows
+                              if _dedup(raw) != raw]
+            if repair_updates:
+                for u in repair_updates:
+                    conn.execute(_t(
+                        "UPDATE royalty_summary SET artist_name_csv = :c WHERE artist_name_csv = :r"
+                    ), u)
+                conn.commit()
+                _log.warning("_normalize_royalty_summary_bg: repaired %d rows with duplicate artist names", len(repair_updates))
+                # Refresh rows list after repair so normalization uses clean values
+                rows = [(u["c"],) for (raw,) in rows
+                        for u in repair_updates if u["r"] == raw] + \
+                       [(raw,) for (raw,) in rows if not any(u["r"] == raw for u in repair_updates)]
 
             updates = []
             for (raw,) in rows:
