@@ -257,8 +257,11 @@ with app.app_context():
                         app.logger.warning("royalty_summary table ensured (%d rows, skipped backfill).", _rs_count)
         except Exception as _rse:
             app.logger.warning("royalty_summary setup failed: %s", _rse)
-    # One-time revenue data recovery: runs exactly once (gated by sentinel in dashboard_cache).
+    # One-time revenue data recovery — runs in a background thread so gunicorn can bind
+    # to the port immediately. Dashboard shows empty data for ~60s on first deploy only.
+    # Subsequent restarts find the sentinel and skip entirely (fast startup).
     try:
+        import threading as _rec_threading
         from sqlalchemy import text as _text
         _roy_engine = db.engines.get('royalties')
         if _roy_engine:
@@ -270,31 +273,43 @@ with app.app_context():
                     )).fetchone())
             except Exception:
                 pass
-            if not _already_done:
-                with _roy_engine.connect() as _c:
-                    _c.execute(_text("DELETE FROM artist_name_map"))
-                    _c.execute(_text("TRUNCATE royalty_summary"))
-                    _c.execute(_text("""
-                        INSERT INTO royalty_summary
-                            (reporting_month, isrc, artist_name_csv, platform, country,
-                             track_title_csv, streams, net_revenue)
-                        SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
-                               MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
-                          FROM streaming_royalty
-                         GROUP BY reporting_month, isrc, platform, country
-                        ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
-                    """))
-                    _c.execute(_text("DELETE FROM dashboard_cache"))
-                    _c.execute(_text("""
-                        INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
-                        VALUES ('_recovery_v2', '{}', NOW())
-                    """))
-                    _c.commit()
-                    app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty (one-time).")
-            else:
+            if _already_done:
                 app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
+            else:
+                _rec_app = app
+                def _run_recovery():
+                    try:
+                        from sqlalchemy import text as _t2, create_engine
+                        from sqlalchemy.pool import NullPool
+                        _url = _roy_engine.url.render_as_string(hide_password=False)
+                        _eng = create_engine(_url, poolclass=NullPool)
+                        with _eng.connect() as _c:
+                            _c.execute(_t2("DELETE FROM artist_name_map"))
+                            _c.execute(_t2("TRUNCATE royalty_summary"))
+                            _c.execute(_t2("""
+                                INSERT INTO royalty_summary
+                                    (reporting_month, isrc, artist_name_csv, platform, country,
+                                     track_title_csv, streams, net_revenue)
+                                SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                                       MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                                  FROM streaming_royalty
+                                 GROUP BY reporting_month, isrc, platform, country
+                                ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
+                            """))
+                            _c.execute(_t2("DELETE FROM dashboard_cache"))
+                            _c.execute(_t2("""
+                                INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
+                                VALUES ('_recovery_v2', '{}', NOW())
+                            """))
+                            _c.commit()
+                        _eng.dispose()
+                        _rec_app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty (one-time).")
+                    except Exception as _re2:
+                        _rec_app.logger.warning("DATA RECOVERY background failed: %s", _re2)
+                _rec_threading.Thread(target=_run_recovery, daemon=True).start()
+                app.logger.warning("DATA RECOVERY: starting background rebuild (port will bind immediately).")
     except Exception as _re:
-        app.logger.warning("DATA RECOVERY failed: %s", _re)
+        app.logger.warning("DATA RECOVERY failed to start: %s", _re)
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt
