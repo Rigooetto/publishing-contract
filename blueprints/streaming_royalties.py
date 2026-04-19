@@ -2722,7 +2722,7 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="card" style="padding:0;overflow:hidden">
 <table class="gaps-tbl">
   <thead><tr>
-    <th>ISRC</th><th>Track</th><th>Artist &amp; Split %</th><th class="rev-cell">Label Rev</th>
+    <th>ISRC</th><th>Track</th><th>Release Date</th><th>Artist &amp; Split %</th><th class="rev-cell">Label Rev</th>
   </tr></thead>
   <tbody>
   {% for r in missing %}
@@ -2731,6 +2731,7 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
       {% if loop.first %}
       <td rowspan="{{ r.artist_rows|length }}" style="font-family:monospace;font-size:11px;color:var(--t3);vertical-align:top;padding-top:10px">{{ r.isrc }}</td>
       <td rowspan="{{ r.artist_rows|length }}" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:top;padding-top:10px" title="{{ r.title }}">{{ r.title }}</td>
+      <td rowspan="{{ r.artist_rows|length }}" style="white-space:nowrap;color:var(--t2);font-size:12px;vertical-align:top;padding-top:10px">{{ r.release_date }}</td>
       {% endif %}
       <td>
         <form method="post" action="/streaming-royalties/split-gaps/save-split" style="display:flex;gap:6px;align-items:center">
@@ -2836,14 +2837,18 @@ def split_gaps():
         _name_map = {}
         _artist_pct = {}
 
-    # Pre-load ArtistRelease data: ISRC → {artist_name_lower: (canonical, pct)}
+    # Pre-load ArtistRelease data + release date: ISRC → {artist_name_lower: (canonical, pct)}
     _release_pct = {}
+    _release_dates = {}  # {isrc: release_date}
     try:
-        from models import Track as _Track, ArtistRelease as _AR, Artist as _Art2
+        from models import Track as _Track, ArtistRelease as _AR, Artist as _Art2, Release as _Rel
         _missing_isrcs = [r[0] for r in missing_rows]
         if _missing_isrcs:
             _tracks = _Track.query.filter(_Track.isrc.in_(_missing_isrcs)).all()
             for _trk in _tracks:
+                rel = _Rel.query.get(_trk.release_id)
+                if rel and rel.release_date:
+                    _release_dates[_trk.isrc] = rel.release_date
                 _ar_rows = _AR.query.filter_by(release_id=_trk.release_id).all()
                 for _ar in _ar_rows:
                     _art2 = _Art2.query.get(_ar.artist_id)
@@ -2852,6 +2857,7 @@ def split_gaps():
                             (_art2.name, float(_ar.royalty_percentage))
     except Exception:
         _release_pct = {}
+        _release_dates = {}
 
     missing = []
     for r in missing_rows:
@@ -2877,10 +2883,12 @@ def split_gaps():
                 # Collab: name pre-filled from canonical, % blank — no contract suggestion
                 artist_rows.append({"artist_name": canonical, "pct": None, "source": None})
 
+        _rd = _release_dates.get(isrc)
         missing.append({
             "isrc": isrc,
             "title": r[1] or isrc,
             "label_rev": float(r[3]),
+            "release_date": _rd.strftime("%b %d, %Y") if _rd else "—",
             "artist_rows": artist_rows,
         })
 
