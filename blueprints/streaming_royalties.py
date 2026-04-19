@@ -1486,7 +1486,8 @@ def artist_names():
                     flash(f"Rejected mapping for: {raw}", "success")
                 return redirect(url_for("streaming_royalties.artist_names"))
 
-            # Default: save manual mappings form
+            # Default: save manual mappings form — bulk-load existing map to avoid per-row queries
+            existing_map = {m.raw_name: m for m in ArtistNameMap.query.all()}
             count = int(request.form.get("count", 0))
             saved = deleted = 0
             for i in range(count):
@@ -1494,7 +1495,7 @@ def artist_names():
                 canonical = request.form.get(f"canonical_{i}", "").strip()
                 if not raw:
                     continue
-                existing = ArtistNameMap.query.filter_by(raw_name=raw).first()
+                existing = existing_map.get(raw)
                 if not canonical or canonical == raw:
                     if existing:
                         db.session.delete(existing)
@@ -1520,11 +1521,12 @@ def artist_names():
             return redirect(url_for("streaming_royalties.artist_names"))
 
     # GET — collect all individual names seen in streaming data + map entries
+    # Use royalty_summary (pre-aggregated, much smaller) instead of streaming_royalty
     from sqlalchemy import text
     try:
         with _engine.connect() as conn:
             raw_csvs = [r[0] for r in conn.execute(text(
-                "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
+                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
                 "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
             )).fetchall()]
     except Exception:
