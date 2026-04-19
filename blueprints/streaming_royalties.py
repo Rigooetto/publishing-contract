@@ -749,13 +749,15 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     # KPI
     kpi_total = float(q(f"SELECT COALESCE(SUM({rev_expr}), 0) FROM {base_from} WHERE {where}")[0][0])
 
-    # By artist (top 10) — group by canonical collab string so bars show
-    # "El Fantasma", "El Fantasma, Los Dos Carnales", etc. and sum to the artist total
+    # By artist (top 10) — split collaboration strings so each individual artist
+    # gets their own bar (full attributed revenue, not divided among collaborators)
     by_artist = q(f"""
-        SELECT {artist_col} AS artist, COALESCE(SUM({rev_expr}), 0) AS rev
+        SELECT TRIM(a.name) AS artist, COALESCE(SUM({rev_expr}), 0) AS rev
           FROM {base_from}
+          CROSS JOIN LATERAL unnest(string_to_array(sr.artist_name_csv, ',')) AS a(name)
          WHERE {where} AND sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''
-         GROUP BY {artist_col} ORDER BY rev DESC LIMIT 10
+           AND TRIM(a.name) != ''
+         GROUP BY 1 ORDER BY rev DESC LIMIT 10
     """)
 
     # By month (chronological)
