@@ -2876,7 +2876,21 @@ def split_gaps_fix_names():
     eng = _royalties_engine()
     try:
         with eng.connect() as _c:
-            result = _c.execute(_t("""
+            # If a canonical row already exists for the same ISRC, delete the raw duplicate
+            del_result = _c.execute(_t("""
+                DELETE FROM artist_royalty_split s
+                USING artist_name_map m
+                WHERE m.raw_name = s.artist_name
+                  AND m.status = 'confirmed'
+                  AND m.canonical_name != s.artist_name
+                  AND EXISTS (
+                    SELECT 1 FROM artist_royalty_split ex
+                    WHERE ex.isrc = s.isrc
+                      AND ex.artist_name = m.canonical_name
+                  )
+            """))
+            # Update remaining raw-name rows (no collision possible now)
+            upd_result = _c.execute(_t("""
                 UPDATE artist_royalty_split s
                    SET artist_name = m.canonical_name
                   FROM artist_name_map m
@@ -2886,7 +2900,11 @@ def split_gaps_fix_names():
             """))
             _c.commit()
         _clear_dashboard_cache(eng)
-        flash(f"Updated {result.rowcount} split entries to canonical names.", "success")
+        flash(
+            f"Fixed {upd_result.rowcount} split entries "
+            f"({del_result.rowcount} duplicates removed).",
+            "success",
+        )
     except Exception as e:
         flash(f"Error fixing names: {e}", "error")
     return redirect(url_for("streaming_royalties.split_gaps"))
