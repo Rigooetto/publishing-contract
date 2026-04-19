@@ -177,6 +177,7 @@ with app.app_context():
             _roy_engine = db.engines.get('royalties')
             if _roy_engine:
                 with _roy_engine.connect() as _c:
+                    _c.execute(_text("SET lock_timeout = '3s'"))
                     _c.execute(_text("ALTER TABLE artist_name_map ALTER COLUMN raw_name TYPE TEXT"))
                     _c.execute(_text("ALTER TABLE artist_name_map ALTER COLUMN canonical_name TYPE TEXT"))
                     _c.commit()
@@ -188,6 +189,7 @@ with app.app_context():
             _roy_engine = db.engines.get('royalties')
             if _roy_engine:
                 with _roy_engine.connect() as _c:
+                    _c.execute(_text("SET lock_timeout = '3s'"))
                     _c.execute(_text("ALTER TABLE artist_name_map ADD COLUMN IF NOT EXISTS confidence NUMERIC(4,3)"))
                     _c.execute(_text("ALTER TABLE artist_name_map ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'confirmed'"))
                     _c.commit()
@@ -249,6 +251,7 @@ with app.app_context():
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
                     # Trigram index for fast ILIKE artist filtering
+                    _c.execute(_text("SET lock_timeout = '5s'"))
                     _c.execute(_text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist_trgm ON royalty_summary USING gin (artist_name_csv gin_trgm_ops)"))
                     # One-time backfill — skip if table already has data to avoid blocking startup
