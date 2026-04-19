@@ -391,6 +391,20 @@ def _process_import(app, import_id):
 
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
         _update_status("done")
+
+        # Auto-normalize artist names from this import
+        try:
+            with r_engine.connect() as _nc:
+                _new_csvs = [r[0] for r in _nc.execute(_t(
+                    "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
+                    "WHERE import_id = :id AND artist_name_csv IS NOT NULL"
+                ), {"id": import_id}).fetchall()]
+            with app.app_context():
+                _auto_map_individuals(_extract_individuals(_new_csvs))
+                _normalize_royalty_summary_bg()
+        except Exception:
+            pass
+
         try:
             os.remove(file_path)
         except OSError:
@@ -483,12 +497,25 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             row = conn.execute(_t(
                 "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
             ), {"id": import_id}).fetchone()
+        # Collect new artist names from this import
+        try:
+            with r_engine.connect() as _nc:
+                _new_csvs = [r[0] for r in _nc.execute(_t(
+                    "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
+                    "WHERE import_id = :id AND artist_name_csv IS NOT NULL"
+                ), {"id": import_id}).fetchall()]
+            _new_individuals = _extract_individuals(_new_csvs)
+        except Exception:
+            _new_individuals = set()
+
         _clear_dashboard_cache(r_engine)
         _app = current_app._get_current_object()
-        def _run_prewarm():
+        def _run_post_import():
             with _app.app_context():
+                _auto_map_individuals(_new_individuals)
+                _normalize_royalty_summary_bg()  # also clears cache
                 _prewarm_dashboard_cache()
-        threading.Thread(target=_run_prewarm, daemon=True).start()
+        threading.Thread(target=_run_post_import, daemon=True).start()
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
@@ -655,22 +682,10 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     """Return aggregated dashboard data using SQL GROUP BY — never loads raw rows into Python."""
     from sqlalchemy import text
 
-    # Check whether artist_name_map exists so the LEFT JOIN is safe
+    # royalty_summary.artist_name_csv is pre-normalized by _normalize_royalty_summary_bg
     _engine = _royalties_engine()
-    try:
-        with _engine.connect() as _chk:
-            _chk.execute(text("SELECT 1 FROM artist_name_map LIMIT 1"))
-        _has_map = True
-    except Exception:
-        _has_map = False
-
-    if _has_map:
-        base_from  = ("royalty_summary sr "
-                      "LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv")
-        artist_col = "COALESCE(anm.canonical_name, sr.artist_name_csv)"
-    else:
-        base_from  = "royalty_summary sr"
-        artist_col = "sr.artist_name_csv"
+    base_from  = "royalty_summary sr"
+    artist_col = "sr.artist_name_csv"
 
     conditions = ["1=1"]
     params = {}
@@ -781,11 +796,8 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                for r in catalog_rows]
 
     # Dropdown options — split collab strings on comma, deduplicate to individual names
-    _all_artists_from = ("royalty_summary sr LEFT JOIN artist_name_map anm ON anm.raw_name = sr.artist_name_csv"
-                         if _has_map else "royalty_summary sr")
-    _all_artists_col  = "COALESCE(anm.canonical_name, sr.artist_name_csv)" if _has_map else "sr.artist_name_csv"
     _raw_strings = [r[0] for r in q(
-        f"SELECT DISTINCT {_all_artists_col} FROM {_all_artists_from} "
+        "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
         "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
         {},
     )]
@@ -1231,6 +1243,12 @@ def catalog_upload():
                 rows_loaded += len(chunk)
             _conn.commit()
         rows_updated = 0  # ON CONFLICT merges — report total as loaded
+
+        # Register catalog artist names as canonicals, then normalize royalty_summary
+        catalog_names = {row["artist_name"] for row in pending if row.get("artist_name")}
+        _auto_map_individuals(catalog_names)
+        threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+
         stats = {
             "rows_loaded":        rows_loaded,
             "rows_updated":       rows_updated,
@@ -1283,6 +1301,143 @@ def _suggest_canonical(group):
     return unicodedata.normalize('NFD', best).encode('ascii', 'ignore').decode()
 
 
+def _extract_individuals(artist_name_csv_list):
+    """Split a list of collaboration CSV strings into a flat set of individual artist names."""
+    result = set()
+    for csv_str in artist_name_csv_list:
+        if csv_str:
+            for part in csv_str.split(','):
+                part = part.strip()
+                if part:
+                    result.add(part)
+    return result
+
+
+def _auto_map_individuals(individual_names):
+    """Auto-create artist_name_map entries for individual names using fuzzy matching.
+
+    Confidence tiers:
+      1.0   — exact match after accent/case normalization (auto-confirmed)
+      ≥0.92 — fuzzy match, high confidence (auto-confirmed)
+      0.75–0.91 — fuzzy match, needs review (pending_review)
+      <0.75 — new canonical (maps to itself, accent-stripped)
+    """
+    from models import ArtistNameMap
+    if not individual_names:
+        return
+
+    existing_raw = {m.raw_name for m in ArtistNameMap.query.all()}
+    confirmed    = {m.canonical_name for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
+
+    new_entries = []
+    for raw in sorted(individual_names):
+        if raw in existing_raw:
+            continue
+
+        norm_raw = _norm(raw)
+
+        # Tier 1: exact accent/case match against a known canonical
+        exact = next((c for c in confirmed if _norm(c) == norm_raw), None)
+        if exact:
+            new_entries.append(ArtistNameMap(raw_name=raw, canonical_name=exact, confidence=1.0, status='confirmed'))
+            existing_raw.add(raw)
+            continue
+
+        # Tier 2 & 3: fuzzy match
+        if confirmed:
+            best_score, best_c = max(
+                ((difflib.SequenceMatcher(None, norm_raw, _norm(c)).ratio(), c) for c in confirmed),
+                key=lambda x: x[0]
+            )
+        else:
+            best_score, best_c = 0.0, None
+
+        if best_score >= 0.92 and best_c:
+            new_entries.append(ArtistNameMap(raw_name=raw, canonical_name=best_c,
+                                             confidence=round(best_score, 3), status='confirmed'))
+        elif best_score >= 0.75 and best_c:
+            new_entries.append(ArtistNameMap(raw_name=raw, canonical_name=best_c,
+                                             confidence=round(best_score, 3), status='pending_review'))
+        else:
+            canonical = _suggest_canonical([raw])
+            new_entries.append(ArtistNameMap(raw_name=raw, canonical_name=canonical,
+                                             confidence=None, status='confirmed'))
+            confirmed.add(canonical)
+
+        existing_raw.add(raw)
+
+    if new_entries:
+        try:
+            db.session.bulk_save_objects(new_entries)
+            db.session.commit()
+            current_app.logger.info("_auto_map_individuals: added %d entries", len(new_entries))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.warning("_auto_map_individuals error: %s", e)
+
+
+def _normalize_royalty_summary_bg():
+    """Background thread: apply confirmed artist_name_map to royalty_summary.artist_name_csv.
+    Splits each value on commas, maps each individual part, rejoins.
+    Clears dashboard cache when done.
+    """
+    try:
+        from models import ArtistNameMap
+        from sqlalchemy import text as _t
+        engine = _royalties_engine()
+
+        name_map = {m.raw_name: m.canonical_name
+                    for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
+        if not name_map:
+            return
+
+        def _canon(csv_str):
+            parts = [p.strip() for p in csv_str.split(',')]
+            return ', '.join(name_map.get(p, p) for p in parts)
+
+        with engine.connect() as conn:
+            rows = conn.execute(_t(
+                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
+                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
+            )).fetchall()
+
+            updates = []
+            for (raw,) in rows:
+                canonical = _canon(raw)
+                if canonical != raw:
+                    updates.append({"c": canonical, "r": raw})
+
+            if updates:
+                for u in updates:
+                    conn.execute(_t(
+                        "UPDATE royalty_summary SET artist_name_csv = :c WHERE artist_name_csv = :r"
+                    ), u)
+                conn.commit()
+                current_app.logger.info("_normalize_royalty_summary_bg: updated %d distinct values", len(updates))
+
+        _clear_dashboard_cache()
+    except Exception as e:
+        current_app.logger.warning("_normalize_royalty_summary_bg error: %s", e)
+
+
+@bp.route("/streaming-royalties/artist-names/confirm-pending", methods=["POST"])
+def artist_names_confirm_pending():
+    """Bulk-confirm all pending_review mappings."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+    from models import ArtistNameMap
+    pending = ArtistNameMap.query.filter_by(status='pending_review').all()
+    for m in pending:
+        m.status = 'confirmed'
+    db.session.commit()
+    threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+    flash(f"Confirmed {len(pending)} pending mapping(s). Normalizing data in background.", "success")
+    return redirect(url_for("streaming_royalties.artist_names"))
+
+
 @bp.route("/streaming-royalties/artist-names", methods=["GET", "POST"])
 def artist_names():
     if auth_required():
@@ -1295,6 +1450,28 @@ def artist_names():
     _engine = _royalties_engine()
 
     if request.method == "POST":
+        action = request.form.get("action", "save")
+
+        if action == "confirm_single":
+            raw = request.form.get("raw", "").strip()
+            m = ArtistNameMap.query.filter_by(raw_name=raw).first()
+            if m:
+                m.status = 'confirmed'
+                db.session.commit()
+                threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+                flash(f"Confirmed mapping: {raw} → {m.canonical_name}. Normalizing in background.", "success")
+            return redirect(url_for("streaming_royalties.artist_names"))
+
+        if action == "reject_single":
+            raw = request.form.get("raw", "").strip()
+            m = ArtistNameMap.query.filter_by(raw_name=raw).first()
+            if m:
+                db.session.delete(m)
+                db.session.commit()
+                flash(f"Rejected mapping for: {raw}", "success")
+            return redirect(url_for("streaming_royalties.artist_names"))
+
+        # Default: save manual mappings form
         count = int(request.form.get("count", 0))
         saved = deleted = 0
         for i in range(count):
@@ -1310,43 +1487,69 @@ def artist_names():
             else:
                 if existing:
                     existing.canonical_name = canonical
+                    existing.status = 'confirmed'
                     existing.updated_at = datetime.datetime.utcnow()
                 else:
-                    db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical))
+                    db.session.add(ArtistNameMap(raw_name=raw, canonical_name=canonical,
+                                                  confidence=None, status='confirmed'))
                 saved += 1
         db.session.commit()
-        flash(f"Saved {saved} mapping(s), removed {deleted} mapping(s).", "success")
+        threading.Thread(target=_normalize_royalty_summary_bg, daemon=True).start()
+        flash(f"Saved {saved} mapping(s), removed {deleted}. Normalizing data in background.", "success")
         return redirect(url_for("streaming_royalties.artist_names"))
 
-    # GET — load all distinct raw names + existing mappings
+    # GET — collect all individual names seen in streaming data + map entries
     from sqlalchemy import text
-    with _engine.connect() as conn:
-        raw_names = [r[0] for r in conn.execute(text(
-            "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
-            "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != '' "
-            "ORDER BY artist_name_csv"
-        )).fetchall()]
+    try:
+        with _engine.connect() as conn:
+            raw_csvs = [r[0] for r in conn.execute(text(
+                "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
+                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
+            )).fetchall()]
+    except Exception:
+        raw_csvs = []
+
+    all_individuals = sorted(_extract_individuals(raw_csvs))
 
     try:
-        existing_maps = {m.raw_name: m.canonical_name for m in ArtistNameMap.query.all()}
+        all_map_entries = ArtistNameMap.query.order_by(ArtistNameMap.raw_name).all()
+        existing_maps   = {m.raw_name: m for m in all_map_entries}
     except Exception:
-        existing_maps = {}
-    groups = _group_by_normalization(raw_names)
+        all_map_entries = []
+        existing_maps   = {}
+
+    # Pending review entries (auto-mapped, awaiting confirmation)
+    pending = [m for m in all_map_entries if m.status == 'pending_review']
+
+    # Build display rows for confirmed/manual section — individual names only
+    # Group by normalized form so variants are clustered together
+    groups = _group_by_normalization(all_individuals)
     suggestions = {name: _suggest_canonical(g) for g in groups for name in g}
 
     ordered = []
     for g in groups:
         for name in g:
-            ordered.append({"raw": name, "canonical": existing_maps.get(name, ""), "group_size": len(g)})
+            m = existing_maps.get(name)
+            ordered.append({
+                "raw":        name,
+                "canonical":  m.canonical_name if m else "",
+                "confidence": float(m.confidence) if (m and m.confidence is not None) else None,
+                "status":     m.status if m else "unmapped",
+                "group_size": len(g),
+                "suggestion": suggestions.get(name, ""),
+            })
+
+    n_confirmed = sum(1 for m in all_map_entries if m.status == 'confirmed')
+    n_unmapped  = sum(1 for n in all_individuals if n not in existing_maps)
 
     return render_template_string(
         _ARTIST_NAMES_HTML,
         ordered=ordered,
-        groups=groups,
-        existing_maps=existing_maps,
-        suggestions=suggestions,
-        total=len(raw_names),
-        mapped=len(existing_maps),
+        pending=pending,
+        total=len(all_individuals),
+        n_confirmed=n_confirmed,
+        n_pending=len(pending),
+        n_unmapped=n_unmapped,
         _sidebar_html=_sb("streaming_artist_names"),
     )
 
@@ -1987,20 +2190,33 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 .an-stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
 .an-stat{background:var(--c2);border:1px solid var(--bdr);border-radius:8px;padding:10px 18px;font-size:13px;color:var(--t2)}
 .an-stat strong{color:var(--t1);font-size:18px;display:block}
-.an-group{background:var(--c2);border:1px solid var(--bdr);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.an-section-title{font-size:14px;font-weight:600;color:var(--t1);margin:20px 0 10px;display:flex;align-items:center;gap:10px}
+.an-group{background:var(--c2);border:1px solid var(--bdr);border-radius:10px;margin-bottom:8px;overflow:hidden}
 .an-group-hd{background:rgba(99,133,255,.08);border-bottom:1px solid var(--bdr);padding:9px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.an-badge{background:#6385ff22;color:#6385ff;border:1px solid #6385ff44;border-radius:4px;font-size:11px;padding:2px 7px;font-weight:600;white-space:nowrap}
+.an-badge{border-radius:4px;font-size:11px;padding:2px 7px;font-weight:600;white-space:nowrap}
+.an-badge-var{background:#6385ff22;color:#6385ff;border:1px solid #6385ff44}
+.an-badge-ok{background:#34d39916;color:#34d399;border:1px solid #34d39940}
+.an-badge-pend{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44}
+.an-badge-conf{background:#22c55e22;color:#22c55e;border:1px solid #22c55e44}
 .an-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,.04)}
 .an-row:last-child{border-bottom:none}
 .an-raw{font-size:12.5px;color:var(--t2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .an-clear{background:none;border:none;color:var(--t3);cursor:pointer;padding:2px 8px;font-size:13px;border-radius:4px}
 .an-clear:hover{color:var(--err);background:rgba(255,79,106,.1)}
+.pending-card{background:var(--c2);border:1px solid #f59e0b44;border-radius:10px;margin-bottom:8px;overflow:hidden}
+.pending-row{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04)}
+.pending-row:last-child{border-bottom:none}
+.conf-pct{font-size:11px;color:var(--t3);font-style:italic}
+.btn-confirm{background:#22c55e22;color:#22c55e;border:1px solid #22c55e55;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer}
+.btn-confirm:hover{background:#22c55e44}
+.btn-reject{background:rgba(255,79,106,.1);color:var(--err);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+.btn-reject:hover{background:rgba(255,79,106,.2)}
 </style>
 </head><body><div class="app">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph">
   <div class="ph-left"><h1 class="ph-title">Artist Name Consolidation</h1>
-  <div class="ph-sub">Names are grouped when they are identical after removing accents and ignoring case. Comma = collaboration — those are never merged.</div></div>
+  <div class="ph-sub">Individual names are auto-mapped on every import. Case/accent variants are confirmed automatically. Fuzzy matches show here for review.</div></div>
   <div class="ph-actions"><a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a></div>
 </div>
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -2008,71 +2224,108 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% endwith %}
 
 <div class="an-stats">
-  <div class="an-stat"><strong>{{ total }}</strong>Distinct raw names</div>
-  <div class="an-stat"><strong>{{ mapped }}</strong>Mapped</div>
-  <div class="an-stat"><strong>{{ total - mapped }}</strong>Unmapped</div>
-  <div class="an-stat"><strong>{{ groups|selectattr('length','gt',1)|list|length if false else groups|length }}</strong>Groups</div>
+  <div class="an-stat"><strong>{{ total }}</strong>Individual names</div>
+  <div class="an-stat"><strong>{{ n_confirmed }}</strong>Confirmed</div>
+  <div class="an-stat" style="{{ 'border-color:#f59e0b66' if n_pending else '' }}"><strong style="{{ 'color:#f59e0b' if n_pending else '' }}">{{ n_pending }}</strong>Pending review</div>
+  <div class="an-stat"><strong>{{ n_unmapped }}</strong>Unmapped</div>
 </div>
 
-<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-  <input class="inp" id="srch" placeholder="&#128269; Search artist name..." style="max-width:340px;flex:1" oninput="doSearch(this.value)">
-  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);cursor:pointer">
-    <input type="checkbox" id="chkMulti" onchange="toggleMultiOnly(this.checked)"> Show only groups with variants
-  </label>
-  <button type="button" class="btn btn-sec btn-sm" onclick="autoApplyAll()">&#9889; Auto-apply all suggestions</button>
+{% if pending %}
+<div class="an-section-title">
+  <span class="an-badge an-badge-pend">{{ pending|length }} pending review</span>
+  Auto-matched by fuzzy similarity — confirm or reject each
+  <form method="post" style="margin:0;margin-left:auto">
+    <input type="hidden" name="action" value="confirm_all_pending">
+    <a href="/streaming-royalties/artist-names/confirm-pending" onclick="return confirm('Confirm all {{ pending|length }} pending mappings?')" class="btn btn-sm" style="background:#22c55e22;color:#22c55e;border:1px solid #22c55e55;text-decoration:none">&#10003; Confirm All ({{ pending|length }})</a>
+  </form>
+</div>
+<div class="pending-card">
+  {% for m in pending %}
+  <div class="pending-row">
+    <span class="an-raw" title="{{ m.raw_name }}">{{ m.raw_name }}</span>
+    <span style="font-size:13px;color:var(--t1)">&#8594; {{ m.canonical_name }}
+      {% if m.confidence %}<span class="conf-pct">({{ (m.confidence * 100)|int }}% match)</span>{% endif %}
+    </span>
+    <form method="post" style="margin:0">
+      <input type="hidden" name="action" value="confirm_single">
+      <input type="hidden" name="raw" value="{{ m.raw_name }}">
+      <button type="submit" class="btn-confirm">&#10003; Confirm</button>
+    </form>
+    <form method="post" style="margin:0">
+      <input type="hidden" name="action" value="reject_single">
+      <input type="hidden" name="raw" value="{{ m.raw_name }}">
+      <button type="submit" class="btn-reject">&#10005;</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="an-section-title" style="margin-top:24px">
+  All Individual Names
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+    <input class="inp" id="srch" placeholder="&#128269; Search..." style="width:280px;font-size:13px" oninput="doSearch(this.value)">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="chkMulti" onchange="doSearch(document.getElementById('srch').value)"> Variants only
+    </label>
+    <button type="button" class="btn btn-sec btn-sm" onclick="autoApplyAll()">&#9889; Auto-fill suggestions</button>
+  </div>
 </div>
 
 <form method="post">
+  <input type="hidden" name="action" value="save">
   <input type="hidden" name="count" value="{{ ordered|length }}">
   {% for item in ordered %}
   <input type="hidden" name="raw_{{ loop.index0 }}" value="{{ item.raw }}">
   {% endfor %}
 
-  {% set flat = namespace(i=0) %}
-  {% for group in groups %}
+  {% set ns = namespace(gi=0, prev_norm='') %}
+  {% set groups_seen = namespace(val=[]) %}
+
+  {% for item in ordered %}
   {% set gi = loop.index0 %}
-  {% set sugg = suggestions[group[0]] %}
-  <div class="an-group" data-search="{{ group|join('|||')|lower }}" data-multi="{{ 'y' if group|length > 1 else 'n' }}">
+  {% if item.group_size > 1 and item.suggestion not in groups_seen.val %}
+    {% if gi > 0 %}</div>{% endif %}
+    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="y">
     <div class="an-group-hd">
-      {% if group|length > 1 %}
-      <span class="an-badge">{{ group|length }} variants</span>
-      {% else %}
-      <span class="an-badge" style="background:#34d39916;color:#34d399;border-color:#34d39940">1 name</span>
-      {% endif %}
-      <span style="font-size:13px;color:var(--t1);font-weight:500">{{ sugg[:60] }}{% if sugg|length > 60 %}…{% endif %}</span>
+      <span class="an-badge an-badge-var">{{ item.group_size }} variants</span>
+      <span style="font-size:13px;color:var(--t1);font-weight:500">{{ item.suggestion[:60] }}{% if item.suggestion|length > 60 %}…{% endif %}</span>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <input class="inp gc-inp" id="gc_{{ gi }}" value="{{ sugg }}"
-               placeholder="Canonical for all {{ group|length }}…"
-               style="width:260px;font-size:12px"
-               data-suggestion="{{ sugg }}">
-        <button type="button" class="btn btn-sm" onclick="applyGroup({{ gi }})">Apply to group</button>
+        <input class="inp gc-inp" id="gc_{{ gi }}" value="{{ item.suggestion }}" style="width:240px;font-size:12px" data-suggestion="{{ item.suggestion }}">
+        <button type="button" class="btn btn-sm" onclick="applyGroup('{{ item.suggestion }}')">Apply to group</button>
       </div>
     </div>
-    {% for name in group %}
+    {% set groups_seen.val = groups_seen.val + [item.suggestion] %}
+  {% elif item.group_size == 1 %}
+    {% if gi > 0 and ordered[gi-1].group_size > 1 %}</div>{% endif %}
+    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n">
+  {% endif %}
     <div class="an-row">
-      <span class="an-raw" title="{{ name }}">{{ name }}</span>
-      <input class="inp row-can" name="canonical_{{ flat.i }}"
-             value="{{ existing_maps.get(name, '') }}"
-             placeholder="{{ sugg }}"
-             style="font-size:12.5px" data-gi="{{ gi }}" data-suggestion="{{ sugg }}">
+      <span class="an-raw" title="{{ item.raw }}">{{ item.raw }}
+        {% if item.status == 'confirmed' and item.confidence is not none %}
+          <span class="conf-pct" style="color:#22c55e">&#10003; auto</span>
+        {% elif item.status == 'unmapped' %}
+          <span class="conf-pct" style="color:var(--err)">unmapped</span>
+        {% endif %}
+      </span>
+      <input class="inp row-can" name="canonical_{{ gi }}"
+             value="{{ item.canonical }}"
+             placeholder="{{ item.suggestion }}"
+             style="font-size:12.5px" data-suggestion="{{ item.suggestion }}" data-gs="{{ item.suggestion }}">
       <button type="button" class="an-clear" onclick="this.closest('.an-row').querySelector('.row-can').value=''" title="Clear">&#10005;</button>
     </div>
-    {% set flat.i = flat.i + 1 %}
-    {% endfor %}
-  </div>
+  {% if loop.last %}</div>{% endif %}
   {% endfor %}
 
   <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bdr);display:flex;gap:12px">
-    <button type="submit" class="btn btn-primary">&#10003; Save All Mappings</button>
+    <button type="submit" class="btn btn-primary">&#10003; Save Mappings</button>
     <a href="/streaming-royalties" class="btn btn-sec">Cancel</a>
   </div>
 </form>
 </div></div></div>""" + _SB_JS + """
 <script>
-function applyGroup(gi){
-  const val = document.getElementById('gc_'+gi).value.trim();
-  if(!val) return;
-  document.querySelectorAll('.row-can[data-gi="'+gi+'"]').forEach(el => el.value = val);
+function applyGroup(sugg){
+  document.querySelectorAll('.row-can[data-gs="'+sugg+'"]').forEach(el => el.value = sugg);
 }
 function autoApplyAll(){
   document.querySelectorAll('.row-can').forEach(el => {
@@ -2081,14 +2334,12 @@ function autoApplyAll(){
 }
 function doSearch(q){
   q = q.toLowerCase();
+  const multiOnly = document.getElementById('chkMulti').checked;
   document.querySelectorAll('.an-group').forEach(g => {
     const matchSearch = !q || g.dataset.search.includes(q);
-    const matchMulti  = !document.getElementById('chkMulti').checked || g.dataset.multi === 'y';
+    const matchMulti  = !multiOnly || g.dataset.multi === 'y';
     g.style.display = (matchSearch && matchMulti) ? '' : 'none';
   });
-}
-function toggleMultiOnly(on){
-  doSearch(document.getElementById('srch').value);
 }
 </script>
 </body></html>"""

@@ -332,10 +332,12 @@ class ArtistRoyaltySplit(db.Model):
 
 
 class ArtistNameMap(db.Model):
-    """Maps raw artist_name_csv variants to a single canonical display name."""
+    """Maps raw individual artist name variants to a single canonical display name."""
     __bind_key__ = 'royalties'
     __tablename__ = 'artist_name_map'
     id             = db.Column(db.Integer, primary_key=True)
     raw_name       = db.Column(db.Text, nullable=False, unique=True, index=True)
     canonical_name = db.Column(db.Text, nullable=False)
+    confidence     = db.Column(db.Numeric(4, 3), nullable=True)   # NULL = manual; 1.0 = exact norm match; 0.xx = fuzzy
+    status         = db.Column(db.String(20), default='confirmed') # 'confirmed' | 'pending_review'
     updated_at     = db.Column(db.DateTime, default=datetime.datetime.utcnow)
