@@ -513,8 +513,7 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
         def _run_post_import():
             with _app.app_context():
                 _auto_map_individuals(_new_individuals)
-                _normalize_royalty_summary_bg()  # also clears cache
-                _prewarm_dashboard_cache()
+                _normalize_royalty_summary_bg()  # clears cache + prewarns internally
         threading.Thread(target=_run_post_import, daemon=True).start()
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
@@ -659,7 +658,13 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
     except Exception:
         pass
 
-    result = _compute_dashboard_data(year, quarter, artist, view)
+    try:
+        result = _compute_dashboard_data(year, quarter, artist, view)
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger(__name__).warning("_dashboard_data query failed (%s|%s|%s|%s): %s", year, quarter, artist, view, _e)
+        return {"error": "timeout", "kpi_total": 0, "by_artist": [], "by_month": [],
+                "by_platform": [], "by_country": [], "catalog": [], "all_artists": [], "all_years": []}
 
     # Persist to DB cache
     try:
@@ -1481,7 +1486,11 @@ def _normalize_royalty_summary_bg():
                             out.append(p)
                     return ', '.join(out)
 
-                repair_updates = {raw: _dedup(raw) for (raw,) in rows if _dedup(raw) != raw}
+                repair_updates = {}
+                for (raw,) in rows:
+                    fixed = _dedup(raw)
+                    if fixed != raw:
+                        repair_updates[raw] = fixed
                 if repair_updates:
                     for raw, fixed in repair_updates.items():
                         conn.execute(_t(
@@ -1507,10 +1516,30 @@ def _normalize_royalty_summary_bg():
                 conn.commit()
                 _log.info("_normalize_royalty_summary_bg: updated %d distinct values", len(updates))
 
+        # VACUUM ANALYZE cleans up dead tuples from the UPDATEs above and refreshes
+        # planner statistics — critical for GIN trigram index performance.
+        # Requires autocommit (cannot run inside a transaction).
+        # repair_updates is only defined when the repair block ran; updates is always defined.
+        _did_update = bool(locals().get("repair_updates")) or bool(locals().get("updates"))
+        if _did_update:
+            try:
+                with engine.execution_options(isolation_level="AUTOCOMMIT").connect() as _vc:
+                    _vc.execute(_t("VACUUM ANALYZE royalty_summary"))
+                _log.info("_normalize_royalty_summary_bg: VACUUM ANALYZE complete")
+            except Exception as _ve:
+                _log.warning("_normalize_royalty_summary_bg: VACUUM ANALYZE failed: %s", _ve)
+
         _clear_dashboard_cache()
-        # Pre-warm the cache in background so users don't hit cold 5-minute queries
+        # Pre-warm the cache so users don't hit cold 5-minute queries after normalization.
+        # Use the prewarm lock to prevent a simultaneous prewarm from cache_status route.
         try:
-            _prewarm_dashboard_cache()
+            if _prewarm_lock.acquire(blocking=False):
+                try:
+                    _prewarm_dashboard_cache()
+                finally:
+                    _prewarm_lock.release()
+            else:
+                _log.info("_normalize_royalty_summary_bg: prewarm already running, skipping")
         except Exception as _pw_e:
             _log.warning("_normalize_royalty_summary_bg: prewarm failed: %s", _pw_e)
     except Exception as e:
