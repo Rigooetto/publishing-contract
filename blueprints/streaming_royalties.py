@@ -1093,7 +1093,10 @@ def cache_status():
                 finally:
                     _prewarm_lock.release()
             threading.Thread(target=_run_lazy, daemon=True).start()
-    return jsonify(_prewarm_status)
+    resp = jsonify(_prewarm_status)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @bp.route("/streaming-royalties/clear-cache", methods=["POST"])
@@ -2109,7 +2112,7 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
   var poll;
 
   function update(){
-    fetch('/streaming-royalties/cache-status')
+    fetch('/streaming-royalties/cache-status', {credentials: 'omit'})
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(d.running){
