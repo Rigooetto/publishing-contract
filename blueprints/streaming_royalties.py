@@ -772,14 +772,17 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
 
     if view == "artist":
         if artist and artist != "all":
-            # Single-artist view: use only that artist's percentage per ISRC
+            # Single-artist view: match split by canonical name OR any raw alias
+            _all_split_names = [artist] + _raw_aliases
+            _name_ph = ', '.join(f':sname_{i}' for i in range(len(_all_split_names)))
             cte = (
                 "WITH _splits AS ("
                 "SELECT isrc, percentage/100.0 AS pct FROM artist_royalty_split "
-                "WHERE artist_name = :split_artist"
+                f"WHERE artist_name IN ({_name_ph})"
                 ") "
             )
-            params["split_artist"] = artist
+            for _i, _n in enumerate(_all_split_names):
+                params[f'sname_{_i}'] = _n
         else:
             # All-artists view: sum all splits per ISRC (total artist payout)
             cte = (
@@ -788,7 +791,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                 ") "
             )
         base_from += " LEFT JOIN _splits _s ON _s.isrc = sr.isrc"
-        rev_expr   = "sr.net_revenue * COALESCE(_s.pct, 1.0)"
+        rev_expr   = "sr.net_revenue * COALESCE(_s.pct, 0.0)"
     else:
         cte      = ""
         rev_expr = "sr.net_revenue"
@@ -2625,3 +2628,495 @@ function doSearch(q){
 }
 </script>
 </body></html>"""
+
+# ── Split Gaps UI ─────────────────────────────────────────────────────────────
+
+_SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Split Gaps — AfinArte</title>""" + _STYLE + """
+<style>
+.gaps-banner{background:var(--c2);border:1px solid rgba(255,79,106,.3);border-radius:10px;padding:16px 20px;margin-bottom:24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap}
+.gaps-stat{text-align:center}.gaps-stat strong{display:block;font-size:22px;font-weight:700}
+.gaps-stat span{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px}
+.gaps-ok{border-color:rgba(34,197,94,.3)}
+.sec-hdr{display:flex;align-items:center;gap:12px;margin:24px 0 10px;font-weight:600;font-size:14px;color:var(--t1)}
+.sec-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;background:rgba(255,79,106,.15);color:var(--err)}
+.sec-badge-ok{background:rgba(34,197,94,.15);color:#22c55e}
+.gaps-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.gaps-tbl th{text-align:left;padding:8px 10px;color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--bdr)}
+.gaps-tbl td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.gaps-tbl tr:last-child td{border-bottom:none}
+.arrow{color:var(--t3);margin:0 4px}
+.rev-cell{font-weight:600;color:#6385ff;text-align:right}
+.inp-sm{background:var(--c1);border:1px solid var(--bdr);border-radius:6px;color:var(--t1);padding:4px 8px;font-size:12px;width:160px}
+.inp-pct{width:60px}
+.btn-save{background:#22c55e22;color:#22c55e;border:1px solid #22c55e55;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
+.btn-save:hover{background:#22c55e44}
+.missing-tag{font-size:10px;font-weight:700;color:var(--err);background:rgba(255,79,106,.12);border-radius:4px;padding:1px 6px}
+.sugg-pct{font-size:11px;color:#f59e0b;margin-left:4px}
+</style>
+</head><body><div class="app">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph"><div class="ph-left">
+  <h1 class="ph-title">Split Gaps</h1>
+  <div class="ph-sub">ISRCs with missing or mismatched artist royalty splits — fix before artist view is accurate.</div>
+</div>
+<div class="ph-actions"><a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a></div>
+</div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}{% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<div class="gaps-banner {{ 'gaps-ok' if not mismatches and not missing else '' }}">
+  <div class="gaps-stat"><strong style="color:var(--err)">{{ mismatches|length }}</strong><span>Name Mismatches</span></div>
+  <div class="gaps-stat"><strong style="color:var(--err)">{{ missing|length }}</strong><span>Missing Splits</span></div>
+  <div class="gaps-stat"><strong style="color:#f59e0b">${{ "{:,.0f}".format(total_at_risk) }}</strong><span>Label Rev at Risk</span></div>
+  {% if not mismatches and not missing %}
+  <div style="color:#22c55e;font-weight:600;font-size:14px;margin-left:auto">&#10003; All ISRCs have splits assigned</div>
+  {% endif %}
+</div>
+
+<!-- Section A: Name mismatches -->
+<div class="sec-hdr">
+  <span>Section A — Name Mismatches</span>
+  <span class="sec-badge {{ 'sec-badge-ok' if not mismatches else '' }}">{{ mismatches|length }}</span>
+  {% if mismatches %}
+  <form method="post" action="/streaming-royalties/split-gaps/fix-names" style="margin-left:auto">
+    <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Update {{ mismatches|length }} stored names to their canonical form?')">
+      &#10227; Fix All Names
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% if mismatches %}
+<div class="card" style="padding:0;overflow:hidden">
+<table class="gaps-tbl">
+  <thead><tr>
+    <th>ISRC</th><th>Track</th><th>Stored Name</th><th></th><th>Canonical Name</th><th>%</th><th class="rev-cell">Label Rev</th>
+  </tr></thead>
+  <tbody>
+  {% for r in mismatches %}
+  <tr>
+    <td style="font-family:monospace;font-size:11px;color:var(--t3)">{{ r.isrc }}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.title or r.isrc }}</td>
+    <td style="color:var(--err)">{{ r.stored_name }}</td>
+    <td class="arrow">&#8594;</td>
+    <td style="color:#22c55e">{{ r.canonical_name }}</td>
+    <td>{{ r.percentage }}%</td>
+    <td class="rev-cell">${{ "{:,.0f}".format(r.label_rev or 0) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="card" style="color:var(--t2);font-size:13px;padding:16px 20px">No name mismatches — all split entries match canonical names.</div>
+{% endif %}
+
+<!-- Section B: Missing splits -->
+<div class="sec-hdr" style="margin-top:32px">
+  <span>Section B — Missing Splits</span>
+  <span class="sec-badge {{ 'sec-badge-ok' if not missing else '' }}">{{ missing|length }}</span>
+</div>
+{% if missing %}
+<div class="card" style="padding:0;overflow:hidden">
+<table class="gaps-tbl">
+  <thead><tr>
+    <th>ISRC</th><th>Track</th><th>Artists in Data</th><th>Artist Name</th><th>%</th><th class="rev-cell">Label Rev</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in missing %}
+  <tr>
+    <td style="font-family:monospace;font-size:11px;color:var(--t3)">{{ r.isrc }}</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.title }}">{{ r.title or r.isrc }}</td>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);font-size:12px" title="{{ r.artists }}">{{ r.artists or '—' }}</td>
+    <td>
+      <form method="post" action="/streaming-royalties/split-gaps/save-split" style="display:flex;gap:6px;align-items:center">
+        <input type="hidden" name="isrc" value="{{ r.isrc }}">
+        <input class="inp-sm" name="artist_name" placeholder="Artist name"
+               value="{{ r.suggested_artist or '' }}" required>
+        <input class="inp-sm inp-pct" name="percentage" type="number" min="0" max="100" step="0.01"
+               placeholder="%" value="{{ r.suggested_pct or '' }}" required>
+        {% if r.suggested_artist %}
+        <span class="sugg-pct" title="Suggested from artist contract">&#9733; contract</span>
+        {% endif %}
+        <button type="submit" class="btn-save">Save</button>
+      </form>
+    </td>
+    <td></td>
+    <td class="rev-cell">${{ "{:,.0f}".format(r.label_rev or 0) }}</td>
+    <td></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="card" style="color:var(--t2);font-size:13px;padding:16px 20px">No missing splits — every ISRC has at least one split entry.</div>
+{% endif %}
+
+</div></div></div>""" + _SB_JS + """</body></html>"""
+
+
+@bp.route("/streaming-royalties/split-gaps")
+def split_gaps():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from sqlalchemy import text as _t
+    eng = _royalties_engine()
+
+    # Section A: splits where stored artist_name has a different canonical in artist_name_map
+    try:
+        with eng.connect() as _c:
+            mismatch_rows = _c.execute(_t("""
+                SELECT s.isrc,
+                       MAX(rs.track_title_csv) AS title,
+                       MAX(rs.artist_name_csv) AS royalty_artists,
+                       s.artist_name            AS stored_name,
+                       m.canonical_name         AS canonical_name,
+                       s.percentage,
+                       COALESCE(SUM(rs.net_revenue), 0) AS label_rev
+                  FROM artist_royalty_split s
+                  JOIN artist_name_map m
+                    ON m.raw_name = s.artist_name
+                   AND m.status = 'confirmed'
+                   AND m.canonical_name != s.artist_name
+             LEFT JOIN royalty_summary rs ON rs.isrc = s.isrc
+                 GROUP BY s.isrc, s.artist_name, m.canonical_name, s.percentage
+                 ORDER BY label_rev DESC
+            """)).fetchall()
+    except Exception:
+        mismatch_rows = []
+
+    mismatches = [
+        {"isrc": r[0], "title": r[1], "stored_name": r[3],
+         "canonical_name": r[4], "percentage": float(r[5]),
+         "label_rev": float(r[6])}
+        for r in mismatch_rows
+    ]
+
+    # Section B: ISRCs in royalty_summary with no artist_royalty_split entry
+    try:
+        with eng.connect() as _c:
+            missing_rows = _c.execute(_t("""
+                SELECT rs.isrc,
+                       MAX(rs.track_title_csv) AS title,
+                       MAX(rs.artist_name_csv) AS artists,
+                       COALESCE(SUM(rs.net_revenue), 0) AS label_rev
+                  FROM royalty_summary rs
+                 WHERE NOT EXISTS (
+                       SELECT 1 FROM artist_royalty_split s WHERE s.isrc = rs.isrc
+                 )
+                 GROUP BY rs.isrc
+                 ORDER BY label_rev DESC
+            """)).fetchall()
+    except Exception:
+        missing_rows = []
+
+    # Pre-load artist_name_map and artist_contract for suggestions
+    try:
+        from models import ArtistNameMap as _ANM, ArtistContract as _AC, Artist as _Art
+        import datetime as _dt
+        _name_map = {m.raw_name: m.canonical_name
+                     for m in _ANM.query.filter_by(status='confirmed').all()}
+        _contracts = _AC.query.filter(
+            (_AC.end_date == None) | (_AC.end_date >= _dt.date.today())
+        ).order_by(_AC.start_date.desc()).all()
+        _artist_pct = {}
+        for c in _contracts:
+            art = _Art.query.get(c.artist_id)
+            if art and art.name not in _artist_pct:
+                _artist_pct[art.name.lower()] = (art.name, float(c.royalty_percentage))
+    except Exception:
+        _name_map = {}
+        _artist_pct = {}
+
+    missing = []
+    for r in missing_rows:
+        artists_raw = r[2] or ""
+        suggested_artist = None
+        suggested_pct = None
+        for part in artists_raw.split(','):
+            canonical = _name_map.get(part.strip(), part.strip())
+            match = _artist_pct.get(canonical.lower())
+            if match:
+                suggested_artist, suggested_pct = match
+                break
+        missing.append({
+            "isrc": r[0], "title": r[1], "artists": artists_raw,
+            "label_rev": float(r[3]),
+            "suggested_artist": suggested_artist,
+            "suggested_pct": suggested_pct,
+        })
+
+    total_at_risk = sum(r["label_rev"] for r in mismatches) + sum(r["label_rev"] for r in missing)
+
+    return render_template_string(
+        _SPLIT_GAPS_HTML,
+        mismatches=mismatches,
+        missing=missing,
+        total_at_risk=total_at_risk,
+        _sidebar_html=_sb("streaming_split_gaps"),
+    )
+
+
+@bp.route("/streaming-royalties/split-gaps/fix-names", methods=["POST"])
+def split_gaps_fix_names():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from sqlalchemy import text as _t
+    eng = _royalties_engine()
+    try:
+        with eng.connect() as _c:
+            result = _c.execute(_t("""
+                UPDATE artist_royalty_split s
+                   SET artist_name = m.canonical_name
+                  FROM artist_name_map m
+                 WHERE m.raw_name = s.artist_name
+                   AND m.status = 'confirmed'
+                   AND m.canonical_name != s.artist_name
+            """))
+            _c.commit()
+        _clear_dashboard_cache(eng)
+        flash(f"Updated {result.rowcount} split entries to canonical names.", "success")
+    except Exception as e:
+        flash(f"Error fixing names: {e}", "error")
+    return redirect(url_for("streaming_royalties.split_gaps"))
+
+
+@bp.route("/streaming-royalties/split-gaps/save-split", methods=["POST"])
+def split_gaps_save_split():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    isrc        = (request.form.get("isrc") or "").strip().upper()
+    artist_name = (request.form.get("artist_name") or "").strip()
+    try:
+        percentage = float(request.form.get("percentage", 0))
+    except ValueError:
+        flash("Invalid percentage.", "error")
+        return redirect(url_for("streaming_royalties.split_gaps"))
+
+    if not isrc or not artist_name or percentage <= 0:
+        flash("ISRC, artist name, and percentage are required.", "error")
+        return redirect(url_for("streaming_royalties.split_gaps"))
+
+    from sqlalchemy import text as _t
+    from models import Artist as _Art
+    eng = _royalties_engine()
+    try:
+        artist_id = None
+        art = _Art.query.filter(db.func.lower(_Art.name) == artist_name.lower()).first()
+        if art:
+            artist_id = art.id
+        with eng.connect() as _c:
+            _c.execute(_t("""
+                INSERT INTO artist_royalty_split (isrc, artist_name, artist_id, percentage)
+                VALUES (:isrc, :artist_name, :artist_id, :pct)
+                ON CONFLICT (isrc, artist_name) DO UPDATE
+                   SET percentage = EXCLUDED.percentage,
+                       artist_id  = EXCLUDED.artist_id
+            """), {"isrc": isrc, "artist_name": artist_name,
+                   "artist_id": artist_id, "pct": percentage})
+            # Get months affected
+            months = [row[0] for row in _c.execute(_t(
+                "SELECT DISTINCT reporting_month FROM royalty_summary WHERE isrc = :isrc"
+            ), {"isrc": isrc}).fetchall()]
+            _c.commit()
+        _clear_cache_for_months(eng, months)
+        flash(f"Split saved: {artist_name} @ {percentage}% for {isrc}.", "success")
+    except Exception as e:
+        flash(f"Error saving split: {e}", "error")
+    return redirect(url_for("streaming_royalties.split_gaps"))
+
+
+# ── Artist Audit UI ───────────────────────────────────────────────────────────
+
+_ARTIST_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Artist Audit — AfinArte</title>""" + _STYLE + """
+<style>
+.audit-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.audit-tbl th{text-align:left;padding:8px 10px;color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+.audit-tbl td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.audit-tbl tr:last-child td{border-bottom:none}
+.num{text-align:right}
+.src-ok{font-size:10px;font-weight:700;color:#22c55e;background:rgba(34,197,94,.12);border-radius:4px;padding:1px 6px}
+.src-miss{font-size:10px;font-weight:700;color:var(--err);background:rgba(255,79,106,.12);border-radius:4px;padding:1px 6px}
+.audit-footer td{font-weight:700;color:var(--t1);border-top:2px solid var(--bdr);padding:10px 10px}
+</style>
+</head><body><div class="app">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph"><div class="ph-left">
+  <h1 class="ph-title">Artist Audit</h1>
+  <div class="ph-sub">Per-ISRC revenue breakdown — verify label rev × split % = artist rev.</div>
+</div>
+<div class="ph-actions">
+  <a href="/streaming-royalties/split-gaps" class="btn btn-sec">&#9888; Split Gaps</a>
+  <a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a>
+</div>
+</div>
+
+<form method="get" style="margin-bottom:20px;display:flex;gap:10px;align-items:center">
+  <select name="artist" class="inp" style="width:280px" onchange="this.form.submit()">
+    <option value="">— Select artist —</option>
+    {% for a in all_artists %}
+    <option value="{{ a }}" {{ 'selected' if a == selected_artist else '' }}>{{ a }}</option>
+    {% endfor %}
+  </select>
+  {% if selected_artist %}
+  <button type="submit" class="btn btn-primary btn-sm">&#128269; Load</button>
+  {% endif %}
+</form>
+
+{% if selected_artist and rows %}
+<div class="card" style="padding:0;overflow:hidden;overflow-x:auto">
+<table class="audit-tbl">
+  <thead><tr>
+    <th>ISRC</th><th>Track</th><th>Reporting Month</th>
+    <th class="num">Label Rev</th><th class="num">Split %</th>
+    <th class="num">Artist Rev</th><th>Source</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td style="font-family:monospace;font-size:11px;color:var(--t3)">{{ r.isrc }}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.title }}">{{ r.title or r.isrc }}</td>
+    <td style="white-space:nowrap;color:var(--t2)">{{ r.month }}</td>
+    <td class="num">${{ "{:,.2f}".format(r.label_rev) }}</td>
+    <td class="num">{% if r.split_pct is not none %}{{ "{:.2f}".format(r.split_pct) }}%{% else %}—{% endif %}</td>
+    <td class="num" style="{{ 'color:var(--err)' if r.artist_rev == 0 and r.label_rev > 0 else '' }}">${{ "{:,.2f}".format(r.artist_rev) }}</td>
+    <td>
+      {% if r.source == 'ok' %}<span class="src-ok">&#10003; split</span>
+      {% else %}<span class="src-miss">MISSING</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot class="audit-footer"><tr>
+    <td colspan="3">Totals ({{ rows|length }} rows)</td>
+    <td class="num">${{ "{:,.2f}".format(rows|sum(attribute='label_rev')) }}</td>
+    <td class="num">{{ "{:.1f}".format((rows|sum(attribute='artist_rev') / rows|sum(attribute='label_rev') * 100) if rows|sum(attribute='label_rev') else 0) }}% eff.</td>
+    <td class="num">${{ "{:,.2f}".format(rows|sum(attribute='artist_rev')) }}</td>
+    <td><span class="src-miss" style="{{ 'display:none' if not rows|selectattr('source','eq','missing')|list else '' }}">
+      {{ rows|selectattr('source','eq','missing')|list|length }} missing
+    </span></td>
+  </tr></tfoot>
+</table>
+</div>
+{% elif selected_artist %}
+<div class="card" style="color:var(--t2);font-size:13px;padding:16px 20px">No streaming data found for <strong>{{ selected_artist }}</strong>.</div>
+{% endif %}
+
+</div></div></div>""" + _SB_JS + """</body></html>"""
+
+
+@bp.route("/streaming-royalties/artist-audit")
+def artist_audit():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from sqlalchemy import text as _t
+    from models import ArtistNameMap as _ANM
+    eng = _royalties_engine()
+
+    # All canonical artist names for the dropdown
+    try:
+        _name_map = {m.raw_name: m.canonical_name
+                     for m in _ANM.query.filter_by(status='confirmed').all()}
+        with eng.connect() as _c:
+            _raw_strings = [r[0] for r in _c.execute(_t(
+                "SELECT DISTINCT artist_name_csv FROM royalty_summary "
+                "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
+            )).fetchall()]
+        _names: set = set()
+        for s in _raw_strings:
+            for part in s.split(','):
+                name = part.strip()
+                if name:
+                    _names.add(_name_map.get(name, name))
+        all_artists = sorted(_names, key=str.lower)
+    except Exception:
+        all_artists = []
+        _name_map = {}
+
+    selected_artist = request.args.get("artist", "").strip()
+    rows = []
+
+    if selected_artist:
+        # Raw aliases for this canonical name
+        try:
+            raw_aliases = [m.raw_name for m in _ANM.query.filter_by(
+                canonical_name=selected_artist, status='confirmed').all()]
+        except Exception:
+            raw_aliases = []
+        all_names = [selected_artist] + raw_aliases
+
+        # Split percentages for this artist across all ISRCs
+        try:
+            _name_ph = ', '.join(f':an_{i}' for i in range(len(all_names)))
+            _params: dict = {f'an_{i}': n for i, n in enumerate(all_names)}
+            with eng.connect() as _c:
+                split_rows = _c.execute(_t(
+                    f"SELECT isrc, percentage FROM artist_royalty_split WHERE artist_name IN ({_name_ph})"
+                ), _params).fetchall()
+            split_by_isrc = {r[0]: float(r[1]) for r in split_rows}
+        except Exception:
+            split_by_isrc = {}
+
+        # Revenue data: filter royalty_summary rows by artist
+        try:
+            alias_clauses = ' OR '.join(
+                f"artist_name_csv ILIKE :apat_{i}" for i in range(len(all_names))
+            )
+            _params2: dict = {f'apat_{i}': f'%{n}%' for i, n in enumerate(all_names)}
+            with eng.connect() as _c:
+                rev_rows = _c.execute(_t(f"""
+                    SELECT isrc,
+                           MAX(track_title_csv) AS title,
+                           reporting_month,
+                           COALESCE(SUM(net_revenue), 0) AS label_rev
+                      FROM royalty_summary
+                     WHERE {alias_clauses}
+                     GROUP BY isrc, reporting_month
+                     ORDER BY reporting_month DESC, label_rev DESC
+                """), _params2).fetchall()
+        except Exception:
+            rev_rows = []
+
+        for r in rev_rows:
+            isrc      = r[0]
+            pct       = split_by_isrc.get(isrc)
+            label_rev = float(r[3])
+            artist_rev = label_rev * (pct / 100.0) if pct is not None else 0.0
+            rows.append({
+                "isrc":       isrc,
+                "title":      r[1] or isrc,
+                "month":      r[2].strftime("%b %Y") if r[2] else "",
+                "label_rev":  label_rev,
+                "split_pct":  pct,
+                "artist_rev": artist_rev,
+                "source":     "ok" if pct is not None else "missing",
+            })
+
+    return render_template_string(
+        _ARTIST_AUDIT_HTML,
+        all_artists=all_artists,
+        selected_artist=selected_artist,
+        rows=rows,
+        _sidebar_html=_sb("streaming_split_gaps"),
+    )
