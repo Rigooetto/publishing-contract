@@ -880,6 +880,15 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         {},
     )]
 
+    # Normalize by_artist: split collab strings → map each name → rejoin → re-aggregate
+    if _dd_name_map:
+        _norm_buckets: dict = {}
+        for row in by_artist:
+            parts = [p.strip() for p in row[0].split(',') if p.strip()]
+            normalized = ', '.join(_dd_name_map.get(p, p) for p in parts)
+            _norm_buckets[normalized] = _norm_buckets.get(normalized, 0.0) + float(row[1])
+        by_artist = sorted(_norm_buckets.items(), key=lambda x: x[1], reverse=True)
+
     return {
         "kpi_total":   kpi_total,
         "by_artist":   [{"name": r[0], "revenue": float(r[1])} for r in by_artist],
