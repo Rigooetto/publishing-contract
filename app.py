@@ -283,9 +283,15 @@ with app.app_context():
                         from sqlalchemy.pool import NullPool
                         _url = _roy_engine.url.render_as_string(hide_password=False)
                         _eng = create_engine(_url, poolclass=NullPool)
+                        # Step 1: TRUNCATE in its own transaction so the exclusive lock
+                        # is released immediately, before the slow INSERT begins.
                         with _eng.connect() as _c:
                             _c.execute(_t2("DELETE FROM artist_name_map"))
                             _c.execute(_t2("TRUNCATE royalty_summary"))
+                            _c.execute(_t2("DELETE FROM dashboard_cache WHERE cache_key != '_recovery_v2'"))
+                            _c.commit()
+                        # Step 2: INSERT (row-level lock only — reads are unblocked).
+                        with _eng.connect() as _c:
                             _c.execute(_t2("""
                                 INSERT INTO royalty_summary
                                     (reporting_month, isrc, artist_name_csv, platform, country,
@@ -296,10 +302,13 @@ with app.app_context():
                                  GROUP BY reporting_month, isrc, platform, country
                                 ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
                             """))
-                            _c.execute(_t2("DELETE FROM dashboard_cache"))
+                            _c.commit()
+                        # Step 3: Insert sentinel so this never re-runs.
+                        with _eng.connect() as _c:
                             _c.execute(_t2("""
                                 INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
                                 VALUES ('_recovery_v2', '{}', NOW())
+                                ON CONFLICT (cache_key) DO NOTHING
                             """))
                             _c.commit()
                         _eng.dispose()

@@ -2221,7 +2221,7 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
   var poll;
 
   function update(){
-    fetch('/streaming-royalties/cache-status', {credentials: 'omit'})
+    fetch(window.location.origin + '/streaming-royalties/cache-status', {credentials: 'omit', mode: 'cors'})
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(d.running){
