@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask
+from flask_compress import Compress
 
 from extensions import db, migrate
 from config import (
@@ -19,6 +20,7 @@ if not _secret_key:
     import logging
     logging.warning("SECRET_KEY env var not set — using a random key. Sessions will not persist across restarts.")
 app.secret_key = _secret_key
+Compress(app)
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024
 
 def _pg_url(url):
@@ -36,7 +38,7 @@ raw_royalties_url = _pg_url((os.getenv("ROYALTIES_DATABASE_URL") or "").strip())
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-_pool_opts = {"pool_pre_ping": True, "pool_recycle": 1800, "pool_size": 5, "max_overflow": 10}
+_pool_opts = {"pool_pre_ping": True, "pool_recycle": 1800, "pool_size": 3, "max_overflow": 5}
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = _pool_opts
 if raw_royalties_url:
     app.config["SQLALCHEMY_BINDS"] = {

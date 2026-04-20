@@ -19,6 +19,9 @@ import unicodedata
 _dash_cache: dict = {}
 _CACHE_TTL = 600  # seconds
 
+_splits_cache: dict = {}
+_SPLITS_CACHE_TTL = 120  # seconds
+
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
 _prewarm_lock = threading.Lock()
 
@@ -2804,6 +2807,17 @@ def split_gaps():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
+    _cached = _splits_cache.get("data")
+    if _cached and (_time.time() - _splits_cache.get("ts", 0)) < _SPLITS_CACHE_TTL:
+        return render_template_string(
+            _SPLIT_GAPS_HTML,
+            mismatches=_cached["mismatches"],
+            missing=_cached["missing"],
+            total_at_risk=_cached["total_at_risk"],
+            format_mismatch_count=_cached["format_mismatch_count"],
+            _sidebar_html=_sb("streaming_split_gaps"),
+        )
+
     from sqlalchemy import text as _t
     eng = _royalties_engine()
 
@@ -2963,6 +2977,14 @@ def split_gaps():
 
     total_at_risk = sum(r["label_rev"] for r in mismatches) + sum(r["label_rev"] for r in missing)
 
+    _splits_cache["data"] = {
+        "mismatches": mismatches,
+        "missing": missing,
+        "total_at_risk": total_at_risk,
+        "format_mismatch_count": format_mismatch_count,
+    }
+    _splits_cache["ts"] = _time.time()
+
     return render_template_string(
         _SPLIT_GAPS_HTML,
         mismatches=mismatches,
@@ -3026,6 +3048,7 @@ def split_gaps_fix_names():
         )
     except Exception as e:
         flash(f"Error fixing names: {e}", "error")
+    _splits_cache.clear()
     return redirect(url_for("streaming_royalties.split_gaps"))
 
 
@@ -3117,6 +3140,7 @@ def split_gaps_save_all():
         flash(msg, "success")
     except Exception as e:
         flash(f"Error saving splits: {e}", "error")
+    _splits_cache.clear()
     return redirect(url_for("streaming_royalties.split_gaps"))
 
 
@@ -3180,6 +3204,7 @@ def split_gaps_save_split():
         flash(f"Split saved: {artist_name} @ {percentage}% for {isrc}.", "success")
     except Exception as e:
         flash(f"Error saving split: {e}", "error")
+    _splits_cache.clear()
     return redirect(url_for("streaming_royalties.split_gaps"))
 
 
