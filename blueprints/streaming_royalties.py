@@ -855,8 +855,9 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                COALESCE(SUM({rev_expr}), 0) AS rev
           FROM {base_from} WHERE {where}
          GROUP BY sr.isrc ORDER BY rev DESC
+         LIMIT 300
     """)
-    catalog = [{"title": r[1] or r[0], "artist": r[2] or "",
+    catalog = [{"isrc": r[0], "title": r[1] or r[0], "artist": r[2] or "",
                 "streams": int(r[3]), "revenue": float(r[4])}
                for r in catalog_rows]
 
@@ -1917,7 +1918,15 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 
   <div class="sr-grid-3">
     <div class="sr-panel" style="grid-column:span 1;max-height:500px;overflow-y:auto">
-      <div class="sr-panel-title" style="position:sticky;top:0;background:#161b27;z-index:2;padding-bottom:8px">Catalog</div>
+      <div style="position:sticky;top:0;background:#161b27;z-index:2;padding-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="sr-panel-title" style="margin:0">Catalog</span>
+          <span id="catalogCount" style="font-size:11px;color:var(--t3)">Top 300</span>
+        </div>
+        <input id="catalogSearch" type="text" placeholder="Search track or ISRC…"
+          style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid var(--bdr);border-radius:6px;color:#edf0f8;padding:5px 8px;font-size:12px;outline:none"
+          oninput="filterCatalog()">
+      </div>
       {% if data.catalog %}
       <table class="sr-tbl" style="width:100%">
         <thead style="position:sticky;top:32px;background:#161b27;z-index:1">
@@ -1940,6 +1949,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
           </tr>
         </tfoot>
       </table>
+      <script>_catalogData = {{ data.catalog | tojson }};</script>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
     </div>
     <div class="sr-panel">
@@ -2103,13 +2113,10 @@ function applyFilters(){
       overlay.style.display='none';
       document.getElementById('kpiVal').textContent='$'+d.kpi_total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
       // Catalog table + totals
-      const tbody=document.getElementById('catalogBody');
-      if(tbody && d.catalog){
-        tbody.innerHTML=d.catalog.map(t=>`<tr>
-          <td class="num">${t.streams.toLocaleString()}</td>
-          <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</td>
-          <td class="num">$${t.revenue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-        </tr>`).join('');
+      if(d.catalog){
+        _catalogData=d.catalog;
+        const s=document.getElementById('catalogSearch'); if(s) s.value='';
+        filterCatalog();
         const totalStreams=d.catalog.reduce((s,t)=>s+t.streams,0);
         const totalRev=d.catalog.reduce((s,t)=>s+t.revenue,0);
         const ts=document.getElementById('catalogTotalStreams');
@@ -2122,6 +2129,24 @@ function applyFilters(){
       clearTimeout(_loadTimer);
       overlay.style.display='none';
     });
+}
+let _catalogData = [];
+function filterCatalog(){
+  const q=(document.getElementById('catalogSearch')?.value||'').toLowerCase();
+  const rows=q?_catalogData.filter(t=>
+    (t.title||'').toLowerCase().includes(q)||
+    (t.artist||'').toLowerCase().includes(q)||
+    (t.isrc||'').toLowerCase().includes(q)
+  ):_catalogData;
+  const tbody=document.getElementById('catalogBody');
+  if(!tbody) return;
+  tbody.innerHTML=rows.map(t=>`<tr>
+    <td class="num">${t.streams.toLocaleString()}</td>
+    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.isrc||''}">${t.title}</td>
+    <td class="num">$${t.revenue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+  </tr>`).join('');
+  const cc=document.getElementById('catalogCount');
+  if(cc) cc.textContent=q?`${rows.length} / ${_catalogData.length}`:`Top ${_catalogData.length}`;
 }
 </script>
 
