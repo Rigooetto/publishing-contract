@@ -2797,7 +2797,13 @@ def split_gaps():
                   JOIN artist_name_map m
                     ON m.raw_name = s.artist_name
                    AND m.status = 'confirmed'
-                   AND TRIM(m.canonical_name) != TRIM(s.artist_name)
+                   AND LOWER(TRIM(m.canonical_name)) != LOWER(TRIM(s.artist_name))
+                   AND NOT EXISTS (
+                       SELECT 1 FROM artist_name_map m2
+                        WHERE m2.status = 'confirmed'
+                          AND m2.raw_name = m.canonical_name
+                          AND LOWER(TRIM(m2.canonical_name)) = LOWER(TRIM(s.artist_name))
+                   )
              LEFT JOIN royalty_summary rs ON rs.isrc = s.isrc
                  GROUP BY s.isrc, s.artist_name, m.canonical_name, s.percentage
                  ORDER BY label_rev DESC
@@ -2948,7 +2954,7 @@ def split_gaps_fix_names():
                 USING artist_name_map m
                 WHERE m.raw_name = s.artist_name
                   AND m.status = 'confirmed'
-                  AND m.canonical_name != s.artist_name
+                  AND LOWER(TRIM(m.canonical_name)) != LOWER(TRIM(s.artist_name))
                   AND EXISTS (
                     SELECT 1 FROM artist_royalty_split ex
                     WHERE ex.isrc = s.isrc
@@ -2962,7 +2968,17 @@ def split_gaps_fix_names():
                   FROM artist_name_map m
                  WHERE m.raw_name = s.artist_name
                    AND m.status = 'confirmed'
-                   AND TRIM(m.canonical_name) != TRIM(s.artist_name)
+                   AND LOWER(TRIM(m.canonical_name)) != LOWER(TRIM(s.artist_name))
+            """))
+            # Delete reverse mappings that create A→B / B→A cycles
+            _c.execute(_t("""
+                DELETE FROM artist_name_map m_rev
+                USING artist_name_map m_fwd
+                WHERE m_fwd.status = 'confirmed'
+                  AND LOWER(TRIM(m_fwd.canonical_name)) != LOWER(TRIM(m_fwd.raw_name))
+                  AND m_rev.raw_name = m_fwd.canonical_name
+                  AND LOWER(TRIM(m_rev.canonical_name)) = LOWER(TRIM(m_fwd.raw_name))
+                  AND m_rev.status = 'confirmed'
             """))
             _c.commit()
         _clear_dashboard_cache(eng)
