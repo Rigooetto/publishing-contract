@@ -2728,14 +2728,21 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="sec-hdr" style="margin-top:32px">
   <span>Section B — Missing Splits</span>
   <span class="sec-badge {{ 'sec-badge-ok' if not missing else '' }}">{{ missing|length }}</span>
+  {% if missing %}
+  <button type="button" class="btn btn-primary btn-sm" style="margin-left:auto" onclick="saveAll()">
+    &#10003; Save All Pre-filled
+  </button>
+  {% endif %}
 </div>
 {% if missing %}
+<form id="saveAllForm" method="post" action="/streaming-royalties/split-gaps/save-all">
 <div class="card" style="padding:0;overflow:hidden">
 <table class="gaps-tbl">
   <thead><tr>
     <th>ISRC</th><th>Track</th><th>Release Date</th><th>Artist &amp; Split %</th><th class="rev-cell">Label Rev</th>
   </tr></thead>
   <tbody>
+  {% set row_idx = namespace(n=0) %}
   {% for r in missing %}
     {% for row in r.artist_rows %}
     <tr>
@@ -2745,25 +2752,42 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
       <td rowspan="{{ r.artist_rows|length }}" style="white-space:nowrap;color:var(--t2);font-size:12px;vertical-align:top;padding-top:10px">{{ r.release_date }}</td>
       {% endif %}
       <td>
-        <form method="post" action="/streaming-royalties/split-gaps/save-split" style="display:flex;gap:6px;align-items:center">
-          <input type="hidden" name="isrc" value="{{ r.isrc }}">
-          <input class="inp-sm" name="artist_name" value="{{ row.artist_name }}" required>
-          <input class="inp-sm inp-pct" name="percentage" type="number" min="0" max="100" step="0.01"
-                 value="{{ row.pct if row.pct is not none else '' }}" placeholder="%" required>
+        <input type="hidden" name="isrc_{{ row_idx.n }}" value="{{ r.isrc }}">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input class="inp-sm" name="artist_{{ row_idx.n }}" value="{{ row.artist_name }}">
+          <input class="inp-sm inp-pct" name="pct_{{ row_idx.n }}" type="number" min="0" max="100" step="0.01"
+                 value="{{ row.pct if row.pct is not none else '' }}" placeholder="%">
           {% if row.source == 'contract' %}<span class="sugg-pct" title="From artist contract">&#9733; contract</span>
           {% elif row.source == 'release' %}<span class="sugg-pct" style="color:#6385ff" title="From release data">&#128209; release</span>{% endif %}
-          <button type="submit" class="btn-save">Save</button>
-        </form>
+        </div>
       </td>
       {% if loop.first %}
       <td rowspan="{{ r.artist_rows|length }}" class="rev-cell" style="vertical-align:top;padding-top:10px">${{ "{:,.0f}".format(r.label_rev or 0) }}</td>
       {% endif %}
     </tr>
+    {% set row_idx.n = row_idx.n + 1 %}
     {% endfor %}
   {% endfor %}
   </tbody>
 </table>
 </div>
+<input type="hidden" name="total_rows" value="{{ row_idx.n }}">
+</form>
+<script>
+function saveAll(){
+  var form = document.getElementById('saveAllForm');
+  var total = parseInt(form.querySelector('[name=total_rows]').value);
+  var skip = 0;
+  for(var i=0;i<total;i++){
+    var pct = form.querySelector('[name="pct_'+i+'"]');
+    if(!pct || !pct.value.trim()) skip++;
+  }
+  var msg = skip > 0
+    ? 'Save all pre-filled rows? ' + skip + ' row(s) with blank % will be skipped.'
+    : 'Save all ' + total + ' rows?';
+  if(confirm(msg)) form.submit();
+}
+</script>
 {% else %}
 <div class="card" style="color:var(--t2);font-size:13px;padding:16px 20px">No missing splits — every ISRC has at least one split entry.</div>
 {% endif %}
@@ -2989,6 +3013,71 @@ def split_gaps_fix_names():
         )
     except Exception as e:
         flash(f"Error fixing names: {e}", "error")
+    return redirect(url_for("streaming_royalties.split_gaps"))
+
+
+@bp.route("/streaming-royalties/split-gaps/save-all", methods=["POST"])
+def split_gaps_save_all():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from sqlalchemy import text as _t
+    from models import Artist as _Art
+    eng = _royalties_engine()
+
+    total = int(request.form.get("total_rows", 0))
+    saved = skipped = 0
+    all_months = []
+
+    try:
+        with eng.connect() as _c:
+            for i in range(total):
+                isrc        = (request.form.get(f"isrc_{i}") or "").strip().upper()
+                artist_name = (request.form.get(f"artist_{i}") or "").strip()
+                pct_raw     = (request.form.get(f"pct_{i}") or "").strip()
+                if not isrc or not artist_name or not pct_raw:
+                    skipped += 1
+                    continue
+                try:
+                    percentage = float(pct_raw)
+                except ValueError:
+                    skipped += 1
+                    continue
+                if percentage <= 0:
+                    skipped += 1
+                    continue
+                art = _Art.query.filter(db.func.lower(_Art.name) == artist_name.lower()).first()
+                _c.execute(_t("""
+                    INSERT INTO artist_royalty_split (isrc, artist_name, artist_id, percentage)
+                    VALUES (:isrc, :artist_name, :artist_id, :pct)
+                    ON CONFLICT (isrc, artist_name) DO UPDATE
+                       SET percentage = EXCLUDED.percentage,
+                           artist_id  = EXCLUDED.artist_id
+                """), {"isrc": isrc, "artist_name": artist_name,
+                       "artist_id": art.id if art else None, "pct": percentage})
+                saved += 1
+            # Collect all affected months in one query after inserts
+            if saved:
+                isrcs_saved = [
+                    (request.form.get(f"isrc_{i}") or "").strip().upper()
+                    for i in range(total)
+                    if (request.form.get(f"pct_{i}") or "").strip()
+                ]
+                rows = _c.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM royalty_summary WHERE isrc = ANY(:isrcs)"
+                ), {"isrcs": isrcs_saved}).fetchall()
+                all_months = [r[0] for r in rows]
+            _c.commit()
+        _clear_cache_for_months(eng, all_months)
+        msg = f"Saved {saved} splits."
+        if skipped:
+            msg += f" {skipped} skipped (blank %)."
+        flash(msg, "success")
+    except Exception as e:
+        flash(f"Error saving splits: {e}", "error")
     return redirect(url_for("streaming_royalties.split_gaps"))
 
 
