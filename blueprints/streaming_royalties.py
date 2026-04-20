@@ -1212,11 +1212,15 @@ def catalog_upload():
         isrc_col = next((v for k, v in col.items() if "isrc" in k.lower()), None)
         upc_col  = next((v for k, v in col.items() if "upc"  in k.lower()), None)
 
-        from models import Artist
+        from models import Artist, ArtistNameMap as _ANM_upload
         from sqlalchemy import text as _text
 
         # Pre-load artist name → id map (1 query, avoids per-row lookups)
         artist_map = {a.name.lower(): a.id for a in Artist.query.all()}
+
+        # Pre-load confirmed name mappings so raw names are normalized on upload
+        _upload_name_map = {m.raw_name: m.canonical_name
+                            for m in _ANM_upload.query.filter_by(status='confirmed').all()}
 
         rows_skipped = 0
         first_error  = None
@@ -1225,6 +1229,8 @@ def catalog_upload():
         pending = []  # list of dicts for bulk insert
 
         def _collect(isrc, artist_name, pct):
+            # Normalize through artist_name_map so "Manue Peña" → "Manuel Peña" on upload
+            artist_name = _upload_name_map.get(artist_name.strip(), artist_name.strip())
             artist_id = artist_map.get(artist_name.lower())
             if artist_id:
                 artists_matched.add(artist_name)
@@ -2791,7 +2797,7 @@ def split_gaps():
                   JOIN artist_name_map m
                     ON m.raw_name = s.artist_name
                    AND m.status = 'confirmed'
-                   AND m.canonical_name != s.artist_name
+                   AND TRIM(m.canonical_name) != TRIM(s.artist_name)
              LEFT JOIN royalty_summary rs ON rs.isrc = s.isrc
                  GROUP BY s.isrc, s.artist_name, m.canonical_name, s.percentage
                  ORDER BY label_rev DESC
@@ -2956,7 +2962,7 @@ def split_gaps_fix_names():
                   FROM artist_name_map m
                  WHERE m.raw_name = s.artist_name
                    AND m.status = 'confirmed'
-                   AND m.canonical_name != s.artist_name
+                   AND TRIM(m.canonical_name) != TRIM(s.artist_name)
             """))
             _c.commit()
         _clear_dashboard_cache(eng)
