@@ -2758,7 +2758,8 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
           <input class="inp-sm inp-pct" name="pct_{{ row_idx.n }}" type="number" min="0" max="100" step="0.01"
                  value="{{ row.pct if row.pct is not none else '' }}" placeholder="%">
           {% if row.source == 'contract' %}<span class="sugg-pct" title="From artist contract">&#9733; contract</span>
-          {% elif row.source == 'release' %}<span class="sugg-pct" style="color:#6385ff" title="From release data">&#128209; release</span>{% endif %}
+          {% elif row.source == 'track' %}<span class="sugg-pct" style="color:#6385ff" title="From track split">&#127925; track</span>
+          {% elif row.source == 'release' %}<span class="sugg-pct" style="color:#8a99b3" title="From release (album-level)">&#128209; release</span>{% endif %}
         </div>
       </td>
       {% if loop.first %}
@@ -2893,11 +2894,12 @@ def split_gaps():
         _name_map = {}
         _artist_pct = {}
 
-    # Pre-load ArtistRelease data + release date: ISRC → {artist_name_lower: (canonical, pct)}
+    # Pre-load per-track splits: ArtistTrack first (authoritative), ArtistRelease as fallback.
+    # Value tuple: (canonical_name, pct, source) where source is "track" or "release"
     _release_pct = {}
-    _release_dates = {}  # {isrc: release_date}
+    _release_dates = {}
     try:
-        from models import Track as _Track, ArtistRelease as _AR, Artist as _Art2, Release as _Rel
+        from models import Track as _Track, ArtistRelease as _AR, ArtistTrack as _AT, Artist as _Art2, Release as _Rel
         _missing_isrcs = [r[0] for r in missing_rows]
         if _missing_isrcs:
             _tracks = _Track.query.filter(_Track.isrc.in_(_missing_isrcs)).all()
@@ -2905,12 +2907,23 @@ def split_gaps():
                 rel = _Rel.query.get(_trk.release_id)
                 if rel and rel.release_date:
                     _release_dates[_trk.isrc] = rel.release_date
-                _ar_rows = _AR.query.filter_by(release_id=_trk.release_id).all()
-                for _ar in _ar_rows:
-                    _art2 = _Art2.query.get(_ar.artist_id)
-                    if _art2 and _ar.royalty_percentage is not None:
+                # 1. ArtistTrack — per-track (most precise)
+                _at_rows = _AT.query.filter_by(track_id=_trk.id).all()
+                _track_has_splits = False
+                for _at in _at_rows:
+                    _art2 = _Art2.query.get(_at.artist_id)
+                    if _art2:
                         _release_pct.setdefault(_trk.isrc, {})[_art2.name.lower()] = \
-                            (_art2.name, float(_ar.royalty_percentage))
+                            (_art2.name, float(_at.royalty_percentage), "track")
+                        _track_has_splits = True
+                # 2. ArtistRelease fallback — only when no per-track rows exist
+                if not _track_has_splits:
+                    _ar_rows = _AR.query.filter_by(release_id=_trk.release_id).all()
+                    for _ar in _ar_rows:
+                        _art2 = _Art2.query.get(_ar.artist_id)
+                        if _art2 and _ar.royalty_percentage is not None:
+                            _release_pct.setdefault(_trk.isrc, {})[_art2.name.lower()] = \
+                                (_art2.name, float(_ar.royalty_percentage), "release")
     except Exception:
         _release_pct = {}
         _release_dates = {}
@@ -2928,7 +2941,7 @@ def split_gaps():
             canonical = _name_map.get(part, part)
             rel_match = release_map.get(canonical.lower()) or release_map.get(part.lower())
             if rel_match:
-                artist_rows.append({"artist_name": rel_match[0], "pct": rel_match[1], "source": "release"})
+                artist_rows.append({"artist_name": rel_match[0], "pct": rel_match[1], "source": rel_match[2]})
             elif not is_collab:
                 contract_match = _artist_pct.get(canonical.lower())
                 if contract_match:
@@ -3072,6 +3085,32 @@ def split_gaps_save_all():
                 all_months = [r[0] for r in rows]
             _c.commit()
         _clear_cache_for_months(eng, all_months)
+        # Write back to ArtistTrack in main DB (for ISRCs that exist as Tracks in LabelMind)
+        try:
+            from models import Track as _Trk, Artist as _ArtM, ArtistTrack as _ATM
+            for i in range(total):
+                _isrc  = (request.form.get(f"isrc_{i}") or "").strip().upper()
+                _aname = (request.form.get(f"artist_{i}") or "").strip()
+                _praw  = (request.form.get(f"pct_{i}") or "").strip()
+                if not _isrc or not _aname or not _praw:
+                    continue
+                try:
+                    _pf = float(_praw)
+                except ValueError:
+                    continue
+                if _pf <= 0:
+                    continue
+                _trk_m = _Trk.query.filter(db.func.lower(_Trk.isrc) == _isrc.lower()).first()
+                _art_m = _ArtM.query.filter(db.func.lower(_ArtM.name) == _aname.lower()).first()
+                if _trk_m and _art_m:
+                    _at_ex = _ATM.query.filter_by(artist_id=_art_m.id, track_id=_trk_m.id).first()
+                    if _at_ex:
+                        _at_ex.royalty_percentage = _pf
+                    else:
+                        db.session.add(_ATM(artist_id=_art_m.id, track_id=_trk_m.id, royalty_percentage=_pf))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         msg = f"Saved {saved} splits."
         if skipped:
             msg += f" {skipped} skipped (blank %)."
@@ -3124,6 +3163,20 @@ def split_gaps_save_split():
             ), {"isrc": isrc}).fetchall()]
             _c.commit()
         _clear_cache_for_months(eng, months)
+        # Write back to ArtistTrack in main DB if the ISRC resolves to a Track
+        try:
+            from models import Track as _Trk, Artist as _ArtM, ArtistTrack as _ATM
+            _trk_m = _Trk.query.filter(db.func.lower(_Trk.isrc) == isrc.lower()).first()
+            _art_m = _ArtM.query.filter(db.func.lower(_ArtM.name) == artist_name.lower()).first()
+            if _trk_m and _art_m:
+                _at_ex = _ATM.query.filter_by(artist_id=_art_m.id, track_id=_trk_m.id).first()
+                if _at_ex:
+                    _at_ex.royalty_percentage = percentage
+                else:
+                    db.session.add(_ATM(artist_id=_art_m.id, track_id=_trk_m.id, royalty_percentage=percentage))
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
         flash(f"Split saved: {artist_name} @ {percentage}% for {isrc}.", "success")
     except Exception as e:
         flash(f"Error saving split: {e}", "error")

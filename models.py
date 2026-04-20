@@ -167,6 +167,16 @@ class ArtistRelease(db.Model):
     __table_args__ = (db.UniqueConstraint("artist_id", "release_id"),)
 
 
+class ArtistTrack(db.Model):
+    """Per-track royalty split — more precise than ArtistRelease for tracks with ISRCs."""
+    __tablename__ = "artist_track"
+    id = db.Column(db.Integer, primary_key=True)
+    artist_id = db.Column(db.Integer, db.ForeignKey("artist.id"), nullable=False, index=True)
+    track_id = db.Column(db.Integer, db.ForeignKey("track.id"), nullable=False, index=True)
+    royalty_percentage = db.Column(db.Numeric(5, 2), nullable=False)
+    __table_args__ = (db.UniqueConstraint("artist_id", "track_id"),)
+
+
 class Artist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False, unique=True, index=True)
