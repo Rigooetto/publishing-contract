@@ -1044,17 +1044,18 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                         text("SELECT 1 FROM artist_royalty_detail WHERE artist_name = :a LIMIT 1"),
                         {"a": artist}
                     ).fetchone()
+                    if not _ard_row:
+                        _split_check = _chk.execute(
+                            text("SELECT 1 FROM artist_royalty_split WHERE artist_name = ANY(:names) LIMIT 1"),
+                            {"names": [artist] + _raw_aliases}
+                        ).fetchone()
+                    else:
+                        _split_check = True
                 if _ard_row:
                     _lg_fp.getLogger(__name__).warning("ARD fast path: HIT for artist=%r", artist)
                     return _compute_dashboard_data_ard(year, quarter, artist, _engine)
                 else:
                     _lg_fp.getLogger(__name__).warning("ARD fast path: MISS (no rows) for artist=%r", artist)
-                    # If no ARD rows and no splits defined, the CTE would return $0 via a slow
-                    # full-table scan. Short-circuit: return zeros immediately.
-                    _split_check = _chk.execute(
-                        text("SELECT 1 FROM artist_royalty_split WHERE artist_name = ANY(:names) LIMIT 1"),
-                        {"names": [artist] + _raw_aliases}
-                    ).fetchone()
                     if not _split_check:
                         _lg_fp.getLogger(__name__).warning("ARD fast path: no splits for artist=%r — returning zeros", artist)
                         return _compute_dashboard_data_ard_empty(year, quarter, artist, _engine)
