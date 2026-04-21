@@ -708,6 +708,44 @@ def _rebuild_artist_detail(engine, artist_names=None):
         _lg_ard.getLogger(__name__).warning("_rebuild_artist_detail failed: %s", _e)
 
 
+def _compute_dashboard_data_ard_empty(year, quarter, artist, engine):
+    """Return a zero-revenue dashboard for an artist with no splits defined.
+    Only runs the two cheap dropdown queries (all_artists, all_years) — no table scan."""
+    from sqlalchemy import text
+    with engine.connect() as _conn:
+        _raw_strings = [r[0] for r in _conn.execute(text(
+            "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
+            "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''"
+        )).fetchall()]
+        all_years = [int(r[0]) for r in _conn.execute(text(
+            "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
+            "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
+        )).fetchall()]
+    _dd_name_map = {}
+    try:
+        from models import ArtistNameMap as _ANM_e
+        _dd_name_map = {m.raw_name: m.canonical_name
+                        for m in _ANM_e.query.filter_by(status='confirmed').all()}
+    except Exception:
+        pass
+    _artist_names: set = set()
+    for _s in _raw_strings:
+        for _part in _s.split(','):
+            _name = _part.strip()
+            if _name:
+                _artist_names.add(_dd_name_map.get(_name, _name))
+    return {
+        "kpi_total":   0.0,
+        "by_artist":   [],
+        "by_month":    [],
+        "by_platform": [],
+        "by_country":  [],
+        "catalog":     [],
+        "all_artists": sorted(_artist_names, key=str.lower),
+        "all_years":   all_years,
+    }
+
+
 def _compute_dashboard_data_ard(year, quarter, artist, engine):
     """Fast path: query pre-aggregated artist_royalty_detail instead of royalty_summary.
     Only called when artist != 'all' and ARD has rows for this artist.
@@ -999,6 +1037,15 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                     return _compute_dashboard_data_ard(year, quarter, artist, _engine)
                 else:
                     _lg_fp.getLogger(__name__).warning("ARD fast path: MISS (no rows) for artist=%r", artist)
+                    # If no ARD rows and no splits defined, the CTE would return $0 via a slow
+                    # full-table scan. Short-circuit: return zeros immediately.
+                    _split_check = _chk.execute(
+                        text("SELECT 1 FROM artist_royalty_split WHERE artist_name = ANY(:names) LIMIT 1"),
+                        {"names": [artist] + _raw_aliases}
+                    ).fetchone()
+                    if not _split_check:
+                        _lg_fp.getLogger(__name__).warning("ARD fast path: no splits for artist=%r — returning zeros", artist)
+                        return _compute_dashboard_data_ard_empty(year, quarter, artist, _engine)
             except Exception as _fp_exc:
                 import logging as _lg_fp2
                 _lg_fp2.getLogger(__name__).warning("ARD fast path: ERROR for artist=%r: %s", artist, _fp_exc)
