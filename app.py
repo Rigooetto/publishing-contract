@@ -243,6 +243,7 @@ with app.app_context():
                         """))
                         _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_month    ON royalty_summary (reporting_month)"))
                         _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_artist   ON royalty_summary (artist_name_csv)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_isrc     ON royalty_summary (isrc)"))
                         _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
                         _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
                         try:
