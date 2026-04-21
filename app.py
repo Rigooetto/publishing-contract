@@ -213,137 +213,92 @@ with app.app_context():
                     _c.commit()
         except Exception:
             pass
-        # Create royalty_summary table (pre-aggregated for fast dashboard queries)
-        try:
-            from sqlalchemy import text as _text
-            _roy_engine = db.engines.get('royalties')
-            if _roy_engine:
-                with _roy_engine.connect() as _c:
-                    _c.execute(_text("""
-                        CREATE TABLE IF NOT EXISTS royalty_summary (
-                            reporting_month  DATE          NOT NULL,
-                            isrc             TEXT          NOT NULL,
-                            artist_name_csv  TEXT,
-                            platform         TEXT,
-                            country          TEXT,
-                            track_title_csv  TEXT,
-                            streams          BIGINT        DEFAULT 0,
-                            net_revenue      NUMERIC(16,6) DEFAULT 0,
-                            PRIMARY KEY (reporting_month, isrc, platform, country)
-                        )
-                    """))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_month    ON royalty_summary (reporting_month)"))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist   ON royalty_summary (artist_name_csv)"))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
-                    # Trigram index for fast ILIKE artist filtering
-                    _c.execute(_text("SET lock_timeout = '5s'"))
-                    _c.execute(_text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist_trgm ON royalty_summary USING gin (artist_name_csv gin_trgm_ops)"))
-                    # One-time backfill — fast existence check, never COUNT(*) on large table
-                    _rs_empty = not _c.execute(_text("SELECT 1 FROM royalty_summary LIMIT 1")).fetchone()
-                    if _rs_empty:
-                        _c.execute(_text("""
-                            INSERT INTO royalty_summary
-                                (reporting_month, isrc, artist_name_csv, platform, country,
-                                 track_title_csv, streams, net_revenue)
-                            SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
-                                   MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
-                              FROM streaming_royalty
-                             GROUP BY reporting_month, isrc, platform, country
-                            ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
+        # All heavy DDL + recovery runs in a background thread so gunicorn binds immediately.
+        # dashboard_cache already created above (needed by requests); everything else is async.
+        _startup_app = app
+        _startup_engine = db.engines.get('royalties')
+        if _startup_engine:
+            _startup_url = _startup_engine.url.render_as_string(hide_password=False)
+
+            def _run_startup_bg():
+                from sqlalchemy import create_engine as _ce_bg, text as _t_bg
+                from sqlalchemy.pool import NullPool
+                _eng = _ce_bg(_startup_url, poolclass=NullPool)
+                try:
+                    # royalty_summary: table + B-tree indexes + optional GIN trigram index.
+                    # GIN creation on 6M rows can take 90s on first run — fine in background.
+                    with _eng.connect() as _c:
+                        _c.execute(_t_bg("""
+                            CREATE TABLE IF NOT EXISTS royalty_summary (
+                                reporting_month  DATE          NOT NULL,
+                                isrc             TEXT          NOT NULL,
+                                artist_name_csv  TEXT,
+                                platform         TEXT,
+                                country          TEXT,
+                                track_title_csv  TEXT,
+                                streams          BIGINT        DEFAULT 0,
+                                net_revenue      NUMERIC(16,6) DEFAULT 0,
+                                PRIMARY KEY (reporting_month, isrc, platform, country)
+                            )
                         """))
-                        _c.commit()
-                        app.logger.warning("royalty_summary table ensured and backfilled.")
-                    else:
-                        app.logger.warning("royalty_summary table ensured.")
-        except Exception as _rse:
-            app.logger.warning("royalty_summary setup failed: %s", _rse)
-        # Create artist_royalty_detail table (pre-aggregated per-artist revenue for fast dashboard)
-        _ard_needs_build = False
-        try:
-            from sqlalchemy import text as _text
-            _roy_engine = db.engines.get('royalties')
-            if _roy_engine:
-                with _roy_engine.connect() as _c:
-                    _c.execute(_text("""
-                        CREATE TABLE IF NOT EXISTS artist_royalty_detail (
-                            id              BIGSERIAL PRIMARY KEY,
-                            artist_name     TEXT          NOT NULL,
-                            reporting_month DATE          NOT NULL,
-                            isrc            TEXT          NOT NULL,
-                            track_title     TEXT,
-                            platform        TEXT,
-                            country         TEXT,
-                            streams         BIGINT        DEFAULT 0,
-                            net_revenue     NUMERIC(16,6) DEFAULT 0
-                        )
-                    """))
-                    _c.execute(_text("""
-                        CREATE UNIQUE INDEX IF NOT EXISTS ix_ard_natural
-                            ON artist_royalty_detail (artist_name, reporting_month, isrc, platform, country)
-                            NULLS NOT DISTINCT
-                    """))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_ard_artist ON artist_royalty_detail (artist_name)"))
-                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_ard_month  ON artist_royalty_detail (reporting_month)"))
-                    _c.commit()
-                    _ard_empty = not _c.execute(_text("SELECT 1 FROM artist_royalty_detail LIMIT 1")).fetchone()
-                    _ard_needs_build = _ard_empty
-                    app.logger.warning("artist_royalty_detail table ensured (empty=%s).", _ard_empty)
-        except Exception as _arde:
-            app.logger.warning("artist_royalty_detail setup failed: %s", _arde)
-    # One-time revenue data recovery — runs in a background thread so gunicorn can bind
-    # to the port immediately. Dashboard shows empty data for ~60s on first deploy only.
-    # Subsequent restarts find the sentinel and skip entirely (fast startup).
-    try:
-        import threading as _rec_threading
-        from sqlalchemy import text as _text
-        _roy_engine = db.engines.get('royalties')
-        if _roy_engine:
-            _already_done = False
-            try:
-                with _roy_engine.connect() as _c:
-                    _already_done = bool(_c.execute(_text(
-                        "SELECT 1 FROM dashboard_cache WHERE cache_key = '_recovery_v2'"
-                    )).fetchone())
-            except Exception:
-                pass
-            if _already_done:
-                app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
-                if _ard_needs_build:
-                    _ard_rec_app = app
-                    def _run_ard_only():
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_month    ON royalty_summary (reporting_month)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_artist   ON royalty_summary (artist_name_csv)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_platform ON royalty_summary (platform)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_country  ON royalty_summary (country)"))
                         try:
-                            from sqlalchemy import create_engine as _ce_ard
-                            from sqlalchemy.pool import NullPool
-                            _url_ard = _roy_engine.url.render_as_string(hide_password=False)
-                            _eng_ard = _ce_ard(_url_ard, poolclass=NullPool)
-                            from blueprints.streaming_royalties import _rebuild_artist_detail as _rad2
-                            _rad2(_eng_ard)
-                            _eng_ard.dispose()
-                            _ard_rec_app.logger.warning("ARD initial build complete.")
-                        except Exception as _ard_e2:
-                            _ard_rec_app.logger.warning("ARD initial build failed: %s", _ard_e2)
-                    _rec_threading.Thread(target=_run_ard_only, daemon=True).start()
-                    app.logger.warning("ARD initial build: starting background thread.")
-            else:
-                _rec_app = app
-                def _run_recovery():
+                            _c.execute(_t_bg("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+                            _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_rs_artist_trgm ON royalty_summary USING gin (artist_name_csv gin_trgm_ops)"))
+                        except Exception:
+                            pass  # trgm index is optional; skip on lock conflict
+                        _c.commit()
+                        _rs_empty = not _c.execute(_t_bg("SELECT 1 FROM royalty_summary LIMIT 1")).fetchone()
+                    _startup_app.logger.warning("royalty_summary DDL complete (empty=%s).", _rs_empty)
+
+                    # artist_royalty_detail: table + indexes
+                    with _eng.connect() as _c:
+                        _c.execute(_t_bg("""
+                            CREATE TABLE IF NOT EXISTS artist_royalty_detail (
+                                id              BIGSERIAL PRIMARY KEY,
+                                artist_name     TEXT          NOT NULL,
+                                reporting_month DATE          NOT NULL,
+                                isrc            TEXT          NOT NULL,
+                                track_title     TEXT,
+                                platform        TEXT,
+                                country         TEXT,
+                                streams         BIGINT        DEFAULT 0,
+                                net_revenue     NUMERIC(16,6) DEFAULT 0
+                            )
+                        """))
+                        _c.execute(_t_bg("""
+                            CREATE UNIQUE INDEX IF NOT EXISTS ix_ard_natural
+                                ON artist_royalty_detail (artist_name, reporting_month, isrc, platform, country)
+                                NULLS NOT DISTINCT
+                        """))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_artist ON artist_royalty_detail (artist_name)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_month  ON artist_royalty_detail (reporting_month)"))
+                        _c.commit()
+                        _ard_empty = not _c.execute(_t_bg("SELECT 1 FROM artist_royalty_detail LIMIT 1")).fetchone()
+                    _startup_app.logger.warning("artist_royalty_detail DDL complete (empty=%s).", _ard_empty)
+
+                    # Recovery sentinel check
+                    _already_done = False
                     try:
-                        from sqlalchemy import text as _t2, create_engine
-                        from sqlalchemy.pool import NullPool
-                        _url = _roy_engine.url.render_as_string(hide_password=False)
-                        _eng = create_engine(_url, poolclass=NullPool)
-                        # Step 1: TRUNCATE in its own transaction so the exclusive lock
-                        # is released immediately, before the slow INSERT begins.
                         with _eng.connect() as _c:
-                            _c.execute(_t2("DELETE FROM artist_name_map"))
-                            _c.execute(_t2("TRUNCATE royalty_summary"))
-                            _c.execute(_t2("DELETE FROM dashboard_cache WHERE cache_key != '_recovery_v2'"))
+                            _already_done = bool(_c.execute(_t_bg(
+                                "SELECT 1 FROM dashboard_cache WHERE cache_key = '_recovery_v2'"
+                            )).fetchone())
+                    except Exception:
+                        pass
+
+                    if not _already_done:
+                        _startup_app.logger.warning("DATA RECOVERY: starting rebuild.")
+                        with _eng.connect() as _c:
+                            _c.execute(_t_bg("DELETE FROM artist_name_map"))
+                            _c.execute(_t_bg("TRUNCATE royalty_summary"))
+                            _c.execute(_t_bg("DELETE FROM dashboard_cache WHERE cache_key != '_recovery_v2'"))
                             _c.commit()
-                        # Step 2: INSERT (row-level lock only — reads are unblocked).
                         with _eng.connect() as _c:
-                            _c.execute(_t2("""
+                            _c.execute(_t_bg("""
                                 INSERT INTO royalty_summary
                                     (reporting_month, isrc, artist_name_csv, platform, country,
                                      track_title_csv, streams, net_revenue)
@@ -354,29 +309,31 @@ with app.app_context():
                                 ON CONFLICT (reporting_month, isrc, platform, country) DO NOTHING
                             """))
                             _c.commit()
-                        # Step 3: Insert sentinel so this never re-runs.
                         with _eng.connect() as _c:
-                            _c.execute(_t2("""
+                            _c.execute(_t_bg("""
                                 INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
                                 VALUES ('_recovery_v2', '{}', NOW())
                                 ON CONFLICT (cache_key) DO NOTHING
                             """))
                             _c.commit()
-                        # Also rebuild artist_royalty_detail after royalty_summary is ready
-                        try:
-                            from blueprints.streaming_royalties import _rebuild_artist_detail as _rad
-                            _rad(_eng)
-                            _rec_app.logger.warning("DATA RECOVERY: artist_royalty_detail rebuilt.")
-                        except Exception as _ard_re:
-                            _rec_app.logger.warning("DATA RECOVERY: ARD rebuild failed: %s", _ard_re)
-                        _eng.dispose()
-                        _rec_app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty (one-time).")
-                    except Exception as _re2:
-                        _rec_app.logger.warning("DATA RECOVERY background failed: %s", _re2)
-                _rec_threading.Thread(target=_run_recovery, daemon=True).start()
-                app.logger.warning("DATA RECOVERY: starting background rebuild (port will bind immediately).")
-    except Exception as _re:
-        app.logger.warning("DATA RECOVERY failed to start: %s", _re)
+                        _ard_empty = True
+                        _startup_app.logger.warning("DATA RECOVERY: royalty_summary rebuilt.")
+                    else:
+                        _startup_app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
+
+                    if _ard_empty:
+                        _startup_app.logger.warning("ARD build: starting.")
+                        from blueprints.streaming_royalties import _rebuild_artist_detail as _rad_bg
+                        _rad_bg(_eng)
+                        _startup_app.logger.warning("ARD build: complete.")
+                except Exception as _bg_e:
+                    _startup_app.logger.warning("Startup bg thread failed: %s", _bg_e)
+                finally:
+                    _eng.dispose()
+
+            import threading as _startup_threading
+            _startup_threading.Thread(target=_run_startup_bg, daemon=True).start()
+            app.logger.warning("Startup: background DDL+recovery thread started, port binding now.")
     # Mark any imports that were mid-flight when the server last restarted
     try:
         import datetime as _dt
