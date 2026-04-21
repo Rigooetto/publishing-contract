@@ -672,57 +672,22 @@ _ARD_INSERT_SQL = """
         SET streams=EXCLUDED.streams, net_revenue=EXCLUDED.net_revenue, track_title=EXCLUDED.track_title
 """
 
-# Second-pass INSERT: covers artists who appear in royalty_summary but have NO split defined.
-# Uses UNNEST to expand artist_name_csv into individual names. DO NOTHING on conflict means
-# split-math rows (from _ARD_INSERT_SQL) always take precedence over these full-revenue rows.
-_ARD_INSERT_NOSPLIT_SQL = """
-    INSERT INTO artist_royalty_detail
-        (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
-    SELECT
-        COALESCE(m.canonical_name, TRIM(raw_n)) AS artist_name,
-        rs.reporting_month,
-        rs.isrc,
-        rs.track_title_csv                AS track_title,
-        rs.platform,
-        rs.country,
-        rs.streams,
-        rs.net_revenue
-    FROM royalty_summary rs
-    CROSS JOIN LATERAL UNNEST(STRING_TO_ARRAY(rs.artist_name_csv, ',')) AS raw_n
-    LEFT JOIN artist_name_map m
-        ON LOWER(TRIM(m.raw_name)) = LOWER(TRIM(raw_n)) AND m.status = 'confirmed'
-    WHERE TRIM(raw_n) != ''
-    {where_clause}
-    ON CONFLICT (artist_name, reporting_month, isrc, platform, country) DO NOTHING
-"""
-
 
 def _rebuild_artist_detail(engine, artist_names=None):
-    """Pre-aggregate into artist_royalty_detail in two passes:
-    Pass 1 (split artists): split-math from artist_royalty_split × royalty_summary.
-    Pass 2 (all artists): UNNEST royalty_summary.artist_name_csv; DO NOTHING on conflict
-      so Pass 1 split-math rows always win. Covers artists with no splits defined.
-    Full rebuild (artist_names=None): TRUNCATE then both passes.
-    Partial rebuild (artist_names=[...]): DELETE + both passes for listed canonical names.
+    """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
+    Full rebuild (artist_names=None): TRUNCATE + INSERT all artists.
+    Partial rebuild (artist_names=[...]): DELETE + INSERT for listed canonical names only.
     Always call from a background NullPool thread — never from a request thread.
     """
-    import logging as _lg_ard
     from sqlalchemy import text as _t
     try:
         if artist_names is None:
             with engine.connect() as _c:
                 _c.execute(_t("TRUNCATE artist_royalty_detail"))
                 _c.commit()
-            # Pass 1: split-math for artists with splits
             with engine.connect() as _c:
                 _c.execute(_t(_ARD_INSERT_SQL.format(where_clause="")))
                 _c.commit()
-            _lg_ard.getLogger(__name__).warning("ARD build: pass 1 (splits) complete.")
-            # Pass 2: full-revenue fallback for all other artists
-            with engine.connect() as _c:
-                _c.execute(_t(_ARD_INSERT_NOSPLIT_SQL.format(where_clause="")))
-                _c.commit()
-            _lg_ard.getLogger(__name__).warning("ARD build: pass 2 (no-splits UNNEST) complete.")
         else:
             names = list(artist_names)
             if not names:
@@ -738,15 +703,8 @@ def _rebuild_artist_detail(engine, artist_names=None):
                     {"n": names}
                 )
                 _c.commit()
-            with engine.connect() as _c:
-                _c.execute(
-                    _t(_ARD_INSERT_NOSPLIT_SQL.format(
-                        where_clause="AND COALESCE(m.canonical_name, TRIM(raw_n)) = ANY(:n)"
-                    )),
-                    {"n": names}
-                )
-                _c.commit()
     except Exception as _e:
+        import logging as _lg_ard
         _lg_ard.getLogger(__name__).warning("_rebuild_artist_detail failed: %s", _e)
 
 
