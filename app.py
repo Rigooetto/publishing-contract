@@ -259,6 +259,39 @@ with app.app_context():
                         app.logger.warning("royalty_summary table ensured (%d rows, skipped backfill).", _rs_count)
         except Exception as _rse:
             app.logger.warning("royalty_summary setup failed: %s", _rse)
+        # Create artist_royalty_detail table (pre-aggregated per-artist revenue for fast dashboard)
+        _ard_needs_build = False
+        try:
+            from sqlalchemy import text as _text
+            _roy_engine = db.engines.get('royalties')
+            if _roy_engine:
+                with _roy_engine.connect() as _c:
+                    _c.execute(_text("""
+                        CREATE TABLE IF NOT EXISTS artist_royalty_detail (
+                            id              BIGSERIAL PRIMARY KEY,
+                            artist_name     TEXT          NOT NULL,
+                            reporting_month DATE          NOT NULL,
+                            isrc            TEXT          NOT NULL,
+                            track_title     TEXT,
+                            platform        TEXT,
+                            country         TEXT,
+                            streams         BIGINT        DEFAULT 0,
+                            net_revenue     NUMERIC(16,6) DEFAULT 0
+                        )
+                    """))
+                    _c.execute(_text("""
+                        CREATE UNIQUE INDEX IF NOT EXISTS ix_ard_natural
+                            ON artist_royalty_detail (artist_name, reporting_month, isrc, platform, country)
+                            NULLS NOT DISTINCT
+                    """))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_ard_artist ON artist_royalty_detail (artist_name)"))
+                    _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_ard_month  ON artist_royalty_detail (reporting_month)"))
+                    _c.commit()
+                    _ard_count = _c.execute(_text("SELECT COUNT(*) FROM artist_royalty_detail")).fetchone()[0]
+                    _ard_needs_build = (_ard_count == 0)
+                    app.logger.warning("artist_royalty_detail table ensured (%d rows).", _ard_count)
+        except Exception as _arde:
+            app.logger.warning("artist_royalty_detail setup failed: %s", _arde)
     # One-time revenue data recovery — runs in a background thread so gunicorn can bind
     # to the port immediately. Dashboard shows empty data for ~60s on first deploy only.
     # Subsequent restarts find the sentinel and skip entirely (fast startup).
@@ -277,6 +310,22 @@ with app.app_context():
                 pass
             if _already_done:
                 app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
+                if _ard_needs_build:
+                    _ard_rec_app = app
+                    def _run_ard_only():
+                        try:
+                            from sqlalchemy import create_engine as _ce_ard
+                            from sqlalchemy.pool import NullPool
+                            _url_ard = _roy_engine.url.render_as_string(hide_password=False)
+                            _eng_ard = _ce_ard(_url_ard, poolclass=NullPool)
+                            from blueprints.streaming_royalties import _rebuild_artist_detail as _rad2
+                            _rad2(_eng_ard)
+                            _eng_ard.dispose()
+                            _ard_rec_app.logger.warning("ARD initial build complete.")
+                        except Exception as _ard_e2:
+                            _ard_rec_app.logger.warning("ARD initial build failed: %s", _ard_e2)
+                    _rec_threading.Thread(target=_run_ard_only, daemon=True).start()
+                    app.logger.warning("ARD initial build: starting background thread.")
             else:
                 _rec_app = app
                 def _run_recovery():
@@ -313,6 +362,13 @@ with app.app_context():
                                 ON CONFLICT (cache_key) DO NOTHING
                             """))
                             _c.commit()
+                        # Also rebuild artist_royalty_detail after royalty_summary is ready
+                        try:
+                            from blueprints.streaming_royalties import _rebuild_artist_detail as _rad
+                            _rad(_eng)
+                            _rec_app.logger.warning("DATA RECOVERY: artist_royalty_detail rebuilt.")
+                        except Exception as _ard_re:
+                            _rec_app.logger.warning("DATA RECOVERY: ARD rebuild failed: %s", _ard_re)
                         _eng.dispose()
                         _rec_app.logger.warning("DATA RECOVERY: royalty_summary rebuilt from streaming_royalty (one-time).")
                     except Exception as _re2:

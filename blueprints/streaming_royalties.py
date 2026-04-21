@@ -521,9 +521,30 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             pass
         _clear_cache_for_months(r_engine, _import_months)
         _app = current_app._get_current_object()
+        _royalties_url_snap = _royalties_engine().url.render_as_string(hide_password=False)
+        _new_individuals_snap = set(_new_individuals)
         def _run_post_import():
             with _app.app_context():
-                _auto_map_individuals(_new_individuals)
+                _auto_map_individuals(_new_individuals_snap)
+                # Rebuild ARD for artists affected by this import
+                try:
+                    from sqlalchemy import create_engine as _ce_pi
+                    from sqlalchemy.pool import NullPool
+                    _eng_pi = _ce_pi(_royalties_url_snap, poolclass=NullPool)
+                    _canonical_pi = set()
+                    try:
+                        from models import ArtistNameMap as _ANM_pi
+                        for _raw_pi in _new_individuals_snap:
+                            _m_pi = _ANM_pi.query.filter_by(raw_name=_raw_pi, status='confirmed').first()
+                            _canonical_pi.add(_m_pi.canonical_name if _m_pi else _raw_pi)
+                    except Exception:
+                        _canonical_pi = _new_individuals_snap
+                    if _canonical_pi:
+                        _rebuild_artist_detail(_eng_pi, artist_names=list(_canonical_pi))
+                    _eng_pi.dispose()
+                except Exception as _ard_pi_e:
+                    import logging as _lg_pi
+                    _lg_pi.getLogger(__name__).warning("Post-import ARD rebuild failed: %s", _ard_pi_e)
                 if _prewarm_lock.acquire(blocking=False):
                     try:
                         _prewarm_dashboard_cache()
@@ -626,6 +647,186 @@ def _prewarm_dashboard_cache():
     _prewarm_status.update({"running": False, "current_artist": ""})
     _engine_local.override = None
     engine.dispose()
+
+
+_ARD_INSERT_SQL = """
+    INSERT INTO artist_royalty_detail
+        (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
+    SELECT
+        COALESCE(m.canonical_name, s.artist_name) AS artist_name,
+        rs.reporting_month,
+        rs.isrc,
+        MAX(rs.track_title_csv)                        AS track_title,
+        rs.platform,
+        rs.country,
+        ROUND(SUM(rs.streams * s.percentage / 100.0))::bigint AS streams,
+        SUM(rs.net_revenue  * s.percentage / 100.0)   AS net_revenue
+    FROM artist_royalty_split s
+    JOIN royalty_summary rs ON rs.isrc = s.isrc
+    LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'
+    {where_clause}
+    GROUP BY
+        COALESCE(m.canonical_name, s.artist_name),
+        rs.reporting_month, rs.isrc, rs.platform, rs.country
+    ON CONFLICT (artist_name, reporting_month, isrc, platform, country) DO UPDATE
+        SET streams=EXCLUDED.streams, net_revenue=EXCLUDED.net_revenue, track_title=EXCLUDED.track_title
+"""
+
+
+def _rebuild_artist_detail(engine, artist_names=None):
+    """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
+    Full rebuild (artist_names=None): TRUNCATE + INSERT all artists.
+    Partial rebuild (artist_names=[...]): DELETE + INSERT for listed canonical names only.
+    Always call from a background NullPool thread — never from a request thread.
+    """
+    from sqlalchemy import text as _t
+    try:
+        if artist_names is None:
+            with engine.connect() as _c:
+                _c.execute(_t("TRUNCATE artist_royalty_detail"))
+                _c.commit()
+            with engine.connect() as _c:
+                _c.execute(_t(_ARD_INSERT_SQL.format(where_clause="")))
+                _c.commit()
+        else:
+            names = list(artist_names)
+            if not names:
+                return
+            with engine.connect() as _c:
+                _c.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = ANY(:n)"), {"n": names})
+                _c.commit()
+            with engine.connect() as _c:
+                _c.execute(
+                    _t(_ARD_INSERT_SQL.format(
+                        where_clause="WHERE COALESCE(m.canonical_name, s.artist_name) = ANY(:n)"
+                    )),
+                    {"n": names}
+                )
+                _c.commit()
+    except Exception as _e:
+        import logging as _lg_ard
+        _lg_ard.getLogger(__name__).warning("_rebuild_artist_detail failed: %s", _e)
+
+
+def _compute_dashboard_data_ard(year, quarter, artist, engine):
+    """Fast path: query pre-aggregated artist_royalty_detail instead of royalty_summary.
+    Only called when artist != 'all' and ARD has rows for this artist.
+    Returns the same dict structure as _compute_dashboard_data().
+    """
+    from sqlalchemy import text
+
+    conditions = ["ard.artist_name = :artist"]
+    params: dict = {"artist": artist}
+    if year and year != "all":
+        y = int(year)
+        conditions.append("ard.reporting_month >= :ys AND ard.reporting_month < :ye")
+        params.update({"ys": f"{y}-01-01", "ye": f"{y + 1}-01-01"})
+    if quarter and quarter != "all":
+        q_ranges = {"1": (1, 4), "2": (4, 7), "3": (7, 10), "4": (10, 1)}
+        q_start_m, q_end_m = q_ranges.get(str(quarter), (1, 1))
+        base_year = int(year) if (year and year != "all") else 2000
+        q_end_year = base_year + 1 if q_end_m == 1 else base_year
+        conditions.append("ard.reporting_month >= :q_start AND ard.reporting_month < :q_end")
+        params["q_start"] = f"{base_year}-{q_start_m:02d}-01"
+        params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
+    where = " AND ".join(conditions)
+
+    def q(sql, p=None):
+        with engine.connect() as _conn:
+            try:
+                _conn.execute(text("SET statement_timeout = '45s'"))
+            except Exception:
+                pass
+            return _conn.execute(text(sql), p if p is not None else params).fetchall()
+
+    kpi_total = float(q(
+        f"SELECT COALESCE(SUM(ard.net_revenue), 0) FROM artist_royalty_detail ard WHERE {where}"
+    )[0][0])
+
+    by_artist_rows = q(f"""
+        SELECT ard.artist_name, COALESCE(SUM(ard.net_revenue), 0) AS rev
+          FROM artist_royalty_detail ard WHERE {where}
+         GROUP BY ard.artist_name ORDER BY rev DESC
+    """)
+
+    by_month_rows = q(f"""
+        SELECT TO_CHAR(ard.reporting_month, 'Mon YYYY') AS mo,
+               ard.reporting_month,
+               COALESCE(SUM(ard.net_revenue), 0) AS rev
+          FROM artist_royalty_detail ard WHERE {where}
+         GROUP BY ard.reporting_month ORDER BY ard.reporting_month
+    """)
+
+    by_platform_rows = q(f"""
+        SELECT ard.platform, COALESCE(SUM(ard.net_revenue), 0) AS rev
+          FROM artist_royalty_detail ard
+         WHERE {where} AND ard.platform IS NOT NULL AND ard.platform != ''
+         GROUP BY ard.platform ORDER BY rev DESC LIMIT 15
+    """)
+
+    by_country_all = q(f"""
+        SELECT ard.country, COALESCE(SUM(ard.net_revenue), 0) AS rev
+          FROM artist_royalty_detail ard
+         WHERE {where} AND ard.country IS NOT NULL AND ard.country != ''
+         GROUP BY ard.country ORDER BY rev DESC
+    """)
+    top5 = by_country_all[:5]
+    other = sum(float(r[1]) for r in by_country_all[5:])
+    country_data = [(r[0], float(r[1])) for r in top5]
+    if other > 0:
+        country_data.append(("Other", other))
+
+    catalog_rows = q(f"""
+        SELECT ard.isrc,
+               MAX(ard.track_title)                  AS title,
+               ard.artist_name                       AS artist,
+               COALESCE(SUM(ard.streams), 0)         AS streams,
+               COALESCE(SUM(ard.net_revenue), 0)     AS rev
+          FROM artist_royalty_detail ard WHERE {where}
+         GROUP BY ard.isrc, ard.artist_name ORDER BY rev DESC LIMIT 300
+    """)
+    catalog = [
+        {"isrc": r[0], "title": r[1] or r[0], "artist": r[2] or "",
+         "streams": int(r[3]), "revenue": float(r[4])}
+        for r in catalog_rows
+    ]
+
+    # Dropdowns always come from royalty_summary (full artist list, not filtered)
+    _raw_strings = [r[0] for r in q(
+        "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
+        "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
+        {},
+    )]
+    _dd_name_map = {}
+    try:
+        from models import ArtistNameMap as _ANM_dd2
+        _dd_name_map = {m.raw_name: m.canonical_name
+                        for m in _ANM_dd2.query.filter_by(status='confirmed').all()}
+    except Exception:
+        pass
+    _artist_names: set = set()
+    for _s in _raw_strings:
+        for _part in _s.split(','):
+            _name = _part.strip()
+            if _name:
+                _artist_names.add(_dd_name_map.get(_name, _name))
+    all_artists = sorted(_artist_names, key=str.lower)
+    all_years = [int(r[0]) for r in q(
+        "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
+        "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
+        {},
+    )]
+
+    return {
+        "kpi_total":   kpi_total,
+        "by_artist":   [{"name": r[0], "revenue": float(r[1])} for r in by_artist_rows],
+        "by_month":    [{"month": r[0], "revenue": float(r[2])} for r in by_month_rows],
+        "by_platform": [{"platform": r[0], "revenue": float(r[1])} for r in by_platform_rows],
+        "by_country":  [{"country": k, "revenue": v} for k, v in country_data],
+        "catalog":     catalog,
+        "all_artists": all_artists,
+        "all_years":   all_years,
+    }
 
 
 def _clear_dashboard_cache(engine=None):
@@ -771,6 +972,20 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         else:
             conditions.append("sr.artist_name_csv ILIKE :artist_pat")
         params["artist_pat"] = f"%{artist}%"
+
+        # Fast path: use pre-aggregated artist_royalty_detail if available (artist view only)
+        if view == "artist":
+            try:
+                with _engine.connect() as _chk:
+                    _ard_row = _chk.execute(
+                        text("SELECT 1 FROM artist_royalty_detail WHERE artist_name = :a LIMIT 1"),
+                        {"a": artist}
+                    ).fetchone()
+                if _ard_row:
+                    return _compute_dashboard_data_ard(year, quarter, artist, _engine)
+            except Exception:
+                pass  # fall through to slow CTE path
+
     where = " AND ".join(conditions)
 
     if view == "artist":
@@ -3166,6 +3381,33 @@ def split_gaps_save_all():
     except Exception as e:
         flash(f"Error saving splits: {e}", "error")
     _splits_cache.clear()
+    # Rebuild ARD for saved artists in background
+    _saved_artists_all = list({
+        (request.form.get(f"artist_{i}") or "").strip()
+        for i in range(total)
+        if (request.form.get(f"pct_{i}") or "").strip()
+           and (request.form.get(f"artist_{i}") or "").strip()
+    })
+    if _saved_artists_all:
+        _ard_app_all = current_app._get_current_object()
+        _ard_url_all = _royalties_engine().url.render_as_string(hide_password=False)
+        def _run_ard_save_all(_names=_saved_artists_all, _url=_ard_url_all, _app2=_ard_app_all):
+            try:
+                from sqlalchemy import create_engine as _ce_sa
+                from sqlalchemy.pool import NullPool
+                _eng_sa = _ce_sa(_url, poolclass=NullPool)
+                with _app2.app_context():
+                    try:
+                        from models import ArtistNameMap as _ANM_sa
+                        _canon = [(_ANM_sa.query.filter_by(raw_name=n, status='confirmed').first() or type('', (), {'canonical_name': n})()).canonical_name for n in _names]
+                    except Exception:
+                        _canon = _names
+                    _rebuild_artist_detail(_eng_sa, artist_names=_canon)
+                _eng_sa.dispose()
+            except Exception as _e_sa:
+                import logging as _lg_sa
+                _lg_sa.getLogger(__name__).warning("ARD rebuild (save_all) failed: %s", _e_sa)
+        threading.Thread(target=_run_ard_save_all, daemon=True).start()
     return redirect(url_for("streaming_royalties.split_gaps"))
 
 
@@ -3230,6 +3472,28 @@ def split_gaps_save_split():
     except Exception as e:
         flash(f"Error saving split: {e}", "error")
     _splits_cache.clear()
+    # Rebuild ARD for this artist in background
+    _ard_app_sp = current_app._get_current_object()
+    _ard_url_sp = _royalties_engine().url.render_as_string(hide_password=False)
+    _ard_name_sp = artist_name
+    def _run_ard_save_split(_name=_ard_name_sp, _url=_ard_url_sp, _app3=_ard_app_sp):
+        try:
+            from sqlalchemy import create_engine as _ce_ss
+            from sqlalchemy.pool import NullPool
+            _eng_ss = _ce_ss(_url, poolclass=NullPool)
+            with _app3.app_context():
+                try:
+                    from models import ArtistNameMap as _ANM_ss
+                    _m_ss = _ANM_ss.query.filter_by(raw_name=_name, status='confirmed').first()
+                    _canon_ss = _m_ss.canonical_name if _m_ss else _name
+                except Exception:
+                    _canon_ss = _name
+                _rebuild_artist_detail(_eng_ss, artist_names=[_canon_ss])
+            _eng_ss.dispose()
+        except Exception as _e_ss:
+            import logging as _lg_ss
+            _lg_ss.getLogger(__name__).warning("ARD rebuild (save_split) failed: %s", _e_ss)
+    threading.Thread(target=_run_ard_save_split, daemon=True).start()
     return redirect(url_for("streaming_royalties.split_gaps"))
 
 
