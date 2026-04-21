@@ -240,9 +240,9 @@ with app.app_context():
                     _c.execute(_text("SET lock_timeout = '5s'"))
                     _c.execute(_text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_rs_artist_trgm ON royalty_summary USING gin (artist_name_csv gin_trgm_ops)"))
-                    # One-time backfill — skip if table already has data to avoid blocking startup
-                    _rs_count = _c.execute(_text("SELECT COUNT(*) FROM royalty_summary")).fetchone()[0]
-                    if _rs_count == 0:
+                    # One-time backfill — fast existence check, never COUNT(*) on large table
+                    _rs_empty = not _c.execute(_text("SELECT 1 FROM royalty_summary LIMIT 1")).fetchone()
+                    if _rs_empty:
                         _c.execute(_text("""
                             INSERT INTO royalty_summary
                                 (reporting_month, isrc, artist_name_csv, platform, country,
@@ -256,7 +256,7 @@ with app.app_context():
                         _c.commit()
                         app.logger.warning("royalty_summary table ensured and backfilled.")
                     else:
-                        app.logger.warning("royalty_summary table ensured (%d rows, skipped backfill).", _rs_count)
+                        app.logger.warning("royalty_summary table ensured.")
         except Exception as _rse:
             app.logger.warning("royalty_summary setup failed: %s", _rse)
         # Create artist_royalty_detail table (pre-aggregated per-artist revenue for fast dashboard)
@@ -287,9 +287,9 @@ with app.app_context():
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_ard_artist ON artist_royalty_detail (artist_name)"))
                     _c.execute(_text("CREATE INDEX IF NOT EXISTS ix_ard_month  ON artist_royalty_detail (reporting_month)"))
                     _c.commit()
-                    _ard_count = _c.execute(_text("SELECT COUNT(*) FROM artist_royalty_detail")).fetchone()[0]
-                    _ard_needs_build = (_ard_count == 0)
-                    app.logger.warning("artist_royalty_detail table ensured (%d rows).", _ard_count)
+                    _ard_empty = not _c.execute(_text("SELECT 1 FROM artist_royalty_detail LIMIT 1")).fetchone()
+                    _ard_needs_build = _ard_empty
+                    app.logger.warning("artist_royalty_detail table ensured (empty=%s).", _ard_empty)
         except Exception as _arde:
             app.logger.warning("artist_royalty_detail setup failed: %s", _arde)
     # One-time revenue data recovery — runs in a background thread so gunicorn can bind
