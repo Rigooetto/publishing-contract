@@ -1023,7 +1023,7 @@ def send_document_docusign(document_id):
         }
 
         envelope_definition = EnvelopeDefinition(
-            email_subject="Please sign: " + document.file_name,
+            email_subject=("Please sign: " + document.file_name)[:100],
             documents=[ds_document],
             recipients=Recipients(signers=[signer]),
             status="sent",
