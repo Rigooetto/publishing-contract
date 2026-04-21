@@ -724,79 +724,96 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
     if quarter and quarter != "all":
         q_ranges = {"1": (1, 4), "2": (4, 7), "3": (7, 10), "4": (10, 1)}
         q_start_m, q_end_m = q_ranges.get(str(quarter), (1, 1))
-        base_year = int(year) if (year and year != "all") else 2000
-        q_end_year = base_year + 1 if q_end_m == 1 else base_year
-        conditions.append("ard.reporting_month >= :q_start AND ard.reporting_month < :q_end")
-        params["q_start"] = f"{base_year}-{q_start_m:02d}-01"
-        params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
+        if year and year != "all":
+            # Specific year+quarter: efficient date-range (index-friendly)
+            y = int(year)
+            q_end_year = y + 1 if q_end_m == 1 else y
+            conditions.append("ard.reporting_month >= :q_start AND ard.reporting_month < :q_end")
+            params["q_start"] = f"{y}-{q_start_m:02d}-01"
+            params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
+        else:
+            # year=all + specific quarter: must use EXTRACT(MONTH) across all years
+            _q_month_map = {"1": [1, 2, 3], "2": [4, 5, 6], "3": [7, 8, 9], "4": [10, 11, 12]}
+            _months = _q_month_map.get(str(quarter), [1, 2, 3])
+            _month_phs = ", ".join(f":qm_{i}" for i in range(len(_months)))
+            conditions.append(f"EXTRACT(MONTH FROM ard.reporting_month) IN ({_month_phs})")
+            for _i, _m in enumerate(_months):
+                params[f"qm_{_i}"] = _m
     where = " AND ".join(conditions)
 
-    def q(sql, p=None):
-        with engine.connect() as _conn:
-            try:
-                _conn.execute(text("SET statement_timeout = '45s'"))
-            except Exception:
-                pass
+    with engine.connect() as _conn:
+        try:
+            _conn.execute(text("SET statement_timeout = '45s'"))
+        except Exception:
+            pass
+
+        def q(sql, p=None):
             return _conn.execute(text(sql), p if p is not None else params).fetchall()
 
-    kpi_total = float(q(
-        f"SELECT COALESCE(SUM(ard.net_revenue), 0) FROM artist_royalty_detail ard WHERE {where}"
-    )[0][0])
+        kpi_total = float(q(
+            f"SELECT COALESCE(SUM(ard.net_revenue), 0) FROM artist_royalty_detail ard WHERE {where}"
+        )[0][0])
 
-    by_artist_rows = q(f"""
-        SELECT ard.artist_name, COALESCE(SUM(ard.net_revenue), 0) AS rev
-          FROM artist_royalty_detail ard WHERE {where}
-         GROUP BY ard.artist_name ORDER BY rev DESC
-    """)
+        by_artist_rows = q(f"""
+            SELECT ard.artist_name, COALESCE(SUM(ard.net_revenue), 0) AS rev
+              FROM artist_royalty_detail ard WHERE {where}
+             GROUP BY ard.artist_name ORDER BY rev DESC
+        """)
 
-    by_month_rows = q(f"""
-        SELECT TO_CHAR(ard.reporting_month, 'Mon YYYY') AS mo,
-               ard.reporting_month,
-               COALESCE(SUM(ard.net_revenue), 0) AS rev
-          FROM artist_royalty_detail ard WHERE {where}
-         GROUP BY ard.reporting_month ORDER BY ard.reporting_month
-    """)
+        by_month_rows = q(f"""
+            SELECT TO_CHAR(ard.reporting_month, 'Mon YYYY') AS mo,
+                   ard.reporting_month,
+                   COALESCE(SUM(ard.net_revenue), 0) AS rev
+              FROM artist_royalty_detail ard WHERE {where}
+             GROUP BY ard.reporting_month ORDER BY ard.reporting_month
+        """)
 
-    by_platform_rows = q(f"""
-        SELECT ard.platform, COALESCE(SUM(ard.net_revenue), 0) AS rev
-          FROM artist_royalty_detail ard
-         WHERE {where} AND ard.platform IS NOT NULL AND ard.platform != ''
-         GROUP BY ard.platform ORDER BY rev DESC LIMIT 15
-    """)
+        by_platform_rows = q(f"""
+            SELECT ard.platform, COALESCE(SUM(ard.net_revenue), 0) AS rev
+              FROM artist_royalty_detail ard
+             WHERE {where} AND ard.platform IS NOT NULL AND ard.platform != ''
+             GROUP BY ard.platform ORDER BY rev DESC LIMIT 15
+        """)
 
-    by_country_all = q(f"""
-        SELECT ard.country, COALESCE(SUM(ard.net_revenue), 0) AS rev
-          FROM artist_royalty_detail ard
-         WHERE {where} AND ard.country IS NOT NULL AND ard.country != ''
-         GROUP BY ard.country ORDER BY rev DESC
-    """)
-    top5 = by_country_all[:5]
-    other = sum(float(r[1]) for r in by_country_all[5:])
-    country_data = [(r[0], float(r[1])) for r in top5]
-    if other > 0:
-        country_data.append(("Other", other))
+        by_country_all = q(f"""
+            SELECT ard.country, COALESCE(SUM(ard.net_revenue), 0) AS rev
+              FROM artist_royalty_detail ard
+             WHERE {where} AND ard.country IS NOT NULL AND ard.country != ''
+             GROUP BY ard.country ORDER BY rev DESC
+        """)
+        top5 = by_country_all[:5]
+        other = sum(float(r[1]) for r in by_country_all[5:])
+        country_data = [(r[0], float(r[1])) for r in top5]
+        if other > 0:
+            country_data.append(("Other", other))
 
-    catalog_rows = q(f"""
-        SELECT ard.isrc,
-               MAX(ard.track_title)                  AS title,
-               ard.artist_name                       AS artist,
-               COALESCE(SUM(ard.streams), 0)         AS streams,
-               COALESCE(SUM(ard.net_revenue), 0)     AS rev
-          FROM artist_royalty_detail ard WHERE {where}
-         GROUP BY ard.isrc, ard.artist_name ORDER BY rev DESC LIMIT 300
-    """)
-    catalog = [
-        {"isrc": r[0], "title": r[1] or r[0], "artist": r[2] or "",
-         "streams": int(r[3]), "revenue": float(r[4])}
-        for r in catalog_rows
-    ]
+        catalog_rows = q(f"""
+            SELECT ard.isrc,
+                   MAX(ard.track_title)                  AS title,
+                   ard.artist_name                       AS artist,
+                   COALESCE(SUM(ard.streams), 0)         AS streams,
+                   COALESCE(SUM(ard.net_revenue), 0)     AS rev
+              FROM artist_royalty_detail ard WHERE {where}
+             GROUP BY ard.isrc, ard.artist_name ORDER BY rev DESC LIMIT 300
+        """)
+        catalog = [
+            {"isrc": r[0], "title": r[1] or r[0], "artist": r[2] or "",
+             "streams": int(r[3]), "revenue": float(r[4])}
+            for r in catalog_rows
+        ]
 
-    # Dropdowns always come from royalty_summary (full artist list, not filtered)
-    _raw_strings = [r[0] for r in q(
-        "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
-        "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
-        {},
-    )]
+        # Dropdowns always come from royalty_summary (full artist list, not filtered)
+        _raw_strings = [r[0] for r in q(
+            "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
+            "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
+            {},
+        )]
+        all_years = [int(r[0]) for r in q(
+            "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
+            "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
+            {},
+        )]
+
     _dd_name_map = {}
     try:
         from models import ArtistNameMap as _ANM_dd2
@@ -811,11 +828,6 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
             if _name:
                 _artist_names.add(_dd_name_map.get(_name, _name))
     all_artists = sorted(_artist_names, key=str.lower)
-    all_years = [int(r[0]) for r in q(
-        "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
-        "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
-        {},
-    )]
 
     return {
         "kpi_total":   kpi_total,
