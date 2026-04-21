@@ -976,14 +976,20 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         # Fast path: use pre-aggregated artist_royalty_detail if available (artist view only)
         if view == "artist":
             try:
+                import logging as _lg_fp
                 with _engine.connect() as _chk:
                     _ard_row = _chk.execute(
                         text("SELECT 1 FROM artist_royalty_detail WHERE artist_name = :a LIMIT 1"),
                         {"a": artist}
                     ).fetchone()
                 if _ard_row:
+                    _lg_fp.getLogger(__name__).warning("ARD fast path: HIT for artist=%r", artist)
                     return _compute_dashboard_data_ard(year, quarter, artist, _engine)
-            except Exception:
+                else:
+                    _lg_fp.getLogger(__name__).warning("ARD fast path: MISS (no rows) for artist=%r", artist)
+            except Exception as _fp_exc:
+                import logging as _lg_fp2
+                _lg_fp2.getLogger(__name__).warning("ARD fast path: ERROR for artist=%r: %s", artist, _fp_exc)
                 pass  # fall through to slow CTE path
 
     where = " AND ".join(conditions)
