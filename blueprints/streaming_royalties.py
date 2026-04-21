@@ -1203,6 +1203,76 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+@bp.route("/streaming-royalties/ard-status")
+def ard_status():
+    """Quick diagnostic: ARD row counts + split coverage."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        from flask import jsonify
+        return jsonify({"error": "access restricted"}), 403
+    from flask import jsonify
+    from sqlalchemy import text
+    _engine = _royalties_engine()
+    if not _engine:
+        return jsonify({"error": "no royalties DB"}), 500
+    with _engine.connect() as _c:
+        ard_total   = _c.execute(text("SELECT COUNT(*) FROM artist_royalty_detail")).scalar()
+        ard_artists = _c.execute(text("SELECT COUNT(DISTINCT artist_name) FROM artist_royalty_detail")).scalar()
+        split_total = _c.execute(text("SELECT COUNT(*) FROM artist_royalty_split")).scalar()
+        split_isrcs = _c.execute(text("SELECT COUNT(DISTINCT isrc) FROM artist_royalty_split")).scalar()
+        rs_total    = _c.execute(text("SELECT COUNT(*) FROM royalty_summary")).scalar()
+        matched     = _c.execute(text(
+            "SELECT COUNT(DISTINCT s.isrc) FROM artist_royalty_split s "
+            "JOIN royalty_summary rs ON rs.isrc = s.isrc"
+        )).scalar()
+        sample = [dict(r._mapping) for r in _c.execute(text(
+            "SELECT artist_name, COUNT(*) AS rows, SUM(net_revenue) AS revenue "
+            "FROM artist_royalty_detail GROUP BY artist_name ORDER BY revenue DESC LIMIT 10"
+        )).fetchall()]
+    return jsonify({
+        "ard_total_rows": ard_total,
+        "ard_distinct_artists": ard_artists,
+        "split_total_rows": split_total,
+        "split_distinct_isrcs": split_isrcs,
+        "royalty_summary_rows": rs_total,
+        "split_isrcs_matched_in_summary": matched,
+        "top_artists_by_revenue": sample,
+    })
+
+
+@bp.route("/streaming-royalties/ard-rebuild", methods=["POST"])
+def ard_rebuild():
+    """Manually trigger a full ARD rebuild in the background."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        from flask import jsonify
+        return jsonify({"error": "access restricted"}), 403
+    from flask import jsonify
+    import threading
+    from sqlalchemy import create_engine as _ce
+    from sqlalchemy.pool import NullPool
+    _engine = _royalties_engine()
+    if not _engine:
+        return jsonify({"error": "no royalties DB"}), 500
+    _url = _engine.url.render_as_string(hide_password=False)
+    def _bg():
+        import logging
+        _lg = logging.getLogger(__name__)
+        _lg.warning("Manual ARD rebuild: starting")
+        _eng = _ce(_url, poolclass=NullPool)
+        try:
+            _rebuild_artist_detail(_eng)
+            _lg.warning("Manual ARD rebuild: complete")
+        except Exception as _e:
+            _lg.warning("Manual ARD rebuild failed: %s", _e)
+        finally:
+            _eng.dispose()
+    threading.Thread(target=_bg, daemon=True).start()
+    return jsonify({"status": "rebuild started in background"})
+
+
 @bp.route("/streaming-royalties")
 def dashboard():
     if auth_required():
