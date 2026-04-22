@@ -844,18 +844,26 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
             f"SELECT COALESCE(SUM(ard.net_revenue), 0) FROM artist_royalty_detail ard WHERE {where}"
         )[0][0])
 
-        by_artist_rows = q(f"""
-            SELECT rs.artist_name_csv AS artist, COALESCE(SUM(ard.net_revenue), 0) AS rev
-              FROM artist_royalty_detail ard
-              JOIN royalty_summary rs
-                ON rs.isrc              = ard.isrc
-               AND rs.reporting_month   = ard.reporting_month
-               AND rs.platform          IS NOT DISTINCT FROM ard.platform
-               AND rs.country           IS NOT DISTINCT FROM ard.country
-             WHERE {where}
-               AND rs.artist_name_csv IS NOT NULL AND rs.artist_name_csv != ''
-             GROUP BY rs.artist_name_csv ORDER BY rev DESC
+        # Two-step approach: avoid the slow 4-column JOIN on 7M×6M rows.
+        # Step 1 — sum ARD revenue per ISRC (fast: ix_ard_artist + date index)
+        _isrc_rev_rows = q(f"""
+            SELECT ard.isrc, COALESCE(SUM(ard.net_revenue), 0)
+              FROM artist_royalty_detail ard WHERE {where}
+             GROUP BY ard.isrc
         """)
+        _isrc_rev = {r[0]: float(r[1]) for r in _isrc_rev_rows}
+        # Step 2 — look up artist_name_csv per ISRC (fast: ix_rs_isrc)
+        by_artist_rows = []
+        if _isrc_rev:
+            _csv_rows = _conn.execute(text(
+                "SELECT isrc, MAX(artist_name_csv) FROM royalty_summary "
+                "WHERE isrc = ANY(:isrcs) AND artist_name_csv IS NOT NULL AND artist_name_csv != '' "
+                "GROUP BY isrc"
+            ), {"isrcs": list(_isrc_rev.keys())}).fetchall()
+            _csv_buckets: dict = {}
+            for _isrc, _csv in _csv_rows:
+                _csv_buckets[_csv] = _csv_buckets.get(_csv, 0.0) + _isrc_rev.get(_isrc, 0.0)
+            by_artist_rows = sorted(_csv_buckets.items(), key=lambda x: x[1], reverse=True)
 
         by_month_rows = q(f"""
             SELECT TO_CHAR(ard.reporting_month, 'Mon YYYY') AS mo,
