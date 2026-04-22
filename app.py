@@ -213,6 +213,31 @@ with app.app_context():
                     _c.commit()
         except Exception:
             pass
+        # One-time fix: clear per-artist dashboard_cache entries that were cached with
+        # the wrong by_artist query (grouped by ard.artist_name instead of rs.artist_name_csv).
+        try:
+            from sqlalchemy import text as _text
+            _roy_engine = db.engines.get('royalties')
+            if _roy_engine:
+                with _roy_engine.connect() as _c:
+                    _fix_done = _c.execute(_text(
+                        "SELECT 1 FROM dashboard_cache WHERE cache_key = '_by_artist_fix_v1'"
+                    )).fetchone()
+                    if not _fix_done:
+                        _c.execute(_text("""
+                            DELETE FROM dashboard_cache
+                            WHERE split_part(cache_key, '|', 3) != 'all'
+                              AND cache_key NOT LIKE '\\_%'
+                        """))
+                        _c.execute(_text("""
+                            INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
+                            VALUES ('_by_artist_fix_v1', '{}', NOW())
+                            ON CONFLICT (cache_key) DO NOTHING
+                        """))
+                        _c.commit()
+                        app.logger.warning("by_artist fix: cleared stale per-artist cache entries.")
+        except Exception as _fix_e:
+            app.logger.warning("by_artist fix failed: %s", _fix_e)
         # All heavy DDL + recovery runs in a background thread so gunicorn binds immediately.
         # dashboard_cache already created above (needed by requests); everything else is async.
         _startup_app = app
