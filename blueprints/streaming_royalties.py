@@ -1220,23 +1220,6 @@ def ard_status():
             "SELECT artist_name, COUNT(*) AS rows, SUM(net_revenue) AS revenue "
             "FROM artist_royalty_detail GROUP BY artist_name ORDER BY revenue DESC LIMIT 10"
         )).fetchall()]
-        # Artists in splits whose ISRCs match royalty_summary but are absent from ARD
-        missing_artists = [r[0] for r in _c.execute(text("""
-            SELECT DISTINCT s.artist_name
-            FROM artist_royalty_split s
-            JOIN royalty_summary rs ON rs.isrc = s.isrc
-            WHERE NOT EXISTS (
-                SELECT 1 FROM artist_royalty_detail ard WHERE ard.artist_name = s.artist_name
-            )
-            ORDER BY s.artist_name
-        """)).fetchall()]
-        # Artists in splits whose ISRCs have NO match in royalty_summary at all
-        no_isrc_match = [r[0] for r in _c.execute(text("""
-            SELECT DISTINCT s.artist_name
-            FROM artist_royalty_split s
-            WHERE NOT EXISTS (SELECT 1 FROM royalty_summary rs WHERE rs.isrc = s.isrc)
-            ORDER BY s.artist_name
-        """)).fetchall()]
     return jsonify({
         "ard_total_rows": ard_total,
         "ard_distinct_artists": ard_artists,
@@ -1245,8 +1228,6 @@ def ard_status():
         "royalty_summary_rows": rs_total,
         "split_isrcs_matched_in_summary": matched,
         "top_artists_by_revenue": sample,
-        "missing_from_ard_but_isrc_matches": missing_artists,
-        "splits_with_no_isrc_in_summary": no_isrc_match,
     })
 
 
