@@ -1346,6 +1346,15 @@ def dashboard():
             quarter = _dropdown_cache.get("latest_quarter", "all")
 
     data = _dashboard_data(year, quarter, artist, view)
+    # Always inject a fresh all_years list so newly uploaded historical years
+    # appear immediately even if the cached payload predates the upload.
+    try:
+        _, fresh_years = _get_dropdown_data(_royalties_engine())
+        if fresh_years:
+            data = dict(data)
+            data["all_years"] = fresh_years
+    except Exception:
+        pass
     return render_template_string(
         _DASHBOARD_HTML,
         data=data, year=year, quarter=quarter,
