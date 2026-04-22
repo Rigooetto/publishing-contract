@@ -1,0 +1,323 @@
+import decimal
+import json
+import datetime
+import traceback
+
+from flask import Blueprint, request, redirect, url_for, flash, render_template_string
+from flask import current_app
+from sqlalchemy import func as _func
+
+from extensions import db
+from models import Release, Track, TrackWork, GenerationBatch, Artist, ArtistRelease, ArtistRoyaltySplit
+from utils import auth_required, safe_json_loads
+from ui import RELEASES_LIST_HTML, RELEASE_FORM_HTML, RELEASE_DETAIL_HTML
+
+bp = Blueprint("releases", __name__)
+
+
+def _parse_artists(form, prefix, count=8):
+    # Try getlist first (dynamic rows all share same name e.g. artist_1)
+    vals = form.getlist(f"{prefix}_1")
+    if vals:
+        return [v.strip() for v in vals if v.strip()]
+    # Fallback: numbered fields artist_1..artist_N
+    return [form.get(f"{prefix}_{i+1}", "").strip() for i in range(count) if form.get(f"{prefix}_{i+1}", "").strip()]
+
+
+@bp.route("/releases")
+def releases_list():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+
+    from sqlalchemy import func as _func, or_ as _or
+    from models import Track as _Track
+
+    q    = (request.args.get("q") or "").strip()
+    sort = (request.args.get("sort") or "newest").strip()
+
+    query = Release.query
+
+    if q:
+        like_q = f"%{q.lower()}%"
+        query = (
+            query
+            .outerjoin(_Track, _Track.release_id == Release.id)
+            .filter(_or(
+                _func.lower(Release.title).like(like_q),
+                Release.artists.ilike(like_q),
+                Release.distributor.ilike(like_q),
+                Release.upc.ilike(like_q),
+                _func.lower(_Track.primary_title).like(like_q),
+            ))
+            .distinct()
+        )
+
+    if sort == "oldest":
+        query = query.order_by(Release.created_at.asc())
+    elif sort == "title_asc":
+        query = query.order_by(_func.lower(Release.title).asc())
+    elif sort == "title_desc":
+        query = query.order_by(_func.lower(Release.title).desc())
+    else:
+        query = query.order_by(Release.created_at.desc())
+
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+    except (ValueError, TypeError):
+        page = 1
+    per_page = 50
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    releases = pagination.items
+    for r in releases:
+        r.artists_list = safe_json_loads(r.artists)
+        r.artist_display = ", ".join(r.artists_list[:3]) + (" +" + str(len(r.artists_list)-3) + " more" if len(r.artists_list) > 3 else "")
+        for t in r.tracks:
+            t.artists_list = safe_json_loads(t.artists)
+    return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort, pagination=pagination)
+
+
+@bp.route("/releases/new", methods=["GET", "POST"])
+def release_new():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if request.method == "POST":
+        return _save_release(None)
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+    return render_template_string(RELEASE_FORM_HTML, release=None, tracks=[], artist_rows=[], batches=batches)
+
+
+@bp.route("/releases/<int:release_id>/edit", methods=["GET", "POST"])
+def release_edit(release_id):
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    r = Release.query.get_or_404(release_id)
+    if request.method == "POST":
+        return _save_release(r)
+    artists = safe_json_loads(r.artists)
+    # Build (name, pct, artist_id) triples for the form
+    ar_map = {}
+    for ar in ArtistRelease.query.filter_by(release_id=r.id).all():
+        a = Artist.query.get(ar.artist_id)
+        if a:
+            ar_map[a.name.lower()] = (ar.royalty_percentage, ar.artist_id)
+    artist_rows = [(name, *ar_map.get(name.lower(), (None, None))) for name in artists]
+    tracks = r.tracks
+    for t in tracks:
+        t.artists_list = safe_json_loads(t.artists)
+    batches = GenerationBatch.query.order_by(GenerationBatch.created_at.desc()).all()
+    return render_template_string(RELEASE_FORM_HTML, release=r, tracks=tracks, artist_rows=artist_rows, batches=batches)
+
+
+@bp.route("/releases/<int:release_id>")
+def release_detail(release_id):
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    r = Release.query.get_or_404(release_id)
+    r.artists_list = safe_json_loads(r.artists)
+    r.artist_display = ", ".join(r.artists_list)
+    for t in r.tracks:
+        t.artists_list = safe_json_loads(t.artists)
+        t.artist_display = ", ".join(t.artists_list[:2])
+    return render_template_string(RELEASE_DETAIL_HTML, release=r)
+
+
+@bp.route("/releases/<int:release_id>/delete", methods=["POST"])
+def release_delete(release_id):
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    r = Release.query.get_or_404(release_id)
+    try:
+        db.session.delete(r)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("release_delete error: %s", e)
+        flash("Error deleting release: " + str(e))
+        return redirect(url_for("releases.release_detail", release_id=release_id))
+    flash("Release deleted.")
+    return redirect(url_for("releases.releases_list"))
+
+
+def _save_release(existing):
+    form = request.form
+    try:
+        artists = _parse_artists(form, "artist")
+        if not artists:
+            flash("At least one album artist is required.")
+            return redirect(request.referrer or url_for("releases.releases_list"))
+
+        if existing:
+            r = existing
+        else:
+            r = Release()
+            db.session.add(r)
+
+        r.release_type = form.get("release_type", "").strip()
+        r.title = form.get("title", "").strip()
+        r.upc = form.get("upc", "").strip() or None
+        r.release_date = datetime.datetime.strptime(form["release_date"], "%Y-%m-%d").date() if form.get("release_date") else None
+        r.distributor = form.get("distributor", "").strip()
+        r.status = form.get("status", "draft")
+        r.artists = json.dumps(artists)
+
+        # --- Tracks ---
+        track_ids = form.getlist("track_id[]")
+        primary_titles = form.getlist("primary_title[]")
+        track_numbers = form.getlist("track_number[]")
+        durations = form.getlist("duration[]")
+        isrcs = form.getlist("isrc[]")
+        recording_titles = form.getlist("recording_title[]")
+        aka_titles = form.getlist("aka_title[]")
+        aka_type_codes = form.getlist("aka_type_code[]")
+        genres = form.getlist("genre[]")
+        track_labels = form.getlist("track_label[]")
+        track_p_lines = form.getlist("track_p_line[]")
+        recording_dates = form.getlist("recording_date[]")
+        producers = form.getlist("producer[]")
+        recording_engineers = form.getlist("recording_engineer[]")
+        executive_producers = form.getlist("executive_producer[]")
+        is_covers = form.getlist("is_cover[]")
+        cover_writers_list = form.getlist("cover_writers[]")
+
+        # flush to get release id for new records
+        db.session.flush()
+
+        kept_track_ids = set()
+        for i, pt in enumerate(primary_titles):
+            if not pt.strip():
+                continue
+            tid = track_ids[i] if i < len(track_ids) else ""
+            if tid:
+                try:
+                    t = Track.query.get(int(tid))
+                except (ValueError, TypeError):
+                    t = None
+                if not t:
+                    t = Track(release_id=r.id)
+                    db.session.add(t)
+            else:
+                t = Track(release_id=r.id)
+                db.session.add(t)
+
+            t.primary_title = pt.strip()
+            try:
+                t.track_number = int(track_numbers[i]) if i < len(track_numbers) and track_numbers[i].strip() else None
+            except (ValueError, TypeError):
+                t.track_number = None
+            t.duration = durations[i].strip() if i < len(durations) else ""
+            t.isrc = isrcs[i].strip() or None if i < len(isrcs) else None
+            t.recording_title = recording_titles[i].strip() if i < len(recording_titles) else ""
+            t.aka_title = aka_titles[i].strip() if i < len(aka_titles) else ""
+            t.aka_type_code = aka_type_codes[i].strip() if i < len(aka_type_codes) else ""
+            t.genre = genres[i].strip() if i < len(genres) else ""
+            t.track_label = track_labels[i].strip() if i < len(track_labels) else ""
+            t.track_p_line = track_p_lines[i].strip() if i < len(track_p_lines) else ""
+            t.producer = producers[i].strip() if i < len(producers) else ""
+            t.recording_engineer = recording_engineers[i].strip() if i < len(recording_engineers) else ""
+            t.executive_producer = executive_producers[i].strip() if i < len(executive_producers) else ""
+            t.is_cover = (is_covers[i] == "1") if i < len(is_covers) else False
+            t.cover_writers = cover_writers_list[i].strip() if i < len(cover_writers_list) else ""
+            rd = recording_dates[i].strip() if i < len(recording_dates) else ""
+            t.recording_date = datetime.datetime.strptime(rd, "%Y-%m-%d").date() if rd else None
+
+            # track artists — existing tracks use track_artist_TRACKID[], new tracks use track_artist_new_N[]
+            if tid:
+                tartist_key = f"track_artist_{t.id}[]"
+            else:
+                tartist_key = f"track_artist_new_{i+1}[]"
+            tartists = [v.strip() for v in form.getlist(tartist_key) if v.strip()]
+            t.artists = json.dumps(tartists)
+
+            db.session.flush()
+
+            # linked works — clear and re-link
+            TrackWork.query.filter_by(track_id=t.id).delete(synchronize_session="fetch")
+            work_key = f"linked_work_ids_{t.id}[]" if tid else f"linked_work_ids_new_{i+1}[]"
+            notes_key = f"linked_work_notes_{t.id}[]" if tid else f"linked_work_notes_new_{i+1}[]"
+            wids = form.getlist(work_key)
+            wnotes = form.getlist(notes_key)
+            for wi, wid in enumerate(wids):
+                if wid:
+                    try:
+                        work_id = int(wid)
+                    except (ValueError, TypeError):
+                        continue
+                    tw = TrackWork(track_id=t.id, work_id=work_id, notes=wnotes[wi] if wi < len(wnotes) else "")
+                    db.session.add(tw)
+
+            kept_track_ids.add(t.id)
+
+        # remove tracks no longer in form
+        if existing:
+            for t in existing.tracks:
+                if t.id not in kept_track_ids:
+                    db.session.delete(t)
+
+        manual_num = form.get("num_tracks", "").strip()
+        r.num_tracks = int(manual_num) if manual_num.isdigit() else len(kept_track_ids)
+
+        # --- Sync ArtistRelease join rows ---
+        pcts = form.getlist("royalty_pct_1")
+        ArtistRelease.query.filter_by(release_id=r.id).delete(synchronize_session="fetch")
+        for idx, name in enumerate(artists):
+            name = name.strip()
+            if not name:
+                continue
+            artist = Artist.query.filter(_func.lower(Artist.name) == name.lower()).first()  # noqa
+            if not artist:
+                artist = Artist(name=name)
+                db.session.add(artist)
+                db.session.flush()
+            pct_raw = pcts[idx].strip() if idx < len(pcts) else ""
+            try:
+                pct = decimal.Decimal(pct_raw) if pct_raw else None
+            except Exception:
+                pct = None
+            db.session.add(ArtistRelease(artist_id=artist.id, release_id=r.id, royalty_percentage=pct))
+
+        db.session.commit()
+
+        # Sync ArtistRoyaltySplit for tracks that have ISRCs
+        try:
+            _sync_royalty_splits(r)
+        except Exception as _se:
+            current_app.logger.warning("royalty split sync failed: %s", _se)
+
+        flash("Release saved.")
+        return redirect(url_for("releases.release_detail", release_id=r.id))
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("RELEASE SAVE ERROR: %s", e)
+        current_app.logger.error(traceback.format_exc())
+        flash("Error saving release: " + str(e))
+        return redirect(request.referrer or url_for("releases.releases_list"))
+
+
+def _sync_royalty_splits(release):
+    """Upsert ArtistRoyaltySplit rows for every ISRC on this release, per artist with a royalty %."""
+    ar_rows = ArtistRelease.query.filter_by(release_id=release.id).all()
+    for ar in ar_rows:
+        if ar.royalty_percentage is None:
+            continue
+        artist = Artist.query.get(ar.artist_id)
+        if not artist:
+            continue
+        for track in release.tracks:
+            if not track.isrc:
+                continue
+            existing = ArtistRoyaltySplit.query.filter_by(
+                isrc=track.isrc, artist_name=artist.name
+            ).first()
+            if existing:
+                existing.percentage = ar.royalty_percentage
+                existing.artist_id  = ar.artist_id
+            else:
+                db.session.add(ArtistRoyaltySplit(
+                    isrc=track.isrc,
+                    artist_name=artist.name,
+                    artist_id=ar.artist_id,
+                    percentage=ar.royalty_percentage,
+                ))
+    db.session.commit()
