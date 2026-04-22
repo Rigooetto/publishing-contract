@@ -673,39 +673,59 @@ _ARD_INSERT_SQL = """
 """
 
 
+_ARD_PER_ARTIST_SQL = _ARD_INSERT_SQL.format(
+    where_clause="WHERE COALESCE(m.canonical_name, s.artist_name) = :n"
+)
+
+
 def _rebuild_artist_detail(engine, artist_names=None):
     """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
-    Full rebuild (artist_names=None): TRUNCATE + INSERT all artists.
-    Partial rebuild (artist_names=[...]): DELETE + INSERT for listed canonical names only.
+    Full rebuild (artist_names=None): per-artist DELETE+INSERT for all split artists.
+    Partial rebuild (artist_names=[...]): per-artist DELETE+INSERT for listed canonical names only.
+    Per-artist commits make this restart-safe — a restart only loses the in-progress artist.
     Always call from a background NullPool thread — never from a request thread.
     """
+    import logging as _lg_ard
     from sqlalchemy import text as _t
+    _log = _lg_ard.getLogger(__name__)
+
+    def _process_one(name):
+        with engine.connect() as _c:
+            _c.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = :n"), {"n": name})
+            _c.execute(_t(_ARD_PER_ARTIST_SQL), {"n": name})
+            _c.commit()
+
     try:
         if artist_names is None:
             with engine.connect() as _c:
-                _c.execute(_t("TRUNCATE artist_royalty_detail"))
-                _c.commit()
-            with engine.connect() as _c:
-                _c.execute(_t(_ARD_INSERT_SQL.format(where_clause="")))
-                _c.commit()
+                rows = _c.execute(_t(
+                    "SELECT DISTINCT COALESCE(m.canonical_name, s.artist_name) AS artist_name "
+                    "FROM artist_royalty_split s "
+                    "LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'"
+                )).fetchall()
+            all_artists = [r[0] for r in rows]
+            _log.warning("ARD full rebuild: %d artists to process", len(all_artists))
+            done = 0
+            for name in all_artists:
+                try:
+                    _process_one(name)
+                    done += 1
+                    if done % 20 == 0 or done == len(all_artists):
+                        _log.warning("ARD rebuild progress: %d/%d artists done", done, len(all_artists))
+                except Exception as _e:
+                    _log.warning("ARD rebuild: artist %r failed: %s", name, _e)
+            _log.warning("ARD full rebuild complete: %d/%d artists processed", done, len(all_artists))
         else:
             names = list(artist_names)
             if not names:
                 return
-            with engine.connect() as _c:
-                _c.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = ANY(:n)"), {"n": names})
-                _c.commit()
-            with engine.connect() as _c:
-                _c.execute(
-                    _t(_ARD_INSERT_SQL.format(
-                        where_clause="WHERE COALESCE(m.canonical_name, s.artist_name) = ANY(:n)"
-                    )),
-                    {"n": names}
-                )
-                _c.commit()
+            for name in names:
+                try:
+                    _process_one(name)
+                except Exception as _e:
+                    _log.warning("ARD rebuild: artist %r failed: %s", name, _e)
     except Exception as _e:
-        import logging as _lg_ard
-        _lg_ard.getLogger(__name__).warning("_rebuild_artist_detail failed: %s", _e)
+        _log.warning("_rebuild_artist_detail failed: %s", _e)
 
 
 def _compute_dashboard_data_ard_empty(year, quarter, artist, engine):

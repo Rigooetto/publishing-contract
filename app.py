@@ -323,13 +323,24 @@ with app.app_context():
                         _startup_app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
 
                     with _eng.connect() as _ard_chk:
-                        _ard_has_data = bool(_ard_chk.execute(_t_bg(
-                            "SELECT 1 FROM artist_royalty_detail LIMIT 1"
-                        )).fetchone())
-                    if _ard_has_data:
-                        _startup_app.logger.warning("ARD build: skipped (table already has data).")
+                        _ard_artists = _ard_chk.execute(_t_bg(
+                            "SELECT COUNT(DISTINCT artist_name) FROM artist_royalty_detail"
+                        )).scalar() or 0
+                        _split_artists = _ard_chk.execute(_t_bg(
+                            "SELECT COUNT(DISTINCT COALESCE(m.canonical_name, s.artist_name)) "
+                            "FROM artist_royalty_split s "
+                            "LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'"
+                        )).scalar() or 0
+                    if _ard_artists >= _split_artists and _ard_artists > 0:
+                        _startup_app.logger.warning(
+                            "ARD build: skipped (table complete: %d/%d artists).",
+                            _ard_artists, _split_artists
+                        )
                     else:
-                        _startup_app.logger.warning("ARD build: starting (table empty).")
+                        _startup_app.logger.warning(
+                            "ARD build: starting (table has %d/%d artists — empty or partial).",
+                            _ard_artists, _split_artists
+                        )
                         from blueprints.streaming_royalties import _rebuild_artist_detail as _rad_bg
                         _rad_bg(_eng)
                         _startup_app.logger.warning("ARD build: complete.")
