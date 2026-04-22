@@ -2306,6 +2306,22 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 .sr-tbl tr:last-child td{border-bottom:none}
 .sr-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
 .sr-no-data{color:#4a5470;font-size:13px;text-align:center;padding:30px 0}
+.mobile-nav{display:none}
+.mnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9ca3af;font-size:11px;text-decoration:none;gap:2px}
+.mnav-item span{font-size:20px;line-height:1}
+.mnav-item.active{color:#6385ff}
+@media(max-width:768px){
+  .sb{display:none!important}
+  .main{margin-left:0!important}
+  .sr-dash{padding-bottom:72px}
+  .sr-header{padding:12px 14px;gap:10px}
+  .sr-filters{gap:7px}
+  .sr-filters select{font-size:12px;padding:6px 22px 6px 8px}
+  .sr-grid{grid-template-columns:1fr;padding:10px 12px;gap:10px}
+  .sr-grid-3{grid-template-columns:1fr;padding:0 12px 10px;gap:10px}
+  .sr-kpi{min-width:unset;width:100%;box-sizing:border-box}
+  .mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:60px;background:#111827;border-top:1px solid rgba(255,255,255,.08);justify-content:space-around;align-items:center;z-index:9999}
+}
 </style>
 </head><body style="background:#0d1117;margin:0">
 <div class="app">""" + "{{ _sidebar_html|safe }}" + """
@@ -2601,6 +2617,12 @@ function filterCatalog(){
   <div style="color:rgba(255,255,255,.45);font-size:12px">Large date ranges take up to 30 s on first load</div>
 </div>
 <style>@keyframes spin-gear{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <a href="/artists" class="mnav-item"><span>&#127908;</span><small>Artists</small></a>
+  <a href="/streaming-royalties" class="mnav-item active"><span>&#128202;</span><small>Royalties</small></a>
+</div>
 </body></html>"""
 
 @bp.app_template_filter("tojson")
