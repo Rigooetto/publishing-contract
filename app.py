@@ -322,10 +322,17 @@ with app.app_context():
                     else:
                         _startup_app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
 
-                    _startup_app.logger.warning("ARD build: starting.")
-                    from blueprints.streaming_royalties import _rebuild_artist_detail as _rad_bg
-                    _rad_bg(_eng)
-                    _startup_app.logger.warning("ARD build: complete.")
+                    with _eng.connect() as _ard_chk:
+                        _ard_has_data = bool(_ard_chk.execute(_t_bg(
+                            "SELECT 1 FROM artist_royalty_detail LIMIT 1"
+                        )).fetchone())
+                    if _ard_has_data:
+                        _startup_app.logger.warning("ARD build: skipped (table already has data).")
+                    else:
+                        _startup_app.logger.warning("ARD build: starting (table empty).")
+                        from blueprints.streaming_royalties import _rebuild_artist_detail as _rad_bg
+                        _rad_bg(_eng)
+                        _startup_app.logger.warning("ARD build: complete.")
                 except Exception as _bg_e:
                     _startup_app.logger.warning("Startup bg thread failed: %s", _bg_e)
                 finally:
