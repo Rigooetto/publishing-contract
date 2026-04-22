@@ -1,1 +1,0 @@
-Place PUBLISHING_AGREEMENT_CONTRACT.docx in this folder before deploying.

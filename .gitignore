@@ -1,4 +1,0 @@
-instance/*.db
-__pycache__/
-.env
-streaming_imports/

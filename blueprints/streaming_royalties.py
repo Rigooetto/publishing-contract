@@ -995,6 +995,12 @@ def _get_dropdown_data(engine):
             "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
             "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
         )).fetchall()]
+        latest_month = _c.execute(text(
+            "SELECT MAX(reporting_month) FROM royalty_summary WHERE reporting_month IS NOT NULL"
+        )).scalar()
+        if latest_month:
+            _dropdown_cache["latest_year"]    = str(latest_month.year)
+            _dropdown_cache["latest_quarter"] = str((latest_month.month - 1) // 3 + 1)
     _dropdown_cache["raw_strings"] = raw_strings
     _dropdown_cache["all_years"] = all_years
     _dropdown_cache["ts"] = _time.time()
@@ -1324,10 +1330,20 @@ def dashboard():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
-    year    = request.args.get("year", "all")
-    quarter = request.args.get("quarter", "all")
+    year    = request.args.get("year")
+    quarter = request.args.get("quarter")
     artist  = request.args.get("artist", "all")
     view    = request.args.get("view", "label")
+
+    if year is None or quarter is None:
+        try:
+            _get_dropdown_data(_royalties_engine())
+        except Exception:
+            pass
+        if year is None:
+            year = _dropdown_cache.get("latest_year", "all")
+        if quarter is None:
+            quarter = _dropdown_cache.get("latest_quarter", "all")
 
     data = _dashboard_data(year, quarter, artist, view)
     return render_template_string(
