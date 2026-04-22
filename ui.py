@@ -1406,7 +1406,7 @@ function syncModalPro(sel) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -1660,7 +1660,7 @@ document.addEventListener('click', function(e) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -1865,7 +1865,7 @@ function toggleWork(id) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -1992,7 +1992,7 @@ function toggleSession(id) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -2336,7 +2336,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -2531,7 +2531,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -2939,7 +2939,7 @@ function syncModalPro(sel) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -3074,7 +3074,7 @@ function toggleWriter(id) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -3227,7 +3227,7 @@ function toggleWk(id) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -3408,7 +3408,7 @@ function syncWriterModalPro(sel) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -3546,7 +3546,7 @@ mergeSearch('mergeSearch2', 'mergeDrop2', 'duplicateWriterId', 'duplicateLabel',
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -3665,7 +3665,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -3930,7 +3930,7 @@ function toggleRel(id) {
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -4825,7 +4825,7 @@ document.addEventListener('focusin', function(e){
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -4920,7 +4920,7 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5082,7 +5082,7 @@ function toggleArtist(id) {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5237,7 +5237,7 @@ ARTIST_DETAIL_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5358,7 +5358,7 @@ ARTIST_FORM_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5428,7 +5428,7 @@ CATALOG_IMPORT_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5504,7 +5504,7 @@ CATALOG_IMPORT_RESULT_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5576,7 +5576,7 @@ REPORTS_INDEX_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5664,7 +5664,7 @@ PUBLISHER_CONFIG_HTML = """<!DOCTYPE html>
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -5890,7 +5890,7 @@ function toggleProWork(id, e) {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -6201,7 +6201,7 @@ function updateLabel(pro) {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -6558,7 +6558,7 @@ function updateLabelM(src) {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -6841,7 +6841,7 @@ function updateLabelNR() {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -7256,7 +7256,7 @@ function saveEdit(inp, kind, id) {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
 
@@ -7465,6 +7465,6 @@ function toggleAll(formId, check) {
   <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% endif %}
+  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
 </div>
 </body></html>"""
