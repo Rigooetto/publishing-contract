@@ -673,9 +673,39 @@ _ARD_INSERT_SQL = """
 """
 
 
-_ARD_PER_ARTIST_SQL = _ARD_INSERT_SQL.format(
-    where_clause="WHERE COALESCE(m.canonical_name, s.artist_name) = :n"
-)
+_ARD_PER_ARTIST_SQL = """
+    INSERT INTO artist_royalty_detail
+        (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
+    SELECT
+        :canonical                                          AS artist_name,
+        rs.reporting_month,
+        rs.isrc,
+        MAX(rs.track_title_csv)                             AS track_title,
+        rs.platform,
+        rs.country,
+        ROUND(SUM(rs.streams * s.percentage / 100.0))::bigint AS streams,
+        SUM(rs.net_revenue  * s.percentage / 100.0)         AS net_revenue
+    FROM artist_royalty_split s
+    JOIN royalty_summary rs ON rs.isrc = s.isrc
+    WHERE s.artist_name = ANY(:raw_names)
+    GROUP BY rs.reporting_month, rs.isrc, rs.platform, rs.country
+    ON CONFLICT (artist_name, reporting_month, isrc, platform, country) DO UPDATE
+        SET streams=EXCLUDED.streams, net_revenue=EXCLUDED.net_revenue, track_title=EXCLUDED.track_title
+"""
+
+
+def _resolve_artist_map(conn):
+    """Returns {canonical_name: [raw_name, ...]} from artist_royalty_split + artist_name_map."""
+    from sqlalchemy import text as _t
+    rows = conn.execute(_t(
+        "SELECT COALESCE(m.canonical_name, s.artist_name) AS canonical, "
+        "       ARRAY_AGG(DISTINCT s.artist_name)          AS raw_names "
+        "FROM artist_royalty_split s "
+        "LEFT JOIN artist_name_map m "
+        "       ON m.raw_name = s.artist_name AND m.status = 'confirmed' "
+        "GROUP BY 1"
+    )).fetchall()
+    return {r[0]: list(r[1]) for r in rows}
 
 
 def _rebuild_artist_detail(engine, artist_names=None):
@@ -689,41 +719,38 @@ def _rebuild_artist_detail(engine, artist_names=None):
     from sqlalchemy import text as _t
     _log = _lg_ard.getLogger(__name__)
 
-    def _process_one(name):
+    def _process_one(canonical, raw_names):
         with engine.connect() as _c:
-            _c.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = :n"), {"n": name})
-            _c.execute(_t(_ARD_PER_ARTIST_SQL), {"n": name})
+            _c.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = :n"), {"n": canonical})
+            _c.execute(_t(_ARD_PER_ARTIST_SQL), {"canonical": canonical, "raw_names": raw_names})
             _c.commit()
 
     try:
+        with engine.connect() as _c:
+            artist_map = _resolve_artist_map(_c)
+
         if artist_names is None:
-            with engine.connect() as _c:
-                rows = _c.execute(_t(
-                    "SELECT DISTINCT COALESCE(m.canonical_name, s.artist_name) AS artist_name "
-                    "FROM artist_royalty_split s "
-                    "LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'"
-                )).fetchall()
-            all_artists = [r[0] for r in rows]
-            _log.warning("ARD full rebuild: %d artists to process", len(all_artists))
+            _log.warning("ARD full rebuild: %d artists to process", len(artist_map))
             done = 0
-            for name in all_artists:
+            for canonical, raw_names in artist_map.items():
                 try:
-                    _process_one(name)
+                    _process_one(canonical, raw_names)
                     done += 1
-                    if done % 20 == 0 or done == len(all_artists):
-                        _log.warning("ARD rebuild progress: %d/%d artists done", done, len(all_artists))
+                    if done % 20 == 0 or done == len(artist_map):
+                        _log.warning("ARD rebuild progress: %d/%d artists done", done, len(artist_map))
                 except Exception as _e:
-                    _log.warning("ARD rebuild: artist %r failed: %s", name, _e)
-            _log.warning("ARD full rebuild complete: %d/%d artists processed", done, len(all_artists))
+                    _log.warning("ARD rebuild: artist %r failed: %s", canonical, _e)
+            _log.warning("ARD full rebuild complete: %d/%d artists processed", done, len(artist_map))
         else:
             names = list(artist_names)
             if not names:
                 return
-            for name in names:
+            for canonical in names:
+                raw_names = artist_map.get(canonical, [canonical])
                 try:
-                    _process_one(name)
+                    _process_one(canonical, raw_names)
                 except Exception as _e:
-                    _log.warning("ARD rebuild: artist %r failed: %s", name, _e)
+                    _log.warning("ARD rebuild: artist %r failed: %s", canonical, _e)
     except Exception as _e:
         _log.warning("_rebuild_artist_detail failed: %s", _e)
 
