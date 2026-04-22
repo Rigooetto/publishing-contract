@@ -845,10 +845,16 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
         )[0][0])
 
         by_artist_rows = q(f"""
-            SELECT ard.artist_name AS artist, COALESCE(SUM(ard.net_revenue), 0) AS rev
+            SELECT rs.artist_name_csv AS artist, COALESCE(SUM(ard.net_revenue), 0) AS rev
               FROM artist_royalty_detail ard
+              JOIN royalty_summary rs
+                ON rs.isrc              = ard.isrc
+               AND rs.reporting_month   = ard.reporting_month
+               AND rs.platform          IS NOT DISTINCT FROM ard.platform
+               AND rs.country           IS NOT DISTINCT FROM ard.country
              WHERE {where}
-             GROUP BY ard.artist_name ORDER BY rev DESC
+               AND rs.artist_name_csv IS NOT NULL AND rs.artist_name_csv != ''
+             GROUP BY rs.artist_name_csv ORDER BY rev DESC
         """)
 
         by_month_rows = q(f"""
@@ -910,6 +916,14 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
             if _name:
                 _artist_names.add(_dd_name_map.get(_name, _name))
     all_artists = sorted(_artist_names, key=str.lower)
+
+    if _dd_name_map:
+        _norm: dict = {}
+        for row in by_artist_rows:
+            parts = [p.strip() for p in row[0].split(',') if p.strip()]
+            normalized = ', '.join(_dd_name_map.get(p, p) for p in parts)
+            _norm[normalized] = _norm.get(normalized, 0.0) + float(row[1])
+        by_artist_rows = sorted(_norm.items(), key=lambda x: x[1], reverse=True)
 
     return {
         "kpi_total":   kpi_total,
