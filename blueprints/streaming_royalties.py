@@ -793,15 +793,10 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
         )[0][0])
 
         by_artist_rows = q(f"""
-            SELECT rs.artist_name_csv AS artist, COALESCE(SUM(ard.net_revenue), 0) AS rev
+            SELECT ard.artist_name AS artist, COALESCE(SUM(ard.net_revenue), 0) AS rev
               FROM artist_royalty_detail ard
-              JOIN royalty_summary rs
-                ON rs.isrc = ard.isrc
-               AND rs.reporting_month = ard.reporting_month
-               AND COALESCE(rs.platform, '') = COALESCE(ard.platform, '')
-               AND COALESCE(rs.country,  '') = COALESCE(ard.country,  '')
-             WHERE {where} AND rs.artist_name_csv IS NOT NULL AND rs.artist_name_csv != ''
-             GROUP BY rs.artist_name_csv ORDER BY rev DESC
+             WHERE {where}
+             GROUP BY ard.artist_name ORDER BY rev DESC
         """)
 
         by_month_rows = q(f"""
@@ -833,16 +828,11 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
 
         catalog_rows = q(f"""
             SELECT ard.isrc,
-                   MAX(ard.track_title)                  AS title,
-                   MAX(rs.artist_name_csv)               AS artist,
-                   COALESCE(SUM(ard.streams), 0)         AS streams,
-                   COALESCE(SUM(ard.net_revenue), 0)     AS rev
+                   MAX(ard.track_title)              AS title,
+                   MAX(ard.artist_name)              AS artist,
+                   COALESCE(SUM(ard.streams), 0)     AS streams,
+                   COALESCE(SUM(ard.net_revenue), 0) AS rev
               FROM artist_royalty_detail ard
-              JOIN royalty_summary rs
-                ON rs.isrc = ard.isrc
-               AND rs.reporting_month = ard.reporting_month
-               AND COALESCE(rs.platform, '') = COALESCE(ard.platform, '')
-               AND COALESCE(rs.country,  '') = COALESCE(ard.country,  '')
              WHERE {where}
              GROUP BY ard.isrc ORDER BY rev DESC LIMIT 300
         """)
