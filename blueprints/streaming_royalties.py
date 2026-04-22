@@ -523,34 +523,46 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
         _app = current_app._get_current_object()
         _royalties_url_snap = _royalties_engine().url.render_as_string(hide_password=False)
         _new_individuals_snap = set(_new_individuals)
+
+        # Auto-map artist names synchronously — ARD rebuild depends on canonical mappings
+        _emit({"status": "processing", "message": "Mapping artist names..."})
+        try:
+            _auto_map_individuals(_new_individuals_snap)
+        except Exception as _am_e:
+            import logging as _lg_am
+            _lg_am.getLogger(__name__).warning("Auto-map failed: %s", _am_e)
+
+        # Rebuild ARD synchronously so artist dashboard is accurate on first load
+        _emit({"status": "processing", "message": "Updating artist revenue cache..."})
+        try:
+            from sqlalchemy import create_engine as _ce_pi
+            from sqlalchemy.pool import NullPool
+            _eng_pi = _ce_pi(_royalties_url_snap, poolclass=NullPool)
+            _canonical_pi = set()
+            try:
+                from models import ArtistNameMap as _ANM_pi
+                for _raw_pi in _new_individuals_snap:
+                    _m_pi = _ANM_pi.query.filter_by(raw_name=_raw_pi, status='confirmed').first()
+                    _canonical_pi.add(_m_pi.canonical_name if _m_pi else _raw_pi)
+            except Exception:
+                _canonical_pi = _new_individuals_snap
+            if _canonical_pi:
+                _rebuild_artist_detail(_eng_pi, artist_names=list(_canonical_pi))
+            _eng_pi.dispose()
+        except Exception as _ard_pi_e:
+            import logging as _lg_pi
+            _lg_pi.getLogger(__name__).warning("Post-import ARD rebuild failed: %s", _ard_pi_e)
+
+        # Background: prewarm dashboard cache only (non-blocking, nice-to-have)
         def _run_post_import():
             with _app.app_context():
-                _auto_map_individuals(_new_individuals_snap)
-                # Rebuild ARD for artists affected by this import
-                try:
-                    from sqlalchemy import create_engine as _ce_pi
-                    from sqlalchemy.pool import NullPool
-                    _eng_pi = _ce_pi(_royalties_url_snap, poolclass=NullPool)
-                    _canonical_pi = set()
-                    try:
-                        from models import ArtistNameMap as _ANM_pi
-                        for _raw_pi in _new_individuals_snap:
-                            _m_pi = _ANM_pi.query.filter_by(raw_name=_raw_pi, status='confirmed').first()
-                            _canonical_pi.add(_m_pi.canonical_name if _m_pi else _raw_pi)
-                    except Exception:
-                        _canonical_pi = _new_individuals_snap
-                    if _canonical_pi:
-                        _rebuild_artist_detail(_eng_pi, artist_names=list(_canonical_pi))
-                    _eng_pi.dispose()
-                except Exception as _ard_pi_e:
-                    import logging as _lg_pi
-                    _lg_pi.getLogger(__name__).warning("Post-import ARD rebuild failed: %s", _ard_pi_e)
                 if _prewarm_lock.acquire(blocking=False):
                     try:
                         _prewarm_dashboard_cache()
                     finally:
                         _prewarm_lock.release()
         threading.Thread(target=_run_post_import, daemon=True).start()
+
         _emit({"status": "done",
                "rows_read":      row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
@@ -2802,7 +2814,8 @@ function applyUpdate(d){
       errBox.textContent=d.error_message;
     }
   } else if(d.status==='processing'){
-    badge.innerHTML='<span style="color:var(--am)">&#9654; Processing…</span>';
+    const msg = d.message || 'Processing\u2026';
+    badge.innerHTML=`<span style="color:var(--am)">&#9654; ${msg}</span>`;
   }
 }
 
