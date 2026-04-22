@@ -1272,7 +1272,7 @@ def ard_status():
         rs_total    = _c.execute(text("SELECT COUNT(*) FROM royalty_summary")).scalar()
         sample = [dict(r._mapping) for r in _c.execute(text(
             "SELECT artist_name, COUNT(*) AS rows, SUM(net_revenue) AS revenue "
-            "FROM artist_royalty_detail GROUP BY artist_name ORDER BY revenue DESC LIMIT 10"
+            "FROM artist_royalty_detail GROUP BY artist_name ORDER BY revenue DESC"
         )).fetchall()]
     return jsonify({
         "ard_total_rows": ard_total,
