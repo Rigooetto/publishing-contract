@@ -22,6 +22,8 @@ _CACHE_TTL = 600  # seconds
 _splits_cache: dict = {}
 _SPLITS_CACHE_TTL = 120  # seconds
 
+_dropdown_cache: dict = {}  # {"raw_strings": [...], "all_years": [...], "ts": float}
+
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
 _prewarm_lock = threading.Lock()
 
@@ -769,17 +771,8 @@ def _rebuild_artist_detail(engine, artist_names=None):
 
 def _compute_dashboard_data_ard_empty(year, quarter, artist, engine):
     """Return a zero-revenue dashboard for an artist with no splits defined.
-    Only runs the two cheap dropdown queries (all_artists, all_years) — no table scan."""
-    from sqlalchemy import text
-    with engine.connect() as _conn:
-        _raw_strings = [r[0] for r in _conn.execute(text(
-            "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
-            "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''"
-        )).fetchall()]
-        all_years = [int(r[0]) for r in _conn.execute(text(
-            "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
-            "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
-        )).fetchall()]
+    Uses cached dropdown data — no full royalty_summary table scan."""
+    _raw_strings, all_years = _get_dropdown_data(engine)
     _dd_name_map = {}
     try:
         from models import ArtistNameMap as _ANM_e
@@ -901,17 +894,7 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
             for r in catalog_rows
         ]
 
-        # Dropdowns always come from royalty_summary (full artist list, not filtered)
-        _raw_strings = [r[0] for r in q(
-            "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
-            "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
-            {},
-        )]
-        all_years = [int(r[0]) for r in q(
-            "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
-            "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
-            {},
-        )]
+    _raw_strings, all_years = _get_dropdown_data(engine)
 
     _dd_name_map = {}
     try:
@@ -991,6 +974,31 @@ def _clear_cache_for_months(engine, reporting_months):
         elif k_year in affected_years:
             if k_quarter == "all" or (k_year, k_quarter) in affected_yq:
                 _dash_cache.pop(key, None)
+    _dropdown_cache.clear()
+
+
+def _get_dropdown_data(engine):
+    """Return (raw_strings, all_years) for dropdown menus, cached in-process.
+    The SELECT DISTINCT on 6.3M-row royalty_summary is expensive; cache survives
+    across requests and is cleared by _clear_cache_for_months on each import.
+    """
+    from sqlalchemy import text
+    cached = _dropdown_cache.get("ts")
+    if cached and _time.time() - cached < _CACHE_TTL:
+        return _dropdown_cache["raw_strings"], _dropdown_cache["all_years"]
+    with engine.connect() as _c:
+        raw_strings = [r[0] for r in _c.execute(text(
+            "SELECT DISTINCT artist_name_csv FROM royalty_summary "
+            "WHERE artist_name_csv IS NOT NULL AND artist_name_csv != ''"
+        )).fetchall()]
+        all_years = [int(r[0]) for r in _c.execute(text(
+            "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
+            "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
+        )).fetchall()]
+    _dropdown_cache["raw_strings"] = raw_strings
+    _dropdown_cache["all_years"] = all_years
+    _dropdown_cache["ts"] = _time.time()
+    return raw_strings, all_years
 
 
 def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
@@ -1203,12 +1211,8 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                 "streams": int(r[3]), "revenue": float(r[4])}
                for r in catalog_rows]
 
-    # Dropdown options — split collab strings, apply name_map for display, deduplicate
-    _raw_strings = [r[0] for r in q(
-        "SELECT DISTINCT sr.artist_name_csv FROM royalty_summary sr "
-        "WHERE sr.artist_name_csv IS NOT NULL AND sr.artist_name_csv != ''",
-        {},
-    )]
+    # Dropdown options — cached to avoid repeated full royalty_summary scans
+    _raw_strings, all_years = _get_dropdown_data(_engine)
     _dd_name_map = {}
     try:
         from models import ArtistNameMap as _ANM_dd
@@ -1223,11 +1227,6 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
             if name:
                 _artist_names.add(_dd_name_map.get(name, name))
     all_artists = sorted(_artist_names, key=str.lower)
-    all_years = [int(r[0]) for r in q(
-        "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
-        "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC",
-        {},
-    )]
 
     # Normalize by_artist: split collab strings → map each name → rejoin → re-aggregate
     if _dd_name_map:
@@ -1271,10 +1270,6 @@ def ard_status():
         split_total = _c.execute(text("SELECT COUNT(*) FROM artist_royalty_split")).scalar()
         split_isrcs = _c.execute(text("SELECT COUNT(DISTINCT isrc) FROM artist_royalty_split")).scalar()
         rs_total    = _c.execute(text("SELECT COUNT(*) FROM royalty_summary")).scalar()
-        matched     = _c.execute(text(
-            "SELECT COUNT(DISTINCT s.isrc) FROM artist_royalty_split s "
-            "JOIN royalty_summary rs ON rs.isrc = s.isrc"
-        )).scalar()
         sample = [dict(r._mapping) for r in _c.execute(text(
             "SELECT artist_name, COUNT(*) AS rows, SUM(net_revenue) AS revenue "
             "FROM artist_royalty_detail GROUP BY artist_name ORDER BY revenue DESC LIMIT 10"
@@ -1285,7 +1280,6 @@ def ard_status():
         "split_total_rows": split_total,
         "split_distinct_isrcs": split_isrcs,
         "royalty_summary_rows": rs_total,
-        "split_isrcs_matched_in_summary": matched,
         "top_artists_by_revenue": sample,
     })
 
