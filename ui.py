@@ -863,7 +863,7 @@ def _sidebar(active):
 LOGIN_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Login - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -895,7 +895,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>New Work - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -1417,7 +1417,7 @@ function syncModalPro(sel) {
 DUPLICATE_WARNING_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Possible Duplicate - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -1671,7 +1671,7 @@ document.addEventListener('click', function(e) {
 WORKS_LIST_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Works - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -1876,7 +1876,7 @@ function toggleWork(id) {
 BATCHES_LIST_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Sessions - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -2003,7 +2003,7 @@ function toggleSession(id) {
 BATCH_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Session {{ batch.id }} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -2347,7 +2347,7 @@ document.addEventListener('DOMContentLoaded', function() {
 WORK_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>{{ work.title }} - LabelMind</title>""" + _STYLE + """
 <style>@media(max-width:767px){.ph-actions{display:none}}</style>
 </head>
@@ -2542,7 +2542,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
 WORK_EDIT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Edit {{ work.title }} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -2950,7 +2950,7 @@ function syncModalPro(sel) {
 WRITERS_LIST_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Writers - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -3086,7 +3086,7 @@ function toggleWriter(id) {
 WRITER_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>{{ writer.full_name }} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -3238,7 +3238,7 @@ function toggleWk(id) {
 WRITER_EDIT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Edit {{ writer.full_name }} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -3420,7 +3420,7 @@ function syncWriterModalPro(sel) {
 ADMIN_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Admin - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -3557,7 +3557,7 @@ mergeSearch('mergeSearch2', 'mergeDrop2', 'duplicateWriterId', 'duplicateLabel',
 IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Import Preview - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -3780,7 +3780,7 @@ WRITER_MODAL_HTML = """
 RELEASES_LIST_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Releases - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -3938,7 +3938,7 @@ function toggleRel(id) {
 RELEASE_FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>{{ 'Edit' if release else 'New' }} Release - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -4833,7 +4833,7 @@ document.addEventListener('focusin', function(e){
 RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>{{ release.title }} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -4932,7 +4932,7 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 ARTISTS_LIST_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Artist Directory - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5094,7 +5094,7 @@ function toggleArtist(id) {
 ARTIST_DETAIL_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>{{ artist.name }} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5249,7 +5249,7 @@ ARTIST_DETAIL_HTML = """<!DOCTYPE html>
 ARTIST_FORM_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>{% if artist %}Edit {{ artist.name }}{% else %}New Artist{% endif %} - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5369,7 +5369,7 @@ ARTIST_FORM_HTML = """<!DOCTYPE html>
 CATALOG_IMPORT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Import Catalog CSV - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5436,7 +5436,7 @@ CATALOG_IMPORT_HTML = """<!DOCTYPE html>
 CATALOG_IMPORT_RESULT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Import Results - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5514,7 +5514,7 @@ CATALOG_IMPORT_RESULT_HTML = """<!DOCTYPE html>
 REPORTS_INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Reports - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5584,7 +5584,7 @@ REPORTS_INDEX_HTML = """<!DOCTYPE html>
 PUBLISHER_CONFIG_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Publisher Config - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5672,7 +5672,7 @@ PUBLISHER_CONFIG_HTML = """<!DOCTYPE html>
 PRO_REGISTRATION_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>PRO Registration - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -5899,7 +5899,7 @@ function toggleProWork(id, e) {
 PRO_AUDIT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>PRO Audit - LabelMind</title>""" + _STYLE + """
 <style>
 .audit-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
@@ -6210,7 +6210,7 @@ function updateLabel(pro) {
 MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Mechanical Audit - LabelMind</title>""" + _STYLE + """
 <style>
 .audit-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
@@ -6567,7 +6567,7 @@ function updateLabelM(src) {
 NEIGHBORING_RIGHTS_AUDIT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Neighboring Rights Audit - LabelMind</title>""" + _STYLE + """
 <style>
 .audit-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
@@ -6853,7 +6853,7 @@ function updateLabelNR() {
 SETUP_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Setup - LabelMind</title>""" + _STYLE + """
 </head>
 <body>
@@ -6890,7 +6890,7 @@ SETUP_HTML = """<!DOCTYPE html>
 USERS_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Users - LabelMind</title>""" + _STYLE + """
 <style>
 .upload-section summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--t2);padding:10px 14px;background:var(--s1);border:1px solid var(--b0);border-radius:8px;margin-bottom:14px;list-style:none;display:flex;align-items:center;justify-content:space-between}
@@ -7013,7 +7013,7 @@ USERS_HTML = """<!DOCTYPE html>
 TITLE_REVIEW_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Title Review - LabelMind</title>""" + _STYLE + """
 <style>
 .tr-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--b0)}
@@ -7264,7 +7264,7 @@ function saveEdit(inp, kind, id) {
 REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/LabelMind_Logo_loRes.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind">
 <title>Registration Report - LabelMind</title>""" + _STYLE + """
 <style>
 .rr-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
