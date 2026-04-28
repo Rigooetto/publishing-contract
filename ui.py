@@ -926,6 +926,11 @@ function closeMobileMore(){
   document.getElementById('mnavMoreBackdrop').classList.remove('open');
   document.getElementById('mnavMoreBtn').classList.remove('on');
 }
+if(navigator.standalone){
+  document.querySelectorAll('.mnav-item[href],.mnav-more-link[href]').forEach(function(a){
+    a.onclick=function(e){e.preventDefault();location.href=this.href;};
+  });
+}
 </script>"""
 
 
