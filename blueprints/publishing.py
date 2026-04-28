@@ -1163,6 +1163,11 @@ def writer_new():
         phone_number = (request.form.get("phone_number") or "").strip()
         default_publisher = (request.form.get("default_publisher") or "").strip()
         default_publisher_ipi = (request.form.get("default_publisher_ipi") or "").strip()
+        address = (request.form.get("address") or "").strip()
+        city = (request.form.get("city") or "").strip()
+        state = (request.form.get("state") or "").strip()
+        zip_code = (request.form.get("zip_code") or "").strip()
+        has_master_contract = request.form.get("has_master_contract") == "1"
         is_ajax = request.form.get("ajax") == "1"
 
         def _err(msg):
@@ -1205,6 +1210,11 @@ def writer_new():
             phone_number=phone_number,
             default_publisher=default_publisher,
             default_publisher_ipi=default_publisher_ipi,
+            address=address,
+            city=city,
+            state=state,
+            zip_code=zip_code,
+            has_master_contract=has_master_contract,
         )
         try:
             db.session.add(writer)

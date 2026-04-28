@@ -2738,15 +2738,16 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 </main>
 </div>
 
-<div id="newWriterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;">
-  <div style="position:absolute;top:8%;left:50%;transform:translateX(-50%);width:92%;max-width:560px;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);">
-    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);">
+<div id="newWriterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;overflow-y:auto;">
+  <div style="position:relative;margin:32px auto;width:92%;max-width:680px;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);">
+    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:1;">
       <span style="font-weight:600;">New Writer</span>
       <button type="button" onclick="closeNewWriterModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&#215;</button>
     </div>
     <div style="padding:18px;">
       <div id="newWriterError" style="color:#ff8a8a;margin-bottom:8px;font-size:13px;min-height:16px;"></div>
-      <div class="g g3" style="margin-bottom:12px">
+
+      <div class="g g4" style="margin-bottom:12px">
         <div class="field">
           <label class="label">First Name *</label>
           <input class="inp" id="nwFirstName" placeholder="First name">
@@ -2759,11 +2760,31 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
           <label class="label">Last Name(s) *</label>
           <input class="inp" id="nwLastNames" placeholder="Last name(s)">
         </div>
+        <div class="field">
+          <label class="label">AKA / Stage</label>
+          <input class="inp" id="nwAka" placeholder="Stage name">
+        </div>
       </div>
+
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Email</label>
+          <input class="inp" id="nwEmail" type="email" placeholder="Email address">
+        </div>
+        <div class="field">
+          <label class="label">Phone Number</label>
+          <input class="inp" id="nwPhone" placeholder="Phone number">
+        </div>
+      </div>
+
       <div class="g g3" style="margin-bottom:12px">
         <div class="field">
+          <label class="label">IPI</label>
+          <input class="inp" id="nwIpi" placeholder="IPI number">
+        </div>
+        <div class="field">
           <label class="label">PRO *</label>
-          <select class="inp" id="nwPro">
+          <select class="inp" id="nwPro" onchange="syncNwPro()">
             <option value="">-- Select --</option>
             <option value="ASCAP">ASCAP</option>
             <option value="BMI">BMI</option>
@@ -2771,15 +2792,45 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
           </select>
         </div>
         <div class="field">
-          <label class="label">IPI</label>
-          <input class="inp" id="nwIpi" placeholder="IPI number">
-        </div>
-        <div class="field">
-          <label class="label">Email</label>
-          <input class="inp" id="nwEmail" placeholder="Email">
+          <label class="label">Publishing Contract</label>
+          <select class="inp" id="nwContract">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
         </div>
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Default Publisher</label>
+          <input class="inp" id="nwPublisher" placeholder="Publisher name">
+        </div>
+        <div class="field">
+          <label class="label">Default Publisher IPI</label>
+          <input class="inp" id="nwPublisherIpi" placeholder="Publisher IPI">
+        </div>
+      </div>
+
+      <div class="g g4a" style="margin-bottom:16px">
+        <div class="field">
+          <label class="label">Street</label>
+          <input class="inp" id="nwAddress" placeholder="Street address">
+        </div>
+        <div class="field">
+          <label class="label">City</label>
+          <input class="inp" id="nwCity" placeholder="City">
+        </div>
+        <div class="field">
+          <label class="label">State</label>
+          <input class="inp" id="nwState" placeholder="State">
+        </div>
+        <div class="field">
+          <label class="label">Zip</label>
+          <input class="inp" id="nwZip" placeholder="Zip">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button type="button" class="btn btn-sec" onclick="closeNewWriterModal()">Cancel</button>
         <button type="button" class="btn btn-primary" onclick="submitNewWriter()">Create Writer</button>
       </div>
@@ -3038,15 +3089,31 @@ function syncModalPro(sel) {
 
 var _nwTargetRow = null;
 
+function syncNwPro() {
+  var pro = document.getElementById('nwPro').value;
+  var publisherMap = {
+    BMI:   { name: 'Songs of Afinarte',    ipi: '817874992' },
+    ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
+    SESAC: { name: 'Music of Afinarte',    ipi: '817094629' }
+  };
+  var p = publisherMap[pro];
+  if (!p) return;
+  document.getElementById('nwPublisher').value = p.name;
+  document.getElementById('nwPublisherIpi').value = p.ipi;
+}
+
 function openNewWriterModal(tr, prefillName) {
   _nwTargetRow = tr;
   document.getElementById('newWriterModal').style.display = 'block';
+  document.getElementById('newWriterModal').scrollTop = 0;
   document.body.style.overflow = 'hidden';
   document.getElementById('newWriterError').textContent = '';
-  document.getElementById('nwMiddleName').value = '';
+  ['nwMiddleName','nwAka','nwEmail','nwPhone','nwIpi','nwPublisher',
+   'nwPublisherIpi','nwAddress','nwCity','nwState','nwZip'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
   document.getElementById('nwPro').value = '';
-  document.getElementById('nwIpi').value = '';
-  document.getElementById('nwEmail').value = '';
+  document.getElementById('nwContract').value = '0';
   if (prefillName) {
     var parts = prefillName.trim().split(/\s+/);
     if (parts.length >= 2) {
@@ -3076,9 +3143,18 @@ function submitNewWriter() {
   fd.append('first_name', document.getElementById('nwFirstName').value.trim());
   fd.append('middle_name', document.getElementById('nwMiddleName').value.trim());
   fd.append('last_names', document.getElementById('nwLastNames').value.trim());
-  fd.append('pro', document.getElementById('nwPro').value);
-  fd.append('ipi', document.getElementById('nwIpi').value.trim());
+  fd.append('writer_aka', document.getElementById('nwAka').value.trim());
   fd.append('email', document.getElementById('nwEmail').value.trim());
+  fd.append('phone_number', document.getElementById('nwPhone').value.trim());
+  fd.append('ipi', document.getElementById('nwIpi').value.trim());
+  fd.append('pro', document.getElementById('nwPro').value);
+  fd.append('has_master_contract', document.getElementById('nwContract').value);
+  fd.append('default_publisher', document.getElementById('nwPublisher').value.trim());
+  fd.append('default_publisher_ipi', document.getElementById('nwPublisherIpi').value.trim());
+  fd.append('address', document.getElementById('nwAddress').value.trim());
+  fd.append('city', document.getElementById('nwCity').value.trim());
+  fd.append('state', document.getElementById('nwState').value.trim());
+  fd.append('zip_code', document.getElementById('nwZip').value.trim());
   fetch('/writers/new', { method: 'POST', body: fd })
     .then(function(r) { return r.json(); })
     .then(function(data) {
