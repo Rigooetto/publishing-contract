@@ -2275,7 +2275,7 @@ def _sb(active="streaming_royalties"):
 
 def _page(title, active, body):
     return f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>{title} — AfinArte</title>{_STYLE}</head>
 <body><div class="app">
 {_sidebar(active)}
@@ -2287,7 +2287,7 @@ def _page(title, active, body):
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Streaming Royalties — AfinArte</title>""" + _STYLE + """
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -2636,7 +2636,7 @@ def _tojson_filter(value):
 # ── Imports list page ─────────────────────────────────────────────────────────
 
 _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Streaming Imports — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
@@ -2754,7 +2754,7 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 # ── Import form ───────────────────────────────────────────────────────────────
 
 _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Upload CSV — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
 {{ _sidebar_html|safe }}
@@ -2783,7 +2783,7 @@ _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
 # ── Bulk import form ──────────────────────────────────────────────────────────
 
 _BULK_IMPORT_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Bulk Import — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
 {{ _sidebar_html|safe }}
@@ -2812,7 +2812,7 @@ _BULK_IMPORT_HTML = """<!DOCTYPE html><html lang="en"><head>
 # ── Status page ───────────────────────────────────────────────────────────────
 
 _STATUS_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Import Status — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
 {{ _sidebar_html|safe }}
@@ -2911,7 +2911,7 @@ function poll(){
 # ── Catalog upload ────────────────────────────────────────────────────────────
 
 _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Catalog Upload — AfinArte</title>""" + _STYLE + """
 </head><body><div class="app">
 {{ _sidebar_html|safe }}
@@ -2971,7 +2971,7 @@ _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
 # ── Artist Name Consolidation UI ──────────────────────────────────────────────
 
 _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Artist Names — AfinArte</title>""" + _STYLE + """
 <style>
 .an-stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
@@ -3137,7 +3137,7 @@ function doSearch(q){
 # ── Split Gaps UI ─────────────────────────────────────────────────────────────
 
 _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Split Gaps — AfinArte</title>""" + _STYLE + """
 <style>
 .gaps-banner{background:var(--c2);border:1px solid rgba(255,79,106,.3);border-radius:10px;padding:16px 20px;margin-bottom:24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap}
@@ -3756,7 +3756,7 @@ def split_gaps_save_split():
 # ── Artist Audit UI ───────────────────────────────────────────────────────────
 
 _ARTIST_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script>if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Artist Audit — AfinArte</title>""" + _STYLE + """
 <style>
 .audit-tbl{width:100%;border-collapse:collapse;font-size:13px}

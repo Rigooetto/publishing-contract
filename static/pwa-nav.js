@@ -1,0 +1,1 @@
+if(navigator.standalone||window.matchMedia('(display-mode:standalone)').matches){document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.hostname===location.hostname&&!a.target){e.preventDefault();location.href=a.href;}});}
