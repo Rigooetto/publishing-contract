@@ -2265,7 +2265,7 @@ def artist_names():
 
 # ── HTML Templates ─────────────────────────────────────────────────────────────
 
-from ui import _STYLE, _sidebar, _SB_JS  # noqa: E402
+from ui import _STYLE, _sidebar, _SB_JS, _mobile_nav  # noqa: E402
 
 
 def _sb(active="streaming_royalties"):
@@ -2625,12 +2625,7 @@ function filterCatalog(){
   <div style="color:rgba(255,255,255,.45);font-size:12px">Large date ranges take up to 30 s on first load</div>
 </div>
 <style>@keyframes spin-gear{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  <a href="/artists" class="mnav-item"><span>&#127908;</span><small>Artists</small></a>
-  <a href="/streaming-royalties" class="mnav-item active"><span>&#128202;</span><small>Royalties</small></a>
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 @bp.app_template_filter("tojson")

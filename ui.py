@@ -355,6 +355,17 @@ select.inp option{background:var(--bg2);color:var(--t1)}
     color:#fff;
   }
 
+  .mnav-more-btn{background:none;border:none;cursor:pointer;padding:0}
+  .mnav-more-overlay{display:none;position:fixed;bottom:60px;left:0;right:0;max-height:70vh;overflow-y:auto;background:#111827;border-top:1px solid rgba(255,255,255,.12);z-index:9998;padding:8px 0 16px}
+  .mnav-more-overlay.open{display:block}
+  .mnav-more-backdrop{display:none;position:fixed;inset:0;bottom:60px;z-index:9997}
+  .mnav-more-backdrop.open{display:block}
+  .mnav-more-sec{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4b5563;padding:10px 16px 4px}
+  .mnav-more-link{display:flex;align-items:center;gap:10px;padding:10px 16px;color:#9ca3af;text-decoration:none;font-size:13px}
+  .mnav-more-link span{font-size:16px;width:20px;text-align:center}
+  .mnav-more-link.on,.mnav-more-link:active{color:#6385ff}
+  .mnav-item.on{color:#6385ff}
+
   .page{
     padding-bottom:160px;
   }
@@ -854,6 +865,68 @@ def _sidebar(active):
     html += "<b>LabelMind</b> Music Publishing<br>2026 LabelMind.ai</div>"
     html += "</aside>"
     return html
+
+
+def _mobile_nav():
+    return """
+<div class="mobile-nav">
+  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
+  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
+  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
+  <button class="mnav-item mnav-more-btn" id="mnavMoreBtn" onclick="toggleMobileMore()"><span>&#8943;</span><small>More</small></button>
+</div>
+<div class="mnav-more-overlay" id="mnavMoreOverlay">
+  <div class="mnav-more-sec">Contracts</div>
+  <a href="/works" class="mnav-more-link"><span>&#128395;</span>Works</a>
+  <a href="/batches" class="mnav-more-link"><span>&#128466;</span>Sessions</a>
+  <div class="mnav-more-sec">Catalog</div>
+  <a href="/releases" class="mnav-more-link"><span>&#128191;</span>Releases</a>
+  <div class="mnav-more-sec">Resources</div>
+  <a href="/writers" class="mnav-more-link"><span>&#128101;</span>Writer Directory</a>
+  <a href="/artists" class="mnav-more-link"><span>&#127908;</span>Artist Directory</a>
+  <a href="#" class="mnav-more-link" onclick="openSettings();return false;"><span>&#127899;</span>Settings</a>
+  {% if current_role in ('admin', 'label_manager', 'publishing_manager') %}
+  <div class="mnav-more-sec">Reporting</div>
+  <a href="/reports" class="mnav-more-link"><span>&#128202;</span>Reports</a>
+  <a href="/pro-registration" class="mnav-more-link"><span>&#9989;</span>PRO Registration</a>
+  <a href="/pro-audit" class="mnav-more-link"><span>&#128269;</span>PRO Audit</a>
+  <a href="/mechanical-audit" class="mnav-more-link"><span>&#127926;</span>Mechanical Audit</a>
+  <a href="/neighboring-rights-audit" class="mnav-more-link"><span>&#127911;</span>Neighboring Rights</a>
+  <a href="/title-review" class="mnav-more-link"><span>&#9997;</span>Title Review</a>
+  <a href="/registration-report" class="mnav-more-link"><span>&#128228;</span>Registration Report</a>
+  {% if current_role == 'admin' %}
+  <div class="mnav-more-sec">Streaming</div>
+  <a href="/streaming-royalties" class="mnav-more-link"><span>&#127925;</span>Streaming Royalties</a>
+  <a href="/streaming-royalties/imports" class="mnav-more-link"><span>&#8679;</span>Streaming Imports</a>
+  <a href="/streaming-royalties/catalog-upload" class="mnav-more-link"><span>&#128209;</span>Royalty Catalog</a>
+  <a href="/streaming-royalties/artist-names" class="mnav-more-link"><span>&#127968;</span>Artist Names</a>
+  <a href="/streaming-royalties/split-gaps" class="mnav-more-link"><span>&#9888;</span>Split Gaps</a>
+  {% endif %}
+  <div class="mnav-more-sec">Admin</div>
+  <a href="/admin" class="mnav-more-link"><span>&#128736;</span>Admin Panel</a>
+  {% endif %}
+  {% if current_role == 'admin' %}
+  <div class="mnav-more-sec">Team</div>
+  <a href="/users" class="mnav-more-link"><span>&#128101;</span>Users</a>
+  {% endif %}
+  <div class="mnav-more-sec">Account</div>
+  <a href="/logout" class="mnav-more-link"><span>&#128682;</span>Sign out</a>
+</div>
+<div class="mnav-more-backdrop" id="mnavMoreBackdrop" onclick="closeMobileMore()"></div>
+<script>
+function toggleMobileMore(){
+  var o=document.getElementById('mnavMoreOverlay');
+  var open=o.classList.toggle('open');
+  document.getElementById('mnavMoreBackdrop').classList.toggle('open',open);
+  document.getElementById('mnavMoreBtn').classList.toggle('on',open);
+  if(open){var path=window.location.pathname;o.querySelectorAll('.mnav-more-link').forEach(function(a){a.classList.toggle('on',a.getAttribute('href')===path);});}
+}
+function closeMobileMore(){
+  document.getElementById('mnavMoreOverlay').classList.remove('open');
+  document.getElementById('mnavMoreBackdrop').classList.remove('open');
+  document.getElementById('mnavMoreBtn').classList.remove('on');
+}
+</script>"""
 
 
 # ================================================================
@@ -5080,12 +5153,7 @@ function toggleArtist(id) {
   }
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -5235,12 +5303,7 @@ ARTIST_DETAIL_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -5356,12 +5419,7 @@ ARTIST_FORM_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -5426,12 +5484,7 @@ CATALOG_IMPORT_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -5502,12 +5555,7 @@ CATALOG_IMPORT_RESULT_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -5574,12 +5622,7 @@ REPORTS_INDEX_HTML = """<!DOCTYPE html>
 <div style="margin-top:12px"><a href="/pro-registration" class="btn btn-sec">PRO Registration Queue &rarr;</a></div>
 </div></main></div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -5662,12 +5705,7 @@ PUBLISHER_CONFIG_HTML = """<!DOCTYPE html>
 </form>
 </div></main></div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -5888,12 +5926,7 @@ function toggleProWork(id, e) {
 }
 </script>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -6199,12 +6232,7 @@ function updateLabel(pro) {
 })();
 </script>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -6556,12 +6584,7 @@ function updateLabelM(src) {
 })();
 </script>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -6839,12 +6862,7 @@ function updateLabelNR() {
 })();
 </script>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -7463,10 +7481,5 @@ function toggleAll(formId, check) {
 }
 </script>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>&#128466;</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
