@@ -112,15 +112,24 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--f)
   overflow:hidden;
 }
 
-.sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:13px 14px 4px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
+.sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t3);padding:10px 14px 3px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb.collapsed .sb-sec{opacity:0;height:0;padding:0;pointer-events:none}
-.sb-nav a{display:flex;align-items:center;gap:9px;padding:8px 13px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative;white-space:nowrap;overflow:hidden}
+.sb-nav a{display:flex;align-items:center;gap:9px;padding:6px 13px;color:var(--t2);text-decoration:none;font-size:13px;font-weight:500;transition:color .14s,background .14s;position:relative;white-space:nowrap;overflow:hidden}
 .sb-nav a:hover{color:var(--t1);background:rgba(255,255,255,.03)}
 .sb-nav a.on{color:var(--a);background:rgba(99,133,255,.08)}
-.sb-nav a.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--a);border-radius:0 2px 2px 0}
-.sb-nav .ni{font-size:13px;width:26px;height:26px;min-width:26px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:7px}
+.sb-nav a.on::before{content:'';position:absolute;left:0;top:5px;bottom:5px;width:2px;background:var(--a);border-radius:0 2px 2px 0}
+.sb-nav .ni{font-size:13px;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:7px}
 .sb-nav .nl{transition:opacity .18s}
 .sb.collapsed .sb-nav .nl{opacity:0}
+.sb-group-toggle{display:flex;align-items:center;gap:9px;padding:6px 13px;color:var(--t2);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;overflow:hidden;user-select:none;transition:color .14s,background .14s}
+.sb-group-toggle .ni{font-size:13px;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:7px}
+.sb-group-toggle:hover{color:var(--t1);background:rgba(255,255,255,.03)}
+.sb-group-arrow{margin-left:auto;font-size:8px;color:var(--t3);transition:transform .18s;flex-shrink:0}
+.sb-group.open .sb-group-arrow{transform:rotate(90deg)}
+.sb-sub-items{display:none}
+.sb-group.open .sb-sub-items{display:block}
+.sb-sub-items .sb-nav{padding-left:10px}
+.sb.collapsed .sb-group-toggle .nl,.sb.collapsed .sb-group-arrow{opacity:0}
 .sb-foot{margin-top:auto;padding:13px 14px;border-top:1px solid var(--b0);font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;transition:opacity .18s}
 .sb-foot b{color:var(--t2);font-size:11.5px;display:block;margin-bottom:2px}
 .sb.collapsed .sb-foot{opacity:0;pointer-events:none}
@@ -624,6 +633,13 @@ _SB_JS = """
     }
   }
 
+  window.toggleSbGroup = function(id){
+    var g = document.getElementById(id);
+    if(!g) return;
+    var open = g.classList.toggle('open');
+    localStorage.setItem('sbg_'+id, open?'1':'0');
+  };
+
   window.toggleSidebar = function(e){
     if(e){
       e.preventDefault();
@@ -641,6 +657,12 @@ _SB_JS = """
 
     var savedMode = localStorage.getItem('sb_mode') || 'open';
     applySidebarMode(savedMode);
+
+    var sg = document.getElementById('sbStreaming');
+    if(sg && !sg.classList.contains('open')){
+      var saved = localStorage.getItem('sbg_sbStreaming');
+      if(saved === '1') sg.classList.add('open');
+    }
 
     els.sb.addEventListener('mouseenter', function(){
       var mode = localStorage.getItem('sb_mode') || 'open';
@@ -836,11 +858,18 @@ def _sidebar(active):
     html += "<a href='/title-review'" + (" class='on'" if active == "title_review" else "") + " title='Title Review'><span class='ni'>&#9997;</span><span class='nl'>Title Review</span></a>"
     html += "<a href='/registration-report'" + (" class='on'" if active == "registration_report" else "") + " title='Registration Report'><span class='ni'>&#128228;</span><span class='nl'>Registration Report</span></a>"
     html += "{% if current_role == 'admin' %}"
-    html += "<a href='/streaming-royalties'" + (" class='on'" if active == "streaming_royalties" else "") + " title='Streaming Royalties'><span class='ni'>&#127925;</span><span class='nl'>Streaming Royalties</span></a>"
-    html += "<a href='/streaming-royalties/imports'" + (" class='on'" if active == "streaming_imports" else "") + " title='Streaming Imports'><span class='ni'>&#8679;</span><span class='nl'>Streaming Imports</span></a>"
-    html += "<a href='/streaming-royalties/catalog-upload'" + (" class='on'" if active == "streaming_catalog" else "") + " title='Artist Royalty Catalog'><span class='ni'>&#128209;</span><span class='nl'>Royalty Catalog</span></a>"
-    html += "<a href='/streaming-royalties/artist-names'" + (" class='on'" if active == "streaming_artist_names" else "") + " title='Artist Name Consolidation'><span class='ni'>&#127968;</span><span class='nl'>Artist Names</span></a>"
-    html += "<a href='/streaming-royalties/split-gaps'" + (" class='on'" if active == "streaming_split_gaps" else "") + " title='Split Gaps'><span class='ni'>&#9888;</span><span class='nl'>Split Gaps</span></a>"
+    streaming_active = active in ("streaming_royalties","streaming_imports","streaming_catalog","streaming_artist_names","streaming_split_gaps")
+    html += "<div class='sb-group" + (" open" if streaming_active else "") + "' id='sbStreaming'>"
+    html += "<div class='sb-group-toggle' onclick='toggleSbGroup(\"sbStreaming\")'>"
+    html += "<span class='ni'>&#127925;</span><span class='nl'>Streaming</span>"
+    html += "<span class='sb-group-arrow'>&#9654;</span></div>"
+    html += "<div class='sb-sub-items'><nav class='sb-nav'>"
+    html += "<a href='/streaming-royalties'" + (" class='on'" if active == "streaming_royalties" else "") + "><span class='ni'>&#127925;</span><span class='nl'>Royalties</span></a>"
+    html += "<a href='/streaming-royalties/imports'" + (" class='on'" if active == "streaming_imports" else "") + "><span class='ni'>&#8679;</span><span class='nl'>Imports</span></a>"
+    html += "<a href='/streaming-royalties/catalog-upload'" + (" class='on'" if active == "streaming_catalog" else "") + "><span class='ni'>&#128209;</span><span class='nl'>Royalty Catalog</span></a>"
+    html += "<a href='/streaming-royalties/artist-names'" + (" class='on'" if active == "streaming_artist_names" else "") + "><span class='ni'>&#127968;</span><span class='nl'>Artist Names</span></a>"
+    html += "<a href='/streaming-royalties/split-gaps'" + (" class='on'" if active == "streaming_split_gaps" else "") + "><span class='ni'>&#9888;</span><span class='nl'>Split Gaps</span></a>"
+    html += "</nav></div></div>"
     html += "{% endif %}"
     html += "</nav>"
     html += "<div class='sb-sec'>Admin</div>"
