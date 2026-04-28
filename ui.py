@@ -4145,14 +4145,16 @@ RELEASE_FORM_HTML = """<!DOCTYPE html>
   <button type="button" class="btn btn-sec" onclick="addTrack()">+ Add Track</button>
   <div class="ab-space"></div>
   {% if release %}
-  <form method="post" action="/releases/{{ release.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this release?')">
-    <button type="submit" class="btn btn-sec" style="color:var(--ar);border-color:var(--ar)">Delete</button>
-  </form>
+  <button type="button" class="btn btn-sec" style="color:var(--ar);border-color:var(--ar)"
+    onclick="if(confirm('Delete this release?')){document.getElementById('deleteReleaseForm').submit()}">Delete</button>
   {% endif %}
   <a href="/releases" class="btn btn-sec">Cancel</a>
   <button type="submit" class="btn btn-primary" style="color:#fff">Save Release</button>
 </div>
 </form>
+{% if release %}
+<form id="deleteReleaseForm" method="post" action="/releases/{{ release.id }}/delete"></form>
+{% endif %}
 </div>
 </main>
 </div>
