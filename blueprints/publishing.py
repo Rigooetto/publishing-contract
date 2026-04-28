@@ -41,7 +41,7 @@ from ui import (
     LOGIN_HTML, FORM_HTML, DUPLICATE_WARNING_HTML,
     WORKS_LIST_HTML, BATCHES_LIST_HTML, BATCH_DETAIL_HTML,
     WORK_DETAIL_HTML, WORK_EDIT_HTML,
-    WRITERS_LIST_HTML, WRITER_DETAIL_HTML, WRITER_EDIT_HTML,
+    WRITERS_LIST_HTML, WRITER_DETAIL_HTML, WRITER_EDIT_HTML, WRITER_CREATE_HTML,
     ADMIN_HTML, IMPORT_PREVIEW_HTML,
 )
 from config import (
@@ -1145,6 +1145,90 @@ def writer_detail(writer_id):
         writer=writer,
         work_writers=work_writers,
     )
+
+@bp.route("/writers/new", methods=["GET", "POST"])
+def writer_new():
+    if auth_required():
+        return redirect(url_for(".login"))
+
+    if request.method == "POST":
+        first_name = (request.form.get("first_name") or "").strip()
+        middle_name = (request.form.get("middle_name") or "").strip()
+        last_names = (request.form.get("last_names") or "").strip()
+        full_name = build_full_name(first_name, middle_name, last_names)
+        writer_aka = (request.form.get("writer_aka") or "").strip()
+        ipi = (request.form.get("ipi") or "").strip() or None
+        pro = (request.form.get("pro") or "").strip()
+        email = (request.form.get("email") or "").strip()
+        phone_number = (request.form.get("phone_number") or "").strip()
+        default_publisher = (request.form.get("default_publisher") or "").strip()
+        default_publisher_ipi = (request.form.get("default_publisher_ipi") or "").strip()
+        is_ajax = request.form.get("ajax") == "1"
+
+        def _err(msg):
+            if is_ajax:
+                return jsonify({"ok": False, "error": msg})
+            flash(msg)
+            return render_template_string(WRITER_CREATE_HTML)
+
+        if not first_name or not last_names:
+            return _err("First and last name are required.")
+        if not pro:
+            return _err("PRO is required.")
+
+        if ipi:
+            existing_ipi = Writer.query.filter(func.lower(Writer.ipi) == ipi.lower()).first()
+            if existing_ipi:
+                return _err("That IPI already belongs to " + existing_ipi.full_name + ".")
+
+        existing_name = Writer.query.filter(func.lower(Writer.full_name) == full_name.lower()).first()
+        if existing_name:
+            if is_ajax:
+                return jsonify({"ok": False, "error": "A writer named " + full_name + " already exists."})
+            flash("A writer named " + full_name + " already exists.")
+            return render_template_string(WRITER_CREATE_HTML)
+
+        if not default_publisher:
+            default_publisher = default_publisher_for_pro(pro)
+        if not default_publisher_ipi:
+            default_publisher_ipi = default_publisher_ipi_for_pro(pro)
+
+        writer = Writer(
+            first_name=first_name,
+            middle_name=middle_name,
+            last_names=last_names,
+            full_name=full_name,
+            writer_aka=writer_aka,
+            ipi=ipi,
+            pro=pro,
+            email=email,
+            phone_number=phone_number,
+            default_publisher=default_publisher,
+            default_publisher_ipi=default_publisher_ipi,
+        )
+        try:
+            db.session.add(writer)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error("writer_new commit error: %s", e)
+            return _err("An error occurred while saving.")
+
+        if is_ajax:
+            return jsonify({"ok": True, "writer": {
+                "id": writer.id,
+                "full_name": writer.full_name,
+                "ipi": writer.ipi or "",
+                "pro": writer.pro or "",
+                "default_publisher": writer.default_publisher or "",
+                "default_publisher_ipi": writer.default_publisher_ipi or "",
+            }})
+
+        flash("Writer created successfully.")
+        return redirect(url_for(".writer_detail", writer_id=writer.id))
+
+    return render_template_string(WRITER_CREATE_HTML)
+
 
 @bp.route("/writers/<int:writer_id>/edit", methods=["GET", "POST"])
 def writer_edit(writer_id):

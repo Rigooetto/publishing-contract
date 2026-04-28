@@ -2660,7 +2660,7 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
       <div class="card-ico">&#128101;</div>
       <span class="card-title">Work Writers</span>
       <div class="card-actions">
-        <button type="button" class="btn btn-sec btn-sm" onclick="addExistingWriterRow()">+ Add Existing Writer</button>
+        <button type="button" class="btn btn-sec btn-sm" onclick="addExistingWriterRow()">+ Add Writer</button>
       </div>
     </div>
     <div class="card-body">
@@ -2738,9 +2738,58 @@ WORK_EDIT_HTML = """<!DOCTYPE html>
 </main>
 </div>
 
+<div id="newWriterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;">
+  <div style="position:absolute;top:8%;left:50%;transform:translateX(-50%);width:92%;max-width:560px;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);">
+    <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);">
+      <span style="font-weight:600;">New Writer</span>
+      <button type="button" onclick="closeNewWriterModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&#215;</button>
+    </div>
+    <div style="padding:18px;">
+      <div id="newWriterError" style="color:#ff8a8a;margin-bottom:8px;font-size:13px;min-height:16px;"></div>
+      <div class="g g3" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">First Name *</label>
+          <input class="inp" id="nwFirstName" placeholder="First name">
+        </div>
+        <div class="field">
+          <label class="label">Middle Name</label>
+          <input class="inp" id="nwMiddleName" placeholder="Middle name">
+        </div>
+        <div class="field">
+          <label class="label">Last Name(s) *</label>
+          <input class="inp" id="nwLastNames" placeholder="Last name(s)">
+        </div>
+      </div>
+      <div class="g g3" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">PRO *</label>
+          <select class="inp" id="nwPro">
+            <option value="">-- Select --</option>
+            <option value="ASCAP">ASCAP</option>
+            <option value="BMI">BMI</option>
+            <option value="SESAC">SESAC</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label">IPI</label>
+          <input class="inp" id="nwIpi" placeholder="IPI number">
+        </div>
+        <div class="field">
+          <label class="label">Email</label>
+          <input class="inp" id="nwEmail" placeholder="Email">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button type="button" class="btn btn-sec" onclick="closeNewWriterModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitNewWriter()">Create Writer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="writerEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;">
   <div id="writerEditPanel" style="position:absolute;top:5%;left:50%;transform:translateX(-50%);width:92%;max-width:900px;height:88%;background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);">
-    
+
     <div style="padding:12px 16px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);">
       <span style="font-weight:600;">Edit Writer</span>
       <button type="button" onclick="closeWriterModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
@@ -2820,22 +2869,19 @@ function addExistingWriterRow() {
     fetch('/writers/search?q=' + encodeURIComponent(q))
       .then(function(res) { return res.json(); })
       .then(function(ws) {
-        if (!ws.length) {
-          sug.style.display = 'none';
-          sug.innerHTML = '';
-          return;
-        }
-
-        sug.innerHTML = ws.map(function(w) {
+        var html = ws.map(function(w) {
           var safe = JSON.stringify(w).replace(/'/g, "&#39;");
           return "<div class='ac-item' data-w='" + safe + "'>" +
             "<strong>" + w.full_name + "</strong><br>" +
             "<small>" + (w.ipi || '--') + "</small>" +
             "</div>";
         }).join('');
+        var qSafe = q.replace(/"/g, '&quot;');
+        html += "<div class='ac-item ac-add-new' style='color:#6385ff;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;margin-top:" + (ws.length ? '4' : '0') + "px'>&#43; Add New Writer &ldquo;" + qSafe + "&rdquo;</div>";
+        sug.innerHTML = html;
         sug.style.display = 'block';
 
-        sug.querySelectorAll('.ac-item').forEach(function(item) {
+        sug.querySelectorAll('.ac-item:not(.ac-add-new)').forEach(function(item) {
           item.addEventListener('click', function() {
             var w = JSON.parse(item.dataset.w);
             hiddenWriterId.value = w.id || '';
@@ -2848,6 +2894,11 @@ function addExistingWriterRow() {
             sug.style.display = 'none';
             sug.innerHTML = '';
           });
+        });
+
+        sug.querySelector('.ac-add-new').addEventListener('click', function() {
+          sug.style.display = 'none';
+          openNewWriterModal(tr, searchInp.value.trim());
         });
       });
   });
@@ -2985,6 +3036,75 @@ function syncModalPro(sel) {
   if (publisherIpiInp) publisherIpiInp.value = p.ipi;
 }
 
+var _nwTargetRow = null;
+
+function openNewWriterModal(tr, prefillName) {
+  _nwTargetRow = tr;
+  document.getElementById('newWriterModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('newWriterError').textContent = '';
+  document.getElementById('nwMiddleName').value = '';
+  document.getElementById('nwPro').value = '';
+  document.getElementById('nwIpi').value = '';
+  document.getElementById('nwEmail').value = '';
+  if (prefillName) {
+    var parts = prefillName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      document.getElementById('nwFirstName').value = parts[0];
+      document.getElementById('nwLastNames').value = parts.slice(1).join(' ');
+    } else {
+      document.getElementById('nwFirstName').value = prefillName;
+      document.getElementById('nwLastNames').value = '';
+    }
+  } else {
+    document.getElementById('nwFirstName').value = '';
+    document.getElementById('nwLastNames').value = '';
+  }
+}
+
+function closeNewWriterModal() {
+  document.getElementById('newWriterModal').style.display = 'none';
+  document.body.style.overflow = 'auto';
+  _nwTargetRow = null;
+}
+
+function submitNewWriter() {
+  var err = document.getElementById('newWriterError');
+  err.textContent = '';
+  var fd = new FormData();
+  fd.append('ajax', '1');
+  fd.append('first_name', document.getElementById('nwFirstName').value.trim());
+  fd.append('middle_name', document.getElementById('nwMiddleName').value.trim());
+  fd.append('last_names', document.getElementById('nwLastNames').value.trim());
+  fd.append('pro', document.getElementById('nwPro').value);
+  fd.append('ipi', document.getElementById('nwIpi').value.trim());
+  fd.append('email', document.getElementById('nwEmail').value.trim());
+  fetch('/writers/new', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { err.textContent = data.error || 'Failed to create writer.'; return; }
+      var tr = _nwTargetRow;
+      if (tr) {
+        tr.querySelector('input[name="existing_writer_id"]').value = data.writer.id;
+        tr.querySelector('.new-writer-name').textContent = data.writer.full_name;
+        tr.querySelector('.new-writer-ipi').textContent = data.writer.ipi || '--';
+        tr.querySelector('.new-writer-pro').innerHTML = "<span class='tag tag-full'>" + (data.writer.pro || '--') + "</span>";
+        tr.querySelector('input[name="publisher"]').value = data.writer.default_publisher || '';
+        tr.querySelector('input[name="publisher_ipi"]').value = data.writer.default_publisher_ipi || '';
+        var si = tr.querySelector('.new-writer-search');
+        if (si) si.value = '';
+        var sb = tr.querySelector('.new-writer-sug');
+        if (sb) { sb.style.display = 'none'; sb.innerHTML = ''; }
+      }
+      closeNewWriterModal();
+    })
+    .catch(function() { err.textContent = 'Failed to create writer.'; });
+}
+
+document.addEventListener('click', function(e) {
+  if (e.target === document.getElementById('newWriterModal')) closeNewWriterModal();
+});
+
 </script>
 """ + _mobile_nav() + """
 </body></html>"""
@@ -3012,6 +3132,9 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
       <div class="ph-title">Writer Directory</div>
       <div class="ph-sub">Search and review all writers in the system</div>
     </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/writers/new" class="btn btn-primary">+ New Writer</a>
   </div>
 </div>
 
@@ -3436,6 +3559,166 @@ function syncWriterModalPro(sel) {
   var publisherInp = form.querySelector('input[name="default_publisher"]');
   var publisherIpiInp = form.querySelector('input[name="default_publisher_ipi"]');
 
+  if (publisherInp) publisherInp.value = p.name;
+  if (publisherIpiInp) publisherIpiInp.value = p.ipi;
+}
+</script>
+""" + _mobile_nav() + """
+</body></html>"""
+
+
+# ================================================================
+# WRITER CREATE HTML
+# ================================================================
+
+WRITER_CREATE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
+<title>New Writer - LabelMind</title>""" + _STYLE + """
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("writers_list") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128101;</div>
+    <div>
+      <div class="ph-title">New Writer</div>
+      <div class="ph-sub">Add a writer to the directory</div>
+    </div>
+  </div>
+  <div class="ph-actions">
+    <a href="/writers" class="btn btn-sec btn-sm">Back to Writers</a>
+  </div>
+</div>
+
+<form method="post">
+
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-ico">&#128101;</div>
+      <span class="card-title">Writer Information</span>
+    </div>
+    <div class="card-body">
+
+      <div class="g g4" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">First Name *</label>
+          <input class="inp" name="first_name" value="">
+        </div>
+        <div class="field">
+          <label class="label">Middle Name</label>
+          <input class="inp" name="middle_name" value="">
+        </div>
+        <div class="field">
+          <label class="label">Last Name(s) *</label>
+          <input class="inp" name="last_names" value="">
+        </div>
+        <div class="field">
+          <label class="label">AKA / Stage</label>
+          <input class="inp" name="writer_aka" value="">
+        </div>
+      </div>
+
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Email</label>
+          <input class="inp" name="email" type="email" value="">
+        </div>
+        <div class="field">
+          <label class="label">Phone Number</label>
+          <input class="inp" name="phone_number" value="">
+        </div>
+      </div>
+
+      <div class="g g3" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">IPI</label>
+          <input class="inp" name="ipi" value="">
+        </div>
+        <div class="field">
+          <label class="label">PRO *</label>
+          <select class="inp" name="pro" onchange="syncWriterModalPro(this)">
+            <option value="">Select PRO</option>
+            <option value="BMI">BMI</option>
+            <option value="ASCAP">ASCAP</option>
+            <option value="SESAC">SESAC</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label">Publishing Contract</label>
+          <select class="inp" name="has_master_contract">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="g g2" style="margin-bottom:12px">
+        <div class="field">
+          <label class="label">Default Publisher</label>
+          <input class="inp" name="default_publisher" value="">
+        </div>
+        <div class="field">
+          <label class="label">Default Publisher IPI</label>
+          <input class="inp" name="default_publisher_ipi" value="">
+        </div>
+      </div>
+
+      <div class="g g4a">
+        <div class="field">
+          <label class="label">Street</label>
+          <input class="inp" name="address" value="">
+        </div>
+        <div class="field">
+          <label class="label">City</label>
+          <input class="inp" name="city" value="">
+        </div>
+        <div class="field">
+          <label class="label">State</label>
+          <input class="inp" name="state" value="">
+        </div>
+        <div class="field">
+          <label class="label">Zip</label>
+          <input class="inp" name="zip_code" value="">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="ph-actions" style="justify-content:flex-end">
+    <button type="submit" class="btn btn-primary">Create Writer</button>
+  </div>
+
+</form>
+</div>
+</main>
+</div>
+""" + _SB_JS + """
+<script>
+function syncWriterModalPro(sel) {
+  var pro = sel.value || '';
+  var form = sel.closest('form');
+  if (!form) return;
+  var publisherMap = {
+    BMI:   { name: 'Songs of Afinarte',    ipi: '817874992' },
+    ASCAP: { name: 'Melodies of Afinarte', ipi: '807953316' },
+    SESAC: { name: 'Music of Afinarte',    ipi: '817094629' }
+  };
+  var p = publisherMap[pro];
+  if (!p) return;
+  var publisherInp = form.querySelector('input[name="default_publisher"]');
+  var publisherIpiInp = form.querySelector('input[name="default_publisher_ipi"]');
   if (publisherInp) publisherInp.value = p.name;
   if (publisherIpiInp) publisherIpiInp.value = p.ipi;
 }
