@@ -241,12 +241,18 @@ def _build_audit():
 
     all_works = Work.query.order_by(Work.title).all()
     db_keys   = {_norm(w.title): w for w in all_works}
+    # Secondary lookup by plain lowercase — catches edge cases _norm misses
+    db_keys_lower = {w.title.lower(): w for w in all_works}
 
-    # Include AKA keys so orphan detection doesn't flag them
+    # Include AKA keys — re-normalize at runtime so stale uppercase stored values match
     for w in all_works:
         for aka in w.aka_titles:
-            if aka.normalized not in db_keys:
-                db_keys[aka.normalized] = w
+            nk = _norm(aka.title)
+            if nk not in db_keys:
+                db_keys[nk] = w
+            lk = aka.title.lower()
+            if lk not in db_keys_lower:
+                db_keys_lower[lk] = w
 
     matched_both = []
     mlc_only     = []
@@ -255,7 +261,7 @@ def _build_audit():
 
     for w in all_works:
         key = _norm(w.title)
-        aka_keys = [aka.normalized for aka in w.aka_titles]
+        aka_keys = [_norm(aka.title) for aka in w.aka_titles]
 
         m = mlc.get(key) or next((mlc.get(k) for k in aka_keys if mlc.get(k)), None)
         r = mri.get(key) or next((mri.get(k) for k in aka_keys if mri.get(k)), None)
@@ -298,7 +304,7 @@ def _build_audit():
     orphaned = []
     for source, src_dict in [("MLC", mlc), ("MRI", mri)]:
         for key, v in src_dict.items():
-            if key not in db_keys:
+            if key not in db_keys and v["title"].lower() not in db_keys_lower:
                 orphaned.append(dict(source=source, **v))
 
     return matched_both, mlc_only, mri_only, unregistered, orphaned, mlc, mri
