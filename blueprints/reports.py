@@ -119,17 +119,20 @@ def pro_registration():
     per_page = 50
 
     registered_work_ids = db.session.query(ProRegistration.work_id).distinct()
+    works_with_release = db.session.query(TrackWork.work_id).join(Track, Track.id == TrackWork.track_id).distinct()
 
     unregistered_q = (
         Work.query
         .join(WorkWriter, WorkWriter.work_id == Work.id)
         .filter(WorkWriter.publisher.in_(AFINARTE_PUBLISHERS))
         .filter(Work.id.notin_(registered_work_ids))
+        .filter(Work.id.in_(works_with_release))
         .distinct()
     )
     registered_q = (
         Work.query
         .join(ProRegistration, ProRegistration.work_id == Work.id)
+        .filter(Work.id.in_(works_with_release))
         .distinct()
     )
 
