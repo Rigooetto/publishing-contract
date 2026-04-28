@@ -25,7 +25,7 @@ from docusign_esign import (
 from extensions import db
 from models import (
     Camp, GenerationBatch, Writer, Work, WorkWriter,
-    ContractDocument, WorkAKA
+    ContractDocument, WorkAKA, TrackWork
 )
 from utils import (
     auth_required, slugify, parse_float, build_full_name,
@@ -1541,6 +1541,9 @@ def work_delete(work_id):
     work = Work.query.get_or_404(work_id)
     work_title = work.title
     try:
+        TrackWork.query.filter(
+            TrackWork.work_id == work.id
+        ).delete(synchronize_session="fetch")
         ContractDocument.query.filter(
             ContractDocument.work_id == work.id
         ).delete(synchronize_session="fetch")
