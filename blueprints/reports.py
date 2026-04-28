@@ -21,7 +21,6 @@ AFINARTE_PUBLISHERS = ["Songs of Afinarte", "Melodies of Afinarte", "Music of Af
 
 
 def _attach_track_info(work):
-    """Attach first linked track + release data to a Work instance for display."""
     tracks = (Track.query
               .join(TrackWork, TrackWork.track_id == Track.id)
               .filter(TrackWork.work_id == work.id)
@@ -29,6 +28,26 @@ def _attach_track_info(work):
     work._tracks = tracks
     work._first_track = tracks[0] if tracks else None
     work._first_release = tracks[0].release if tracks and tracks[0].release else None
+
+
+def _attach_track_info_bulk(works):
+    """Single query for all works on the page instead of one query per work."""
+    if not works:
+        return
+    work_ids = [w.id for w in works]
+    rows = (db.session.query(TrackWork.work_id, Track)
+            .join(Track, Track.id == TrackWork.track_id)
+            .filter(TrackWork.work_id.in_(work_ids))
+            .all())
+    from collections import defaultdict
+    tracks_by_work = defaultdict(list)
+    for work_id, track in rows:
+        tracks_by_work[work_id].append(track)
+    for w in works:
+        tracks = tracks_by_work.get(w.id, [])
+        w._tracks = tracks
+        w._first_track = tracks[0] if tracks else None
+        w._first_release = tracks[0].release if tracks and tracks[0].release else None
 
 
 def _is_controlled(publisher_name):
@@ -147,16 +166,22 @@ def pro_registration():
     if tab == "registered":
         pagination = registered_q.paginate(page=page, per_page=per_page, error_out=False)
         registered = pagination.items
+        reg_ids = [w.id for w in registered]
+        all_regs = (ProRegistration.query
+                    .filter(ProRegistration.work_id.in_(reg_ids))
+                    .order_by(ProRegistration.registered_at.desc()).all())
+        regs_by_work = {}
+        for r in all_regs:
+            regs_by_work.setdefault(r.work_id, []).append(r)
         for w in registered:
-            w.registrations = ProRegistration.query.filter_by(work_id=w.id).order_by(ProRegistration.registered_at.desc()).all()
-            _attach_track_info(w)
+            w.registrations = regs_by_work.get(w.id, [])
+        _attach_track_info_bulk(registered)
         unregistered_count = unregistered_q.count()
         unregistered = []
     else:
         pagination = unregistered_q.paginate(page=page, per_page=per_page, error_out=False)
         unregistered = pagination.items
-        for w in unregistered:
-            _attach_track_info(w)
+        _attach_track_info_bulk(unregistered)
         registered = []
         unregistered_count = pagination.total
 
