@@ -1475,12 +1475,7 @@ function syncModalPro(sel) {
 }
 
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -1729,12 +1724,7 @@ document.addEventListener('click', function(e) {
   }
 });
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -1934,12 +1924,7 @@ function toggleWork(id) {
   }
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -2061,12 +2046,7 @@ function toggleSession(id) {
   }
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -2405,12 +2385,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </button>
   </form>
 </div>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -2600,12 +2575,7 @@ document.querySelectorAll('.ds-form').forEach(function(f) {
   <div class="ab-space"></div>
   <a href="/works" class="btn btn-sec">Back</a>
 </div>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -3008,12 +2978,7 @@ function syncModalPro(sel) {
 }
 
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -3143,12 +3108,7 @@ function toggleWriter(id) {
   }
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -3296,12 +3256,7 @@ function toggleWk(id) {
   }
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -3477,12 +3432,7 @@ function syncWriterModalPro(sel) {
   if (publisherIpiInp) publisherIpiInp.value = p.ipi;
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -3615,12 +3565,7 @@ function checkMergeReady() {
 mergeSearch('mergeSearch1', 'mergeDrop1', 'primaryWriterId', 'primaryLabel', 'var(--ag)');
 mergeSearch('mergeSearch2', 'mergeDrop2', 'duplicateWriterId', 'duplicateLabel', 'var(--ar)');
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -3734,12 +3679,7 @@ IMPORT_PREVIEW_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 # ================================================================
@@ -3999,12 +3939,7 @@ function toggleRel(id) {
   if (!isOpen) { row.classList.add('open'); hdr.classList.add('open'); }
 }
 </script>
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -4896,12 +4831,7 @@ document.addEventListener('focusin', function(e){
   <button type="button" id="qwm-toast-close" style="background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:16px;line-height:1">&times;</button>
 </div>
 
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -4991,12 +4921,7 @@ RELEASE_DETAIL_HTML = """<!DOCTYPE html>
 </main>
 </div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>🖋️</span><small>Works</small></a>
-  <a href="/batches" class="mnav-item"><span>🗒️</span><small>Sessions</small></a>
-  <a href="/releases" class="mnav-item"><span>💿</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -7017,12 +6942,7 @@ USERS_HTML = """<!DOCTYPE html>
 </div>
 </div></main></div>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  <a href="/writers" class="mnav-item on"><span>&#128101;</span><small>Writers</small></a>
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
@@ -7272,12 +7192,7 @@ function saveEdit(inp, kind, id) {
 })();
 </script>
 """ + _SB_JS + """
-<div class="mobile-nav">
-  <a href="/works" class="mnav-item"><span>&#128395;</span><small>Works</small></a>
-  <a href="/reports" class="mnav-item"><span>&#128202;</span><small>Reports</small></a>
-  <a href="/releases" class="mnav-item"><span>&#128191;</span><small>Releases</small></a>
-  {% if current_role == 'admin' %}<a href="/streaming-royalties" class="mnav-item"><span>&#128202;</span><small>Royalties</small></a>{% else %}<a href="/writers" class="mnav-item"><span>&#128101;</span><small>Writers</small></a>{% endif %}
-</div>
+""" + _mobile_nav() + """
 </body></html>"""
 
 
