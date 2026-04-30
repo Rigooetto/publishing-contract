@@ -213,6 +213,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
 .tbl .empty td{color:var(--t3);text-align:center;padding:26px;font-size:13px}
 .tbl a{color:var(--a);text-decoration:none}
 .tbl a:hover{text-decoration:underline}
+.mnav-more-overlay,.mnav-more-backdrop{display:none}
 .split-banner{background:var(--bg2);border:1px solid var(--b0);border-radius:var(--rl);padding:13px 17px;margin-bottom:14px;display:flex;align-items:center;gap:16px;position:sticky;top:var(--tb);z-index:30;backdrop-filter:blur(12px)}
 .split-info{flex:1;min-width:0}
 .split-lr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
