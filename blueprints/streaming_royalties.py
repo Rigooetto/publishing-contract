@@ -1448,6 +1448,75 @@ def import_file():
     return redirect(url_for("streaming_royalties.import_status", import_id=rec.id))
 
 
+@bp.route("/streaming-royalties/upload-chunk", methods=["POST"])
+def upload_chunk():
+    if auth_required():
+        return jsonify({"error": "auth"}), 401
+    if role_required(_ADMIN_ONLY):
+        return jsonify({"error": "forbidden"}), 403
+
+    upload_id   = request.form.get("upload_id", "").strip()
+    chunk_index = request.form.get("chunk_index", "")
+    chunk_file  = request.files.get("chunk")
+
+    if not upload_id or not chunk_index.isdigit() or not chunk_file:
+        return jsonify({"error": "bad request"}), 400
+    if not re.match(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$', upload_id):
+        return jsonify({"error": "invalid upload_id"}), 400
+
+    chunk_dir = os.path.join(_UPLOAD_DIR, ".chunks", upload_id)
+    os.makedirs(chunk_dir, exist_ok=True)
+    chunk_file.save(os.path.join(chunk_dir, f"chunk_{int(chunk_index):06d}"))
+    return jsonify({"ok": True})
+
+
+@bp.route("/streaming-royalties/upload-finalize", methods=["POST"])
+def upload_finalize():
+    if auth_required():
+        return jsonify({"error": "auth"}), 401
+    if role_required(_ADMIN_ONLY):
+        return jsonify({"error": "forbidden"}), 403
+
+    data         = request.get_json(force=True)
+    upload_id    = (data.get("upload_id") or "").strip()
+    total_chunks = int(data.get("total_chunks") or 0)
+    filename     = (data.get("filename") or "upload.csv").strip()
+
+    if not upload_id or not re.match(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$', upload_id):
+        return jsonify({"error": "invalid upload_id"}), 400
+    if total_chunks < 1:
+        return jsonify({"error": "total_chunks must be >= 1"}), 400
+
+    chunk_dir = os.path.join(_UPLOAD_DIR, ".chunks", upload_id)
+    os.makedirs(_UPLOAD_DIR, exist_ok=True)
+
+    safe_name = secure_filename(filename)
+    ts   = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(_UPLOAD_DIR, f"{ts}_{safe_name}")
+
+    try:
+        with open(dest, "wb") as out:
+            for i in range(total_chunks):
+                chunk_path = os.path.join(chunk_dir, f"chunk_{i:06d}")
+                with open(chunk_path, "rb") as inp:
+                    out.write(inp.read())
+    finally:
+        import shutil as _shutil
+        _shutil.rmtree(chunk_dir, ignore_errors=True)
+
+    from models import StreamingImport
+    rec = StreamingImport(
+        original_filename=filename,
+        file_path=dest,
+        status="pending",
+        uploaded_by=session.get("username", ""),
+    )
+    db.session.add(rec)
+    db.session.commit()
+
+    return jsonify({"import_id": rec.id})
+
+
 @bp.route("/streaming-royalties/bulk-import", methods=["GET", "POST"])
 def bulk_import():
     if auth_required():
@@ -2756,6 +2825,17 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Upload CSV — AfinArte</title>""" + _STYLE + """
+<style>
+#dropZone{border:2px dashed var(--border);border-radius:10px;padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+#dropZone.drag-over{border-color:var(--accent);background:rgba(99,102,241,.06)}
+#dropZone.has-file{border-color:var(--ag);background:rgba(52,199,89,.06)}
+#progressWrap{display:none;margin-top:20px}
+#progressBar{width:100%;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:8px}
+#progressFill{height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .2s}
+#progressLabel{font-size:12px;color:var(--t2)}
+#uploadBtn{margin-top:18px}
+#fileInfo{margin-top:10px;font-size:13px;color:var(--t2)}
+</style>
 </head><body><div class="app">
 {{ _sidebar_html|safe }}
 <div class="main"><div class="page">
@@ -2767,18 +2847,113 @@ _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% endwith %}
 <div class="card" style="max-width:560px;margin-top:18px;padding:28px 24px">
 <p style="color:var(--t2);font-size:14px;margin-bottom:20px">
-  Upload a semicolon-delimited Believe monthly royalty CSV. Files up to 300 MB are supported.
-  The file will be processed in the background — you will see live status after uploading.
+  Upload a Believe monthly royalty CSV. Any file size is supported — large files are uploaded in chunks automatically.
 </p>
-<form method="post" enctype="multipart/form-data">
-  <div class="form-row">
-    <label class="form-label">CSV File</label>
-    <input type="file" name="csv_file" accept=".csv" required class="form-input">
-  </div>
-  <button type="submit" class="btn btn-primary" style="margin-top:18px">&#8679; Upload &amp; Process</button>
-</form>
+<input type="file" id="fileInput" accept=".csv" style="display:none">
+<div id="dropZone">
+  <div style="font-size:28px;margin-bottom:8px">&#8679;</div>
+  <div style="font-weight:600;color:var(--t1)">Drop CSV here or click to browse</div>
+  <div id="fileInfo">No file selected</div>
 </div>
-</div></div></div>""" + _SB_JS + """</body></html>"""
+<div id="progressWrap">
+  <div id="progressBar"><div id="progressFill"></div></div>
+  <div id="progressLabel">Preparing…</div>
+</div>
+<button id="uploadBtn" class="btn btn-primary" disabled>&#8679; Upload &amp; Process</button>
+</div>
+</div></div></div>""" + _SB_JS + """
+<script>
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
+const uploadBtn  = document.getElementById('uploadBtn');
+const fileInfo   = document.getElementById('fileInfo');
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressLabel = document.getElementById('progressLabel');
+let selectedFile = null;
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+function setFile(f) {
+  if (!f.name.toLowerCase().endsWith('.csv')) {
+    alert('Please select a .csv file.'); return;
+  }
+  selectedFile = f;
+  const mb = (f.size / 1024 / 1024).toFixed(1);
+  fileInfo.textContent = f.name + '  (' + mb + ' MB)';
+  dropZone.classList.add('has-file');
+  uploadBtn.disabled = false;
+}
+
+uploadBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  uploadBtn.disabled = true;
+  dropZone.style.pointerEvents = 'none';
+  progressWrap.style.display = 'block';
+
+  const uploadId    = crypto.randomUUID();
+  const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
+  const startTime   = Date.now();
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const blob  = selectedFile.slice(start, start + CHUNK_SIZE);
+    const fd    = new FormData();
+    fd.append('upload_id',    uploadId);
+    fd.append('chunk_index',  i);
+    fd.append('chunk',        blob, selectedFile.name);
+
+    const res = await fetch('/streaming-royalties/upload-chunk', { method: 'POST', body: fd });
+    if (!res.ok) {
+      progressLabel.textContent = 'Upload failed on chunk ' + i + '. Please try again.';
+      progressLabel.style.color = 'var(--ar)';
+      uploadBtn.disabled = false;
+      dropZone.style.pointerEvents = '';
+      return;
+    }
+
+    const pct      = Math.round(((i + 1) / totalChunks) * 100);
+    const elapsed  = (Date.now() - startTime) / 1000;
+    const bytesUp  = (i + 1) * CHUNK_SIZE;
+    const speed    = bytesUp / elapsed;
+    const remaining = (selectedFile.size - bytesUp) / speed;
+    const etaStr   = remaining > 60 ? Math.ceil(remaining / 60) + ' min' : Math.ceil(remaining) + ' s';
+    progressFill.style.width  = pct + '%';
+    progressLabel.textContent = pct + '% uploaded' + (i + 1 < totalChunks ? ' — ~' + etaStr + ' left' : '');
+  }
+
+  progressLabel.textContent = 'Finalizing…';
+  const fin = await fetch('/streaming-royalties/upload-finalize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upload_id: uploadId, total_chunks: totalChunks, filename: selectedFile.name }),
+  });
+
+  if (!fin.ok) {
+    progressLabel.textContent = 'Finalize failed. Please try again.';
+    progressLabel.style.color = 'var(--ar)';
+    uploadBtn.disabled = false;
+    dropZone.style.pointerEvents = '';
+    return;
+  }
+
+  const { import_id } = await fin.json();
+  progressLabel.textContent = 'Done! Redirecting…';
+  progressFill.style.background = 'var(--ag)';
+  location.href = '/streaming-royalties/import-status/' + import_id;
+});
+</script>
+</body></html>"""
 
 # ── Bulk import form ──────────────────────────────────────────────────────────
 
