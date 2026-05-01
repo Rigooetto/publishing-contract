@@ -370,13 +370,16 @@ def _process_import(app, import_id):
             conn.commit()
 
     try:
-        # Mark processing + get file_path (all in royalties DB)
+        # Atomically claim the import (only one processor runs at a time)
         file_path = None
         with r_engine.connect() as conn:
-            conn.execute(_t("""
-                UPDATE streaming_import SET status='processing', started_at=:t WHERE id=:id
+            result = conn.execute(_t("""
+                UPDATE streaming_import SET status='processing', started_at=:t
+                 WHERE id=:id AND status IN ('pending','error')
             """), {"t": datetime.datetime.utcnow(), "id": import_id})
             conn.commit()
+            if result.rowcount == 0:
+                return  # already processing or done — leave it alone
             row = conn.execute(_t("SELECT file_path FROM streaming_import WHERE id=:id"),
                                {"id": import_id}).fetchone()
             if row:
@@ -1514,6 +1517,9 @@ def upload_finalize():
     db.session.add(rec)
     db.session.commit()
 
+    app_obj = current_app._get_current_object()
+    threading.Thread(target=_process_import, args=(app_obj, rec.id), daemon=True).start()
+
     return jsonify({"import_id": rec.id})
 
 
@@ -1631,6 +1637,31 @@ def import_stream(import_id):
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@bp.route("/streaming-royalties/import/<int:import_id>/retry", methods=["POST"])
+def retry_import(import_id):
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from models import StreamingImport
+    rec = StreamingImport.query.get_or_404(import_id)
+    if rec.status not in ("pending", "error"):
+        flash("Import is already processing or done.", "error")
+        return redirect(url_for("streaming_royalties.imports_list"))
+
+    rec.status = "pending"
+    rec.error_message = None
+    db.session.commit()
+
+    app_obj = current_app._get_current_object()
+    threading.Thread(target=_process_import, args=(app_obj, rec.id), daemon=True).start()
+
+    flash("Import queued for processing.", "success")
+    return redirect(url_for("streaming_royalties.import_status", import_id=rec.id))
 
 
 @bp.route("/streaming-royalties/import/<int:import_id>/delete", methods=["POST"])
@@ -2741,9 +2772,14 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
   <td class="num">{{ "{:,}".format(imp.rows_aggregated or 0) }}</td>
   <td class="num">{{ "{:,}".format(imp.rows_skipped or 0) }}</td>
   <td>{{ imp.uploaded_at.strftime('%Y-%m-%d %H:%M') if imp.uploaded_at else '—' }}</td>
-  <td>
+  <td style="white-space:nowrap">
     {% if imp.status in ('pending','processing') %}
     <a href="/streaming-royalties/import-status/{{ imp.id }}" class="btn btn-sec btn-sm">View</a>
+    {% endif %}
+    {% if imp.status in ('pending','error') %}
+    <form method="post" action="/streaming-royalties/import/{{ imp.id }}/retry" style="display:inline">
+      <button class="btn btn-sm" style="color:var(--accent)">&#9654; Retry</button>
+    </form>
     {% endif %}
     <form method="post" action="/streaming-royalties/import/{{ imp.id }}/delete" style="display:inline"
           onsubmit="return confirm('Delete this import and all its royalty rows?')">
