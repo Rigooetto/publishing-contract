@@ -342,7 +342,10 @@ def _process_import(app, import_id):
         royalties_url = (app.config.get("SQLALCHEMY_BINDS") or {}).get("royalties", "")
 
     def _pg(url):
-        if url and url.startswith("postgres://"):
+        if isinstance(url, dict):
+            url = url.get("url", "")
+        url = str(url) if url else ""
+        if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         if url and "sslmode=" not in url and url.startswith("postgresql://"):
             url += ("&" if "?" in url else "?") + "sslmode=require"
@@ -440,7 +443,10 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
     from sqlalchemy.pool import NullPool
 
     def _pg(url):
-        if url and url.startswith("postgres://"):
+        if isinstance(url, dict):
+            url = url.get("url", "")
+        url = str(url) if url else ""
+        if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         if url and "sslmode=" not in url and url.startswith("postgresql://"):
             url += ("&" if "?" in url else "?") + "sslmode=require"
@@ -2778,7 +2784,7 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
     {% endif %}
     {% if imp.status in ('pending','error') %}
     <form method="post" action="/streaming-royalties/import/{{ imp.id }}/retry" style="display:inline">
-      <button class="btn btn-sm" style="color:var(--accent)">&#9654; Retry</button>
+      <button class="btn btn-sm" style="color:var(--a)">&#9654; Retry</button>
     </form>
     {% endif %}
     <form method="post" action="/streaming-royalties/import/{{ imp.id }}/delete" style="display:inline"
@@ -2862,12 +2868,12 @@ _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Upload CSV — AfinArte</title>""" + _STYLE + """
 <style>
-#dropZone{border:2px dashed var(--border);border-radius:10px;padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
-#dropZone.drag-over{border-color:var(--accent);background:rgba(99,102,241,.06)}
+#dropZone{border:2px dashed var(--b0);border-radius:10px;padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+#dropZone.drag-over{border-color:var(--a);background:rgba(99,102,241,.06)}
 #dropZone.has-file{border-color:var(--ag);background:rgba(52,199,89,.06)}
 #progressWrap{display:none;margin-top:20px}
-#progressBar{width:100%;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:8px}
-#progressFill{height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .2s}
+#progressBar{width:100%;height:8px;background:var(--b0);border-radius:4px;overflow:hidden;margin-bottom:8px}
+#progressFill{height:100%;width:0%;background:var(--a);border-radius:4px;transition:width .2s}
 #progressLabel{font-size:12px;color:var(--t2)}
 #uploadBtn{margin-top:18px}
 #fileInfo{margin-top:10px;font-size:13px;color:var(--t2)}
@@ -3030,15 +3036,15 @@ _STATUS_HTML = """<!DOCTYPE html><html lang="en"><head>
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes numtick{0%{opacity:.3;transform:translateY(-4px)}100%{opacity:1;transform:translateY(0)}}
 #scanBar{height:4px;border-radius:2px;margin:16px 0 20px;
-  background:linear-gradient(90deg,var(--border) 20%,var(--accent) 50%,var(--border) 80%);
+  background:linear-gradient(90deg,var(--b0) 20%,var(--a) 50%,var(--b0) 80%);
   background-size:200% 100%;animation:scan 1.5s ease-in-out infinite}
 #scanBar.hidden{display:none}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--b0);
   border-top-color:var(--am);border-radius:50%;animation:spin .8s linear infinite;
   vertical-align:middle;margin-right:6px}
 .numtick{animation:numtick .2s ease-out}
 .stat-row{display:flex;justify-content:space-between;align-items:center;
-  padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+  padding:8px 0;border-bottom:1px solid var(--b0);font-size:13px}
 .stat-row:last-child{border-bottom:none}
 .stat-label{color:var(--t2)}
 .stat-val{font-weight:600;color:var(--t1);min-width:70px;text-align:right}
