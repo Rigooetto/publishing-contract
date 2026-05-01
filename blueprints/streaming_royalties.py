@@ -3025,6 +3025,24 @@ _BULK_IMPORT_HTML = """<!DOCTYPE html><html lang="en"><head>
 _STATUS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Import Status — AfinArte</title>""" + _STYLE + """
+<style>
+@keyframes scan{0%{background-position:-200% center}100%{background-position:200% center}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes numtick{0%{opacity:.3;transform:translateY(-4px)}100%{opacity:1;transform:translateY(0)}}
+#scanBar{height:4px;border-radius:2px;margin:16px 0 20px;
+  background:linear-gradient(90deg,var(--border) 20%,var(--accent) 50%,var(--border) 80%);
+  background-size:200% 100%;animation:scan 1.5s ease-in-out infinite}
+#scanBar.hidden{display:none}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);
+  border-top-color:var(--am);border-radius:50%;animation:spin .8s linear infinite;
+  vertical-align:middle;margin-right:6px}
+.numtick{animation:numtick .2s ease-out}
+.stat-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.stat-row:last-child{border-bottom:none}
+.stat-label{color:var(--t2)}
+.stat-val{font-weight:600;color:var(--t1);min-width:70px;text-align:right}
+</style>
 </head><body><div class="app">
 {{ _sidebar_html|safe }}
 <div class="main"><div class="page">
@@ -3032,28 +3050,33 @@ _STATUS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="ph-actions"><a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; All Imports</a></div>
 </div>
 <div class="card" style="max-width:520px;margin-top:18px;padding:28px 24px">
-  <p style="color:var(--t2);font-size:13px;margin-bottom:6px">File: <strong style="color:var(--t1)">{{ rec.original_filename }}</strong></p>
-  <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
+  <p style="color:var(--t2);font-size:12px;margin-bottom:4px">File</p>
+  <p style="color:var(--t1);font-size:14px;font-weight:600;margin-bottom:0;word-break:break-all">{{ rec.original_filename }}</p>
+
+  <div id="scanBar" class="{% if rec.status in ('pending','processing') %}{% else %}hidden{% endif %}"></div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin:{% if rec.status in ('pending','processing') %}0{% else %}20px 0 16px{% endif %} 0 16px">
     <div id="statusBadge" style="font-size:15px;font-weight:600">
       {% if rec.status == 'done' %}<span style="color:var(--ag)">&#10003; Done</span>
       {% elif rec.status == 'error' %}<span style="color:var(--ar)">&#10007; Error</span>
-      {% elif rec.status == 'processing' %}<span style="color:var(--am)">&#9654; Processing…</span>
-      {% else %}<span style="color:var(--t2)">&#9679; Pending</span>{% endif %}
+      {% elif rec.status == 'processing' %}<span class="spinner"></span><span style="color:var(--am)">Processing…</span>
+      {% else %}<span class="spinner"></span><span style="color:var(--t2)">Pending…</span>{% endif %}
     </div>
   </div>
-  <div id="statsBox" style="font-size:13px;color:var(--t2);line-height:2">
-    Rows read: <strong id="rowsRead" style="color:var(--t1)">{{ "{:,}".format(rec.rows_read or 0) }}</strong><br>
-    Aggregated: <strong id="rowsAgg" style="color:var(--t1)">{{ "{:,}".format(rec.rows_aggregated or 0) }}</strong><br>
-    Skipped: <strong id="rowsSkip" style="color:var(--t1)">{{ "{:,}".format(rec.rows_skipped or 0) }}</strong>
+
+  <div id="statsBox">
+    <div class="stat-row"><span class="stat-label">Rows read</span><span class="stat-val" id="rowsRead">{{ "{:,}".format(rec.rows_read or 0) }}</span></div>
+    <div class="stat-row"><span class="stat-label">Aggregated</span><span class="stat-val" id="rowsAgg">{{ "{:,}".format(rec.rows_aggregated or 0) }}</span></div>
+    <div class="stat-row"><span class="stat-label">Skipped</span><span class="stat-val" id="rowsSkip">{{ "{:,}".format(rec.rows_skipped or 0) }}</span></div>
   </div>
-  {% if rec.status == 'error' %}
-  <div style="margin-top:14px;background:rgba(255,79,106,.08);border:1px solid rgba(255,79,106,.2);border-radius:8px;padding:12px;font-size:12px;color:var(--ar);word-break:break-all">
-    {{ rec.error_message }}
+
+  <div id="errBox" style="display:none;margin-top:14px;background:rgba(255,79,106,.08);border:1px solid rgba(255,79,106,.2);border-radius:8px;padding:12px;font-size:12px;color:var(--ar);word-break:break-all">
+    {% if rec.status == 'error' %}{{ rec.error_message }}{% endif %}
   </div>
-  {% endif %}
-  {% if rec.status == 'done' %}
-  <a href="/streaming-royalties" class="btn btn-primary" style="margin-top:20px;display:inline-block">&#128202; View Dashboard</a>
-  {% endif %}
+
+  <div id="doneActions" style="{% if rec.status != 'done' %}display:none;{% endif %}margin-top:20px">
+    <a href="/streaming-royalties" class="btn btn-primary">&#128202; View Dashboard</a>
+  </div>
 </div>
 </div></div></div>""" + _SB_JS + """
 <script>
@@ -3061,34 +3084,43 @@ const importId = {{ rec.id }};
 const finalStatuses = new Set(['done','error']);
 let currentStatus = '{{ rec.status }}';
 
+function tick(id, val){
+  const el = document.getElementById(id);
+  const str = (val||0).toLocaleString();
+  if(el.textContent === str) return;
+  el.textContent = str;
+  el.classList.remove('numtick');
+  void el.offsetWidth;
+  el.classList.add('numtick');
+}
+
 function applyUpdate(d){
   currentStatus = d.status;
-  document.getElementById('rowsRead').textContent = (d.rows_read||0).toLocaleString();
-  document.getElementById('rowsAgg').textContent  = (d.rows_aggregated||0).toLocaleString();
-  document.getElementById('rowsSkip').textContent = (d.rows_skipped||0).toLocaleString();
-  const badge = document.getElementById('statusBadge');
+  tick('rowsRead', d.rows_read);
+  tick('rowsAgg',  d.rows_aggregated);
+  tick('rowsSkip', d.rows_skipped);
+  const badge   = document.getElementById('statusBadge');
+  const scanBar = document.getElementById('scanBar');
   if(d.status==='done'){
+    scanBar.classList.add('hidden');
     badge.innerHTML='<span style="color:var(--ag)">&#10003; Done</span>';
-    setTimeout(()=>{ location.href='/streaming-royalties'; }, 2000);
+    document.getElementById('doneActions').style.display='block';
+    setTimeout(()=>{ location.href='/streaming-royalties'; }, 2500);
   } else if(d.status==='error'){
+    scanBar.classList.add('hidden');
     badge.innerHTML='<span style="color:var(--ar)">&#10007; Error</span>';
-    if(d.error_message){
-      let errBox = document.getElementById('errBox');
-      if(!errBox){
-        errBox=document.createElement('div');
-        errBox.id='errBox';
-        errBox.style='margin-top:14px;background:rgba(255,79,106,.08);border:1px solid rgba(255,79,106,.2);border-radius:8px;padding:12px;font-size:12px;color:var(--ar);word-break:break-all';
-        document.getElementById('statsBox').after(errBox);
-      }
-      errBox.textContent=d.error_message;
-    }
+    const errBox = document.getElementById('errBox');
+    if(d.error_message){ errBox.textContent=d.error_message; }
+    errBox.style.display='block';
   } else if(d.status==='processing'){
-    const msg = d.message || 'Processing\u2026';
-    badge.innerHTML=`<span style="color:var(--am)">&#9654; ${msg}</span>`;
+    scanBar.classList.remove('hidden');
+    badge.innerHTML='<span class="spinner"></span><span style="color:var(--am)">Processing\u2026</span>';
+  } else {
+    scanBar.classList.remove('hidden');
+    badge.innerHTML='<span class="spinner"></span><span style="color:var(--t2)">Pending\u2026</span>';
   }
 }
 
-// Use SSE for pending/processing imports; fall back to polling if SSE unsupported
 if(!finalStatuses.has(currentStatus)){
   if(typeof EventSource !== 'undefined'){
     const es = new EventSource(`/streaming-royalties/import-stream/${importId}`);
@@ -3101,7 +3133,6 @@ if(!finalStatuses.has(currentStatus)){
     };
     es.onerror = () => {
       es.close();
-      // Fall back to polling if stream dies
       if(!finalStatuses.has(currentStatus)) setTimeout(poll, 3000);
     };
   } else {
