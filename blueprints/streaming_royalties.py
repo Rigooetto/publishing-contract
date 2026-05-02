@@ -1441,11 +1441,22 @@ def ard_rebuild():
     _url = _engine.url.render_as_string(hide_password=False)
     def _bg():
         import logging
+        from sqlalchemy import text as _t
         _lg = logging.getLogger(__name__)
         _lg.warning("Manual ARD rebuild: starting")
         _eng = _ce(_url, poolclass=NullPool)
         try:
-            _rebuild_artist_detail(_eng)
+            with _eng.connect() as _c:
+                _missing = [r[0] for r in _c.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM royalty_summary "
+                    "EXCEPT "
+                    "SELECT DISTINCT reporting_month FROM artist_royalty_detail "
+                    "ORDER BY 1"
+                )).fetchall()]
+            if _missing:
+                _rebuild_artist_detail(_eng, months=_missing)
+            else:
+                _rebuild_artist_detail(_eng)
             _lg.warning("Manual ARD rebuild: complete")
         except Exception as _e:
             _lg.warning("Manual ARD rebuild failed: %s", _e)
