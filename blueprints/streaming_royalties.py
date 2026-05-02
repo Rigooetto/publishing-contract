@@ -79,6 +79,7 @@ def _isrc_to_track_map(isrc_set, main_engine=None, prefetch_all=False):
     from sqlalchemy import text as _t
     if main_engine is not None:
         with main_engine.connect() as conn:
+            conn.execute(_t("SET statement_timeout = 8000"))  # 8s hard limit
             if prefetch_all:
                 rows = conn.execute(_t("SELECT isrc, id FROM track WHERE isrc IS NOT NULL")).fetchall()
             else:
