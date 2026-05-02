@@ -3215,22 +3215,7 @@ function applyUpdate(d){
 }
 
 if(!finalStatuses.has(currentStatus)){
-  if(typeof EventSource !== 'undefined'){
-    const es = new EventSource(`/streaming-royalties/import-stream/${importId}`);
-    es.onmessage = e => {
-      try{
-        const d = JSON.parse(e.data);
-        applyUpdate(d);
-        if(finalStatuses.has(d.status)) es.close();
-      }catch(err){}
-    };
-    es.onerror = () => {
-      es.close();
-      if(!finalStatuses.has(currentStatus)) setTimeout(poll, 3000);
-    };
-  } else {
-    setTimeout(poll, 2000);
-  }
+  setTimeout(poll, 2000);
 }
 
 function poll(){
