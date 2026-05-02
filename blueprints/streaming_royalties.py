@@ -79,7 +79,6 @@ def _isrc_to_track_map(isrc_set, main_engine=None, prefetch_all=False):
     from sqlalchemy import text as _t
     if main_engine is not None:
         with main_engine.connect() as conn:
-            conn.execute(_t("SET statement_timeout = 8000"))  # 8s hard limit
             if prefetch_all:
                 rows = conn.execute(_t("SELECT isrc, id FROM track WHERE isrc IS NOT NULL")).fetchall()
             else:
@@ -416,7 +415,9 @@ def _process_import(app, import_id):
             url += ("&" if "?" in url else "?") + "sslmode=require"
         return url
 
-    m_engine = create_engine(_pg(main_url),      poolclass=NullPool) if main_url      else None
+    _main_connect_args = {"connect_timeout": 10, "options": "-c statement_timeout=10000"}
+    m_engine = create_engine(_pg(main_url), poolclass=NullPool,
+                             connect_args=_main_connect_args) if main_url else None
     r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
 
     # streaming_import and streaming_royalty both live in the royalties DB.
@@ -517,8 +518,10 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             url += ("&" if "?" in url else "?") + "sslmode=require"
         return url
 
+    _main_ca = {"connect_timeout": 10, "options": "-c statement_timeout=10000"}
     r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
-    m_engine = create_engine(_pg(main_url),      poolclass=NullPool) if main_url      else None
+    m_engine = create_engine(_pg(main_url), poolclass=NullPool,
+                             connect_args=_main_ca) if main_url else None
 
     def _emit(data):
         progress_q.put(data)
