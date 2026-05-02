@@ -107,13 +107,16 @@ def _save_progress(rec, rows_read, rows_skipped, rows_aggregated, royalties_engi
                    {rm}
              WHERE id=:id
         """.format(rm=", reporting_month=:rm" if reporting_month else "")
-        with royalties_engine.connect() as conn:
-            conn.execute(_t(sql), {
-                "r": rows_read, "s": rows_skipped, "a": rows_aggregated,
-                "id": rec.id,
-                **({"rm": reporting_month} if reporting_month else {}),
-            })
-            conn.commit()
+        try:
+            with royalties_engine.connect() as conn:
+                conn.execute(_t(sql), {
+                    "r": rows_read, "s": rows_skipped, "a": rows_aggregated,
+                    "id": rec.id,
+                    **({"rm": reporting_month} if reporting_month else {}),
+                })
+                conn.commit()
+        except Exception:
+            pass  # progress display is best-effort; never block the import
     else:
         rec.rows_read       = rows_read
         rec.rows_skipped    = rows_skipped
@@ -417,10 +420,11 @@ def _process_import(app, import_id):
             url += ("&" if "?" in url else "?") + "sslmode=require"
         return url
 
-    _main_connect_args = {"connect_timeout": 10, "options": "-c statement_timeout=10000"}
+    _db_connect_args = {"connect_timeout": 10}
     m_engine = create_engine(_pg(main_url), poolclass=NullPool,
-                             connect_args=_main_connect_args) if main_url else None
-    r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
+                             connect_args=_db_connect_args) if main_url else None
+    r_engine = create_engine(_pg(royalties_url), poolclass=NullPool,
+                             connect_args=_db_connect_args) if royalties_url else None
 
     # streaming_import and streaming_royalty both live in the royalties DB.
     # m_engine is only needed for the track ISRC lookup.
@@ -532,10 +536,11 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             url += ("&" if "?" in url else "?") + "sslmode=require"
         return url
 
-    _main_ca = {"connect_timeout": 10, "options": "-c statement_timeout=10000"}
-    r_engine = create_engine(_pg(royalties_url), poolclass=NullPool) if royalties_url else None
+    _ca = {"connect_timeout": 10}
+    r_engine = create_engine(_pg(royalties_url), poolclass=NullPool,
+                             connect_args=_ca) if royalties_url else None
     m_engine = create_engine(_pg(main_url), poolclass=NullPool,
-                             connect_args=_main_ca) if main_url else None
+                             connect_args=_ca) if main_url else None
 
     def _emit(data):
         progress_q.put(data)
