@@ -794,84 +794,68 @@ _ARD_INSERT_SQL = """
 """
 
 
-_ARD_PER_ARTIST_SQL = """
+_ARD_BULK_SQL = """
     INSERT INTO artist_royalty_detail
         (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
     SELECT
-        :canonical                                          AS artist_name,
+        COALESCE(m.canonical_name, s.artist_name)           AS artist_name,
         rs.reporting_month,
         rs.isrc,
         MAX(rs.track_title_csv)                             AS track_title,
         rs.platform,
         rs.country,
-        ROUND(SUM(rs.streams * s.percentage / 100.0))::bigint AS streams,
-        SUM(rs.net_revenue  * s.percentage / 100.0)         AS net_revenue
+        ROUND(SUM(rs.streams     * s.percentage / 100.0))::bigint AS streams,
+        SUM(rs.net_revenue       * s.percentage / 100.0)          AS net_revenue
     FROM artist_royalty_split s
     JOIN royalty_summary rs ON rs.isrc = s.isrc
-    WHERE s.artist_name = ANY(:raw_names)
-    GROUP BY rs.reporting_month, rs.isrc, rs.platform, rs.country
-    ON CONFLICT (artist_name, reporting_month, isrc, platform, country) DO UPDATE
-        SET streams=EXCLUDED.streams, net_revenue=EXCLUDED.net_revenue, track_title=EXCLUDED.track_title
+    LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'
+    GROUP BY COALESCE(m.canonical_name, s.artist_name), rs.reporting_month, rs.isrc, rs.platform, rs.country
 """
 
-
-def _resolve_artist_map(conn):
-    """Returns {canonical_name: [raw_name, ...]} from artist_royalty_split + artist_name_map."""
-    from sqlalchemy import text as _t
-    rows = conn.execute(_t(
-        "SELECT COALESCE(m.canonical_name, s.artist_name) AS canonical, "
-        "       ARRAY_AGG(DISTINCT s.artist_name)          AS raw_names "
-        "FROM artist_royalty_split s "
-        "LEFT JOIN artist_name_map m "
-        "       ON m.raw_name = s.artist_name AND m.status = 'confirmed' "
-        "GROUP BY 1"
-    )).fetchall()
-    return {r[0]: list(r[1]) for r in rows}
+_ARD_PARTIAL_SQL = """
+    INSERT INTO artist_royalty_detail
+        (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
+    SELECT
+        COALESCE(m.canonical_name, s.artist_name)           AS artist_name,
+        rs.reporting_month,
+        rs.isrc,
+        MAX(rs.track_title_csv)                             AS track_title,
+        rs.platform,
+        rs.country,
+        ROUND(SUM(rs.streams     * s.percentage / 100.0))::bigint AS streams,
+        SUM(rs.net_revenue       * s.percentage / 100.0)          AS net_revenue
+    FROM artist_royalty_split s
+    JOIN royalty_summary rs ON rs.isrc = s.isrc
+    LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'
+    WHERE COALESCE(m.canonical_name, s.artist_name) = ANY(:canonical_names)
+    GROUP BY COALESCE(m.canonical_name, s.artist_name), rs.reporting_month, rs.isrc, rs.platform, rs.country
+"""
 
 
 def _rebuild_artist_detail(engine, artist_names=None):
     """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
-    Full rebuild (artist_names=None): per-artist DELETE+INSERT for all split artists.
-    Partial rebuild (artist_names=[...]): per-artist DELETE+INSERT for listed canonical names only.
-    Per-artist commits make this restart-safe — a restart only loses the in-progress artist.
+    Full rebuild (artist_names=None): TRUNCATE + single bulk INSERT for all artists.
+    Partial rebuild (artist_names=[...]): DELETE affected rows + single bulk INSERT filtered to those artists.
     Always call from a background NullPool thread — never from a request thread.
     """
     import logging as _lg_ard
     from sqlalchemy import text as _t
     _log = _lg_ard.getLogger(__name__)
-
-    def _process_one(canonical, raw_names):
-        with engine.connect() as _c:
-            _c.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = :n"), {"n": canonical})
-            _c.execute(_t(_ARD_PER_ARTIST_SQL), {"canonical": canonical, "raw_names": raw_names})
-            _c.commit()
-
     try:
-        with engine.connect() as _c:
-            artist_map = _resolve_artist_map(_c)
-
-        if artist_names is None:
-            _log.warning("ARD full rebuild: %d artists to process", len(artist_map))
-            done = 0
-            for canonical, raw_names in artist_map.items():
-                try:
-                    _process_one(canonical, raw_names)
-                    done += 1
-                    if done % 20 == 0 or done == len(artist_map):
-                        _log.warning("ARD rebuild progress: %d/%d artists done", done, len(artist_map))
-                except Exception as _e:
-                    _log.warning("ARD rebuild: artist %r failed: %s", canonical, _e)
-            _log.warning("ARD full rebuild complete: %d/%d artists processed", done, len(artist_map))
-        else:
-            names = list(artist_names)
-            if not names:
-                return
-            for canonical in names:
-                raw_names = artist_map.get(canonical, [canonical])
-                try:
-                    _process_one(canonical, raw_names)
-                except Exception as _e:
-                    _log.warning("ARD rebuild: artist %r failed: %s", canonical, _e)
+        with engine.connect() as conn:
+            if artist_names is None:
+                _log.warning("ARD full rebuild: starting")
+                conn.execute(_t("DELETE FROM artist_royalty_detail"))
+                conn.execute(_t(_ARD_BULK_SQL))
+                conn.commit()
+                _log.warning("ARD full rebuild: complete")
+            else:
+                names = list(artist_names)
+                if not names:
+                    return
+                conn.execute(_t("DELETE FROM artist_royalty_detail WHERE artist_name = ANY(:n)"), {"n": names})
+                conn.execute(_t(_ARD_PARTIAL_SQL), {"canonical_names": names})
+                conn.commit()
     except Exception as _e:
         _log.warning("_rebuild_artist_detail failed: %s", _e)
 
