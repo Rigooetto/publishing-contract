@@ -17,7 +17,7 @@ import time as _time
 import unicodedata
 
 _dash_cache: dict = {}
-_CACHE_TTL = 600  # seconds
+_CACHE_TTL = 3600  # seconds — data changes only on import (~monthly)
 
 _splits_cache: dict = {}
 _SPLITS_CACHE_TTL = 120  # seconds
@@ -484,9 +484,9 @@ def _process_import(app, import_id):
         _rec.file_path = file_path
 
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
-        _update_status("done")
 
-        # Sync royalty_summary from the new streaming_royalty rows
+        # Sync royalty_summary from this import's streaming_royalty rows
+        _imp_months = []
         try:
             with r_engine.connect() as _sc:
                 _sc.execute(_t("""
@@ -505,10 +505,13 @@ def _process_import(app, import_id):
                         track_title_csv = EXCLUDED.track_title_csv
                 """), {"id": import_id})
                 _sc.commit()
+                _imp_months = [r[0] for r in _sc.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
+                ), {"id": import_id}).fetchall()]
         except Exception:
             pass
 
-        # Auto-map new individual artist names, then rebuild ARD cache
+        # Auto-map new individual artist names
         try:
             with r_engine.connect() as _nc:
                 _new_csvs = [r[0] for r in _nc.execute(_t(
@@ -520,21 +523,27 @@ def _process_import(app, import_id):
         except Exception:
             pass
 
+        # Rebuild ARD for affected months only
         try:
-            from sqlalchemy import create_engine as _ce_ard, text as _t_ard
+            from sqlalchemy import create_engine as _ce_ard
             _ard_eng = _ce_ard(
                 r_engine.url.render_as_string(hide_password=False),
-                poolclass=NullPool,
-                connect_args={"connect_timeout": 10},
+                poolclass=NullPool, connect_args={"connect_timeout": 10},
             )
-            with _ard_eng.connect() as _mc:
-                _imp_months = [r[0] for r in _mc.execute(_t_ard(
-                    "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
-                ), {"id": import_id}).fetchall()]
             _rebuild_artist_detail(_ard_eng, months=_imp_months if _imp_months else None)
             _ard_eng.dispose()
         except Exception:
             pass
+
+        # Targeted cache invalidation + full prewarm for affected periods
+        # "done" is set only after prewarm so dashboard is warm when user arrives
+        try:
+            _clear_cache_for_months(r_engine, _imp_months)
+            _prewarm_affected_periods(r_engine, _imp_months)
+        except Exception:
+            pass
+
+        _update_status("done")
 
         try:
             os.remove(file_path)
@@ -634,32 +643,46 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             row = conn.execute(_t(
                 "SELECT rows_read, rows_aggregated, rows_skipped FROM streaming_import WHERE id=:id"
             ), {"id": import_id}).fetchone()
-        # Collect new artist names from this import
+
+        # Sync royalty_summary from this import's streaming_royalty rows
+        _import_months = []
+        _emit({"status": "processing", "message": "Syncing royalty summary..."})
+        try:
+            with r_engine.connect() as _sc:
+                _sc.execute(_t("""
+                    INSERT INTO royalty_summary
+                        (reporting_month, isrc, artist_name_csv, platform, country,
+                         track_title_csv, streams, net_revenue)
+                    SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                           MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                      FROM streaming_royalty
+                     WHERE import_id = :id
+                     GROUP BY reporting_month, isrc, platform, country
+                    ON CONFLICT (reporting_month, isrc, platform, country) DO UPDATE SET
+                        streams         = royalty_summary.streams     + EXCLUDED.streams,
+                        net_revenue     = royalty_summary.net_revenue + EXCLUDED.net_revenue,
+                        artist_name_csv = EXCLUDED.artist_name_csv,
+                        track_title_csv = EXCLUDED.track_title_csv
+                """), {"id": import_id})
+                _sc.commit()
+                _import_months = [r[0] for r in _sc.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
+                ), {"id": import_id}).fetchall()]
+        except Exception:
+            pass
+
+        # Collect new artist names
         try:
             with r_engine.connect() as _nc:
                 _new_csvs = [r[0] for r in _nc.execute(_t(
                     "SELECT DISTINCT artist_name_csv FROM streaming_royalty "
                     "WHERE import_id = :id AND artist_name_csv IS NOT NULL"
                 ), {"id": import_id}).fetchall()]
-            _new_individuals = _extract_individuals(_new_csvs)
+            _new_individuals_snap = _extract_individuals(_new_csvs)
         except Exception:
-            _new_individuals = set()
+            _new_individuals_snap = set()
 
-        # Collect reporting months from this import for selective cache invalidation
-        _import_months = []
-        try:
-            with r_engine.connect() as _mc:
-                _import_months = [r[0] for r in _mc.execute(_t(
-                    "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
-                ), {"id": import_id}).fetchall()]
-        except Exception:
-            pass
-        _clear_cache_for_months(r_engine, _import_months)
-        _app = current_app._get_current_object()
-        _royalties_url_snap = _royalties_engine().url.render_as_string(hide_password=False)
-        _new_individuals_snap = set(_new_individuals)
-
-        # Auto-map artist names synchronously — ARD rebuild depends on canonical mappings
+        # Auto-map artist names — ARD rebuild depends on canonical mappings
         _emit({"status": "processing", "message": "Mapping artist names..."})
         try:
             _auto_map_individuals(_new_individuals_snap)
@@ -667,41 +690,31 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             import logging as _lg_am
             _lg_am.getLogger(__name__).warning("Auto-map failed: %s", _am_e)
 
-        # Rebuild ARD synchronously so artist dashboard is accurate on first load
-        _emit({"status": "processing", "message": "Updating artist revenue cache..."})
+        # Rebuild ARD for affected months only
+        _emit({"status": "processing", "message": "Rebuilding artist revenue cache..."})
         try:
             from sqlalchemy import create_engine as _ce_pi
-            from sqlalchemy.pool import NullPool
-            _eng_pi = _ce_pi(_royalties_url_snap, poolclass=NullPool)
-            _canonical_pi = set()
-            try:
-                from models import ArtistNameMap as _ANM_pi
-                for _raw_pi in _new_individuals_snap:
-                    _m_pi = _ANM_pi.query.filter_by(raw_name=_raw_pi, status='confirmed').first()
-                    _canonical_pi.add(_m_pi.canonical_name if _m_pi else _raw_pi)
-            except Exception:
-                _canonical_pi = _new_individuals_snap
-            if _canonical_pi:
-                _rebuild_artist_detail(_eng_pi, artist_names=list(_canonical_pi))
+            from sqlalchemy.pool import NullPool as _NP_pi
+            _royalties_url_snap = _royalties_engine().url.render_as_string(hide_password=False)
+            _eng_pi = _ce_pi(_royalties_url_snap, poolclass=_NP_pi)
+            _rebuild_artist_detail(_eng_pi, months=_import_months if _import_months else None)
             _eng_pi.dispose()
         except Exception as _ard_pi_e:
             import logging as _lg_pi
             _lg_pi.getLogger(__name__).warning("Post-import ARD rebuild failed: %s", _ard_pi_e)
 
-        # Background: prewarm dashboard cache only (non-blocking, nice-to-have)
-        def _run_post_import():
-            with _app.app_context():
-                if _prewarm_lock.acquire(blocking=False):
-                    try:
-                        _prewarm_dashboard_cache()
-                    finally:
-                        _prewarm_lock.release()
-        threading.Thread(target=_run_post_import, daemon=True).start()
+        # Targeted cache invalidation then synchronous prewarm — "done" only after cache is warm
+        _clear_cache_for_months(r_engine, _import_months)
+        _emit({"status": "processing", "message": "Warming dashboard cache..."})
+        try:
+            _prewarm_affected_periods(r_engine, _import_months, emit_fn=_emit)
+        except Exception:
+            pass
 
         _emit({"status": "done",
-               "rows_read":      row[0] if row else 0,
+               "rows_read":       row[0] if row else 0,
                "rows_aggregated": row[1] if row else 0,
-               "rows_skipped":   row[2] if row else 0})
+               "rows_skipped":    row[2] if row else 0})
 
         try:
             os.remove(file_path)
@@ -779,9 +792,25 @@ def _prewarm_dashboard_cache():
         combos.append((y, "all", "all", "label"))
         combos.append((y, "all", "all", "artist"))
 
-    total = len(combos)
+    # Phase 2: per-artist × all periods × both views
+    try:
+        with engine.connect() as _ac:
+            p2_artist_rows = _ac.execute(_t(
+                "SELECT DISTINCT artist_name FROM artist_royalty_detail ORDER BY 1"
+            )).fetchall()
+        p2_artists = [r[0] for r in p2_artist_rows if r[0]]
+    except Exception:
+        p2_artists = []
+
+    p2_periods = [(y, q) for y in years for q in ("1", "2", "3", "4", "all")]
+    p2_periods.append(("all", "all"))
+    p2_combos_count = len(p2_artists) * len(p2_periods) * 2
+
+    total = len(combos) + p2_combos_count
     done  = 0
     _prewarm_status.update({"running": True, "done": 0, "total": total, "current_artist": "Warming cache…"})
+
+    # Phase 1: artist="all" combos
     for (y, qtr, artist, view) in combos:
         _prewarm_status["current_artist"] = f"{y} Q{qtr}" if qtr != "all" else str(y)
         try:
@@ -791,6 +820,17 @@ def _prewarm_dashboard_cache():
         done += 1
         _prewarm_status["done"] = done
         _time.sleep(0.02)
+
+    # Phase 2: per-artist combos (skip combos already in DB cache)
+    for artist in p2_artists:
+        _prewarm_status["current_artist"] = artist
+        for (y, q) in p2_periods:
+            for view in ("label", "artist"):
+                _warm_if_missing(engine, y, q, artist, view)
+                done += 1
+                _prewarm_status["done"] = done
+        _time.sleep(0.01)
+
     _prewarm_status.update({"running": False, "current_artist": ""})
     _engine_local.override = None
     engine.dispose()
@@ -1075,6 +1115,7 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
         "catalog":     catalog,
         "all_artists": all_artists,
         "all_years":   all_years,
+        "all_periods": _dropdown_cache.get("all_periods", []),
     }
 
 
@@ -1132,6 +1173,74 @@ def _clear_cache_for_months(engine, reporting_months):
     _dropdown_cache.clear()
 
 
+def _warm_if_missing(engine, year, quarter, artist, view):
+    """Compute and store one dashboard combo only if not already in dashboard_cache."""
+    from sqlalchemy import text as _t
+    db_key = f"{year}|{quarter}|{artist}|{view}"
+    try:
+        with engine.connect() as _cc:
+            if _cc.execute(_t("SELECT 1 FROM dashboard_cache WHERE cache_key=:k"),
+                           {"k": db_key}).fetchone():
+                return
+    except Exception:
+        pass
+    try:
+        _dashboard_data(year, quarter, artist, view)
+    except Exception:
+        pass
+
+
+def _prewarm_affected_periods(engine, months, emit_fn=None):
+    """Compute and cache all artist × affected-period × both-view combos.
+    Called synchronously after each import so every dashboard hit is served from cache.
+    emit_fn(msg) is optional — used by the SSE path to stream progress messages.
+    """
+    from sqlalchemy import text as _t
+
+    # Derive the (year, quarter) pairs touched by these months, plus year totals + all-time
+    periods = set()
+    for m in months:
+        y = str(getattr(m, 'year', None) or str(m)[:4])
+        mn = getattr(m, 'month', None) or int(str(m)[5:7])
+        q = str((mn - 1) // 3 + 1)
+        periods.add((y, q))
+        periods.add((y, "all"))
+    periods.add(("all", "all"))
+
+    try:
+        with engine.connect() as _ac:
+            artist_rows = _ac.execute(_t(
+                "SELECT DISTINCT artist_name FROM artist_royalty_detail ORDER BY 1"
+            )).fetchall()
+        artists = [r[0] for r in artist_rows if r[0]]
+    except Exception:
+        artists = []
+
+    total_combos = len(periods) * (len(artists) + 1) * 2
+    done = 0
+    _engine_local.override = engine
+    try:
+        for (y, q) in sorted(periods):
+            # artist="all" — both views
+            for view in ("label", "artist"):
+                _warm_if_missing(engine, y, q, "all", view)
+                done += 1
+            # per-artist — both views
+            for artist in artists:
+                for view in ("label", "artist"):
+                    _warm_if_missing(engine, y, q, artist, view)
+                    done += 1
+                _time.sleep(0.01)
+            if emit_fn:
+                try:
+                    emit_fn({"status": "processing",
+                             "message": f"Warming cache… {done}/{total_combos} combos"})
+                except Exception:
+                    pass
+    finally:
+        _engine_local.override = None
+
+
 def _get_dropdown_data(engine):
     """Return (raw_strings, all_years) for dropdown menus, cached in-process.
     The SELECT DISTINCT on 6.3M-row royalty_summary is expensive; cache survives
@@ -1150,14 +1259,22 @@ def _get_dropdown_data(engine):
             "SELECT DISTINCT EXTRACT(year FROM reporting_month) FROM royalty_summary "
             "WHERE reporting_month IS NOT NULL ORDER BY 1 DESC"
         )).fetchall()]
+        all_periods = [(int(r[0]), int(r[1])) for r in _c.execute(text(
+            "SELECT DISTINCT EXTRACT(year FROM reporting_month)::int AS y, "
+            "EXTRACT(quarter FROM reporting_month)::int AS q "
+            "FROM royalty_summary WHERE reporting_month IS NOT NULL "
+            "ORDER BY y DESC, q DESC"
+        )).fetchall()]
         latest_month = _c.execute(text(
             "SELECT MAX(reporting_month) FROM royalty_summary WHERE reporting_month IS NOT NULL"
         )).scalar()
         if latest_month:
             _dropdown_cache["latest_year"]    = str(latest_month.year)
             _dropdown_cache["latest_quarter"] = str((latest_month.month - 1) // 3 + 1)
+            _dropdown_cache["latest_period"]  = f"{latest_month.year}Q{(latest_month.month-1)//3+1}"
     _dropdown_cache["raw_strings"] = raw_strings
-    _dropdown_cache["all_years"] = all_years
+    _dropdown_cache["all_years"]   = all_years
+    _dropdown_cache["all_periods"] = all_periods
     _dropdown_cache["ts"] = _time.time()
     return raw_strings, all_years
 
@@ -1191,7 +1308,8 @@ def _dashboard_data(year=None, quarter=None, artist=None, view="label"):
         import logging as _lg
         _lg.getLogger(__name__).warning("_dashboard_data query failed (%s|%s|%s|%s): %s", year, quarter, artist, view, _e)
         return {"error": "timeout", "kpi_total": 0, "by_artist": [], "by_month": [],
-                "by_platform": [], "by_country": [], "catalog": [], "all_artists": [], "all_years": []}
+                "by_platform": [], "by_country": [], "catalog": [], "all_artists": [], "all_years": [],
+                "all_periods": []}
 
     # Persist to DB cache
     try:
@@ -1407,6 +1525,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         "catalog":     catalog,
         "all_artists": all_artists,
         "all_years":   all_years,
+        "all_periods": _dropdown_cache.get("all_periods", []),
     }
 
 
@@ -1496,37 +1615,49 @@ def dashboard():
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
-    year    = request.args.get("year")
-    quarter = request.args.get("quarter")
+    period  = request.args.get("period")
     artist  = request.args.get("artist", "all")
     view    = request.args.get("view", "label")
 
-    if year is None or quarter is None:
-        try:
-            _get_dropdown_data(_royalties_engine())
-        except Exception:
-            pass
-        if year is None:
-            year = _dropdown_cache.get("latest_year", "all")
-        if quarter is None:
-            quarter = _dropdown_cache.get("latest_quarter", "all")
+    try:
+        _get_dropdown_data(_royalties_engine())
+    except Exception:
+        pass
+
+    if period is None:
+        period = _dropdown_cache.get("latest_period", "all")
+
+    year, quarter = _parse_period(period)
 
     data = _dashboard_data(year, quarter, artist, view)
-    # Always inject a fresh all_years list so newly uploaded historical years
-    # appear immediately even if the cached payload predates the upload.
+    # Inject fresh all_periods so new months appear immediately
     try:
-        _, fresh_years = _get_dropdown_data(_royalties_engine())
-        if fresh_years:
+        _get_dropdown_data(_royalties_engine())
+        fresh_periods = _dropdown_cache.get("all_periods", [])
+        if fresh_periods:
             data = dict(data)
-            data["all_years"] = fresh_years
+            data["all_periods"] = fresh_periods
     except Exception:
         pass
     return render_template_string(
         _DASHBOARD_HTML,
-        data=data, year=year, quarter=quarter,
+        data=data, period=period,
         artist=artist, view=view,
         _sidebar_html=_sb(),
     )
+
+
+def _parse_period(period):
+    """Convert a period string like '2026Q1' → (year, quarter).
+    'all' or None → ('all', 'all').
+    """
+    if not period or period == "all":
+        return "all", "all"
+    import re as _re
+    m = _re.match(r"^(\d{4})Q([1-4])$", str(period))
+    if m:
+        return m.group(1), m.group(2)
+    return "all", "all"
 
 
 @bp.route("/streaming-royalties/data")
@@ -1535,10 +1666,10 @@ def dashboard_data():
     if auth_required():
         return jsonify({"error": "auth"}), 401
 
-    year    = request.args.get("year", "all")
-    quarter = request.args.get("quarter", "all")
+    period  = request.args.get("period", "all")
     artist  = request.args.get("artist", "all")
     view    = request.args.get("view", "label")
+    year, quarter = _parse_period(period)
 
     data = _dashboard_data(year, quarter, artist, view)
     return jsonify(data)
@@ -1815,12 +1946,56 @@ def delete_import(import_id):
 
     from models import StreamingImport
     from sqlalchemy import text as _t
-    rec = StreamingImport.query.get_or_404(import_id)
+    StreamingImport.query.get_or_404(import_id)
     _engine = _royalties_engine()
     with _engine.connect() as _c:
+        # Capture affected months before deleting
+        _del_months = [r[0] for r in _c.execute(_t(
+            "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
+        ), {"id": import_id}).fetchall()]
+
         _c.execute(_t("DELETE FROM streaming_royalty WHERE import_id = :id"), {"id": import_id})
         _c.execute(_t("DELETE FROM streaming_import WHERE id = :id"), {"id": import_id})
         _c.commit()
+
+        # Rebuild royalty_summary for affected months from remaining streaming_royalty data
+        for _m in _del_months:
+            _c.execute(_t("DELETE FROM royalty_summary WHERE reporting_month = :m"), {"m": _m})
+            _c.execute(_t("""
+                INSERT INTO royalty_summary
+                    (reporting_month, isrc, artist_name_csv, platform, country,
+                     track_title_csv, streams, net_revenue)
+                SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                       MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                  FROM streaming_royalty
+                 WHERE reporting_month = :m
+                 GROUP BY reporting_month, isrc, platform, country
+                ON CONFLICT (reporting_month, isrc, platform, country) DO UPDATE SET
+                    streams     = EXCLUDED.streams,
+                    net_revenue = EXCLUDED.net_revenue,
+                    artist_name_csv = EXCLUDED.artist_name_csv,
+                    track_title_csv = EXCLUDED.track_title_csv
+            """), {"m": _m})
+        _c.commit()
+
+    # Invalidate cache for affected months; rebuild ARD in background
+    _clear_cache_for_months(_engine, _del_months)
+    if _del_months:
+        def _bg_del():
+            try:
+                from sqlalchemy import create_engine as _ce_del
+                from sqlalchemy.pool import NullPool as _NP_del
+                _bg_eng = _ce_del(
+                    _engine.url.render_as_string(hide_password=False),
+                    poolclass=_NP_del, connect_args={"connect_timeout": 10}
+                )
+                _rebuild_artist_detail(_bg_eng, months=_del_months)
+                _prewarm_affected_periods(_bg_eng, _del_months)
+                _bg_eng.dispose()
+            except Exception:
+                pass
+        threading.Thread(target=_bg_del, daemon=True).start()
+
     flash("Import deleted.", "success")
     return redirect(url_for("streaming_royalties.imports_list"))
 
@@ -1863,15 +2038,17 @@ def backfill_summary(import_id):
             ), {"id": import_id}).fetchall()]
 
         def _bg_ard():
+            import logging as _lg_bf
             try:
                 _bg_engine = _ce(
                     _engine.url.render_as_string(hide_password=False),
                     poolclass=NullPool, connect_args={"connect_timeout": 10}
                 )
                 _rebuild_artist_detail(_bg_engine, months=_imp_months if _imp_months else None)
+                _prewarm_affected_periods(_bg_engine, _imp_months)
                 _bg_engine.dispose()
             except Exception as _e:
-                _log.warning("backfill_summary ARD rebuild failed: %s", _e)
+                _lg_bf.getLogger(__name__).warning("backfill_summary ARD rebuild failed: %s", _e)
 
         threading.Thread(target=_bg_ard, daemon=True).start()
         flash(f"royalty_summary synced for import #{import_id}. ARD rebuild started in background.", "success")
@@ -2641,18 +2818,12 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
         <option value="{{ a }}"{% if artist==a %} selected{% endif %}>{{ a }}</option>
         {% endfor %}
       </select>
-      <select id="selYear" onchange="applyFilters()">
-        <option value="all"{% if year=='all' %} selected{% endif %}>All Years</option>
-        {% for y in data.all_years %}
-        <option value="{{ y }}"{% if year==y|string %} selected{% endif %}>{{ y }}</option>
+      <select id="selPeriod" onchange="applyFilters()">
+        <option value="all"{% if period=='all' %} selected{% endif %}>All Time</option>
+        {% for y, q in (data.all_periods or []) %}
+        {% set pval = y|string + 'Q' + q|string %}
+        <option value="{{ pval }}"{% if period==pval %} selected{% endif %}>{{ y }} Q{{ q }}</option>
         {% endfor %}
-      </select>
-      <select id="selQuarter" onchange="applyFilters()">
-        <option value="all"{% if quarter=='all' %} selected{% endif %}>All Quarters</option>
-        <option value="1"{% if quarter=='1' %} selected{% endif %}>Qtr 1</option>
-        <option value="2"{% if quarter=='2' %} selected{% endif %}>Qtr 2</option>
-        <option value="3"{% if quarter=='3' %} selected{% endif %}>Qtr 3</option>
-        <option value="4"{% if quarter=='4' %} selected{% endif %}>Qtr 4</option>
       </select>
       <div class="sr-view-toggle">
         <button id="btnLabel" class="{{ 'active' if view=='label' else '' }}" onclick="setView('label')">Label View</button>
@@ -2869,11 +3040,10 @@ function setView(v){
 
 function applyFilters(){
   const artist=document.getElementById('selArtist').value;
-  const year=document.getElementById('selYear').value;
-  const quarter=document.getElementById('selQuarter').value;
+  const period=document.getElementById('selPeriod').value;
   const overlay=document.getElementById('loading-overlay');
   var _loadTimer=setTimeout(function(){ overlay.style.display='flex'; }, 1000);
-  fetch(`/streaming-royalties/data?year=${year}&quarter=${quarter}&artist=${encodeURIComponent(artist)}&view=${currentView}`)
+  fetch(`/streaming-royalties/data?period=${encodeURIComponent(period)}&artist=${encodeURIComponent(artist)}&view=${currentView}`)
     .then(r=>r.json()).then(d=>{
       clearTimeout(_loadTimer);
       overlay.style.display='none';
