@@ -1825,6 +1825,62 @@ def delete_import(import_id):
     return redirect(url_for("streaming_royalties.imports_list"))
 
 
+@bp.route("/streaming-royalties/import/<int:import_id>/backfill-summary", methods=["POST"])
+def backfill_summary(import_id):
+    """Re-sync royalty_summary + rebuild ARD for an existing done import.
+    Needed when an import completed before the royalty_summary sync was added."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    from sqlalchemy import text as _t
+    from sqlalchemy import create_engine as _ce
+    from sqlalchemy.pool import NullPool
+
+    _engine = _royalties_engine()
+    try:
+        with _engine.connect() as _c:
+            _c.execute(_t("""
+                INSERT INTO royalty_summary
+                    (reporting_month, isrc, artist_name_csv, platform, country,
+                     track_title_csv, streams, net_revenue)
+                SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                       MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                  FROM streaming_royalty
+                 WHERE import_id = :id
+                 GROUP BY reporting_month, isrc, platform, country
+                ON CONFLICT (reporting_month, isrc, platform, country) DO UPDATE SET
+                    streams         = royalty_summary.streams     + EXCLUDED.streams,
+                    net_revenue     = royalty_summary.net_revenue + EXCLUDED.net_revenue,
+                    artist_name_csv = EXCLUDED.artist_name_csv,
+                    track_title_csv = EXCLUDED.track_title_csv
+            """), {"id": import_id})
+            _c.commit()
+            _imp_months = [r[0] for r in _c.execute(_t(
+                "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
+            ), {"id": import_id}).fetchall()]
+
+        def _bg_ard():
+            try:
+                _bg_engine = _ce(
+                    _engine.url.render_as_string(hide_password=False),
+                    poolclass=NullPool, connect_args={"connect_timeout": 10}
+                )
+                _rebuild_artist_detail(_bg_engine, months=_imp_months if _imp_months else None)
+                _bg_engine.dispose()
+            except Exception as _e:
+                _log.warning("backfill_summary ARD rebuild failed: %s", _e)
+
+        threading.Thread(target=_bg_ard, daemon=True).start()
+        flash(f"royalty_summary synced for import #{import_id}. ARD rebuild started in background.", "success")
+    except Exception as e:
+        flash(f"Backfill failed: {e}", "error")
+
+    return redirect(url_for("streaming_royalties.imports_list"))
+
+
 @bp.route("/streaming-royalties/purge-all", methods=["POST"])
 def purge_all():
     """Delete every streaming_royalty and streaming_import row — full reset."""
@@ -2920,6 +2976,12 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
     {% if imp.status in ('pending','error','processing') %}
     <form method="post" action="/streaming-royalties/import/{{ imp.id }}/retry" style="display:inline">
       <button class="btn btn-sm" style="color:var(--a)">&#9654; Retry</button>
+    </form>
+    {% endif %}
+    {% if imp.status == 'done' %}
+    <form method="post" action="/streaming-royalties/import/{{ imp.id }}/backfill-summary" style="display:inline"
+          onsubmit="return confirm('Re-sync royalty_summary and rebuild dashboard cache for this import?')">
+      <button class="btn btn-sm" style="color:var(--ac,#4f8ef7)" title="Sync to royalty_summary and rebuild ARD">Sync&#x2192;Dashboard</button>
     </form>
     {% endif %}
     <form method="post" action="/streaming-royalties/import/{{ imp.id }}/delete" style="display:inline"
