@@ -189,23 +189,16 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total, royalties_engin
 def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress_callback=None):
     """Parse CSV with pandas (chunked) and flush aggregated rows to the DB."""
     import pandas as pd
-    from sqlalchemy import text as _t
 
     rows_read = 0
     rows_skipped = 0
     rows_aggregated_total = 0
     reporting_month_seen = None
 
-    import logging as _lg2; _log2 = _lg2.getLogger(__name__)
-    _log2.warning("AGG%d: start, detecting delimiter", rec.id)
-
     # Detect delimiter
     with open(rec.file_path, encoding="utf-8-sig", errors="replace") as _peek:
         first_line = _peek.readline()
     delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
-    _log2.warning("AGG%d: delimiter=%r, starting pd.read_csv", rec.id, delimiter)
-
-    track_map = {}  # ISRC→track_id enrichment skipped — main DB query hangs under load
 
     # Build alias→canonical lookup
     _alias_map = {}
@@ -245,32 +238,15 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
         s[~eu] = s[~eu].str.replace(',', '', regex=False)
         return pd.to_numeric(s, errors='coerce').fillna(0.0)
 
-    UPSERT = """
-        INSERT INTO streaming_royalty (
-            import_id, isrc, platform, country, sales_type,
-            reporting_month, sales_month,
-            artist_name_csv, track_title_csv, label_name, release_title,
-            upc, streaming_sub_type, release_type, currency,
-            total_quantity, total_gross_revenue, total_net_revenue, total_mechanical_fee,
-            track_id, created_at
-        ) VALUES (
-            :import_id, :isrc, :platform, :country, :sales_type,
-            :reporting_month, :sales_month,
-            :artist_name_csv, :track_title_csv, :label_name, :release_title,
-            :upc, :streaming_sub_type, :release_type, :currency,
-            :total_quantity, :total_gross_revenue, :total_net_revenue, :total_mechanical_fee,
-            :track_id, :created_at
-        )
-        ON CONFLICT ON CONSTRAINT uq_streaming_royalty_agg_key DO UPDATE SET
-            total_quantity       = streaming_royalty.total_quantity       + EXCLUDED.total_quantity,
-            total_gross_revenue  = streaming_royalty.total_gross_revenue  + EXCLUDED.total_gross_revenue,
-            total_net_revenue    = streaming_royalty.total_net_revenue    + EXCLUDED.total_net_revenue,
-            total_mechanical_fee = streaming_royalty.total_mechanical_fee + EXCLUDED.total_mechanical_fee
-    """
-
     _engine = royalties_engine_ if royalties_engine_ is not None else _royalties_engine()
     col_rename = None
     now = datetime.datetime.utcnow()
+
+    key_cols  = ["isrc", "platform", "country", "sales_type", "rep_iso", "sal_iso"]
+    meta_cols = ["artist_name", "track_title", "label_name", "release_title",
+                 "upc", "streaming_sub_type", "release_type", "currency"]
+    agg_frames = []
+    rows_agg_running = 0
 
     for chunk in pd.read_csv(
         rec.file_path,
@@ -279,7 +255,6 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
         dtype=str,
         chunksize=100_000,
         on_bad_lines="skip",
-        low_memory=False,
     ):
         # Build column rename map from first chunk
         if col_rename is None:
@@ -294,8 +269,6 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
 
         chunk = chunk.rename(columns=col_rename)
         rows_read += len(chunk)
-        if rows_read <= len(chunk):  # first chunk only
-            _log2.warning("AGG%d: first chunk read, rows_read=%d", rec.id, rows_read)
 
         # Fill missing optional columns with defaults
         for opt, default in [
@@ -350,51 +323,84 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
         chunk["rep_iso"] = chunk["reporting_month"].dt.strftime("%Y-%m-%d")
         chunk["sal_iso"] = chunk["sales_month"].dt.strftime("%Y-%m-%d")
 
-        key_cols  = ["isrc", "platform", "country", "sales_type", "rep_iso", "sal_iso"]
-        meta_cols = ["artist_name", "track_title", "label_name", "release_title",
-                     "upc", "streaming_sub_type", "release_type", "currency"]
-        num_cols  = ["quantity", "gross_revenue", "net_revenue", "mechanical_fee"]
+        agg_df = chunk.groupby(key_cols, sort=False).agg(
+            quantity=("quantity", "sum"),
+            gross_revenue=("gross_revenue", "sum"),
+            net_revenue=("net_revenue", "sum"),
+            mechanical_fee=("mechanical_fee", "sum"),
+            artist_name=("artist_name", "first"),
+            track_title=("track_title", "first"),
+            label_name=("label_name", "first"),
+            release_title=("release_title", "first"),
+            upc=("upc", "first"),
+            streaming_sub_type=("streaming_sub_type", "first"),
+            release_type=("release_type", "first"),
+            currency=("currency", "first"),
+        ).reset_index()
 
-        agg_num  = chunk.groupby(key_cols, sort=False)[num_cols].sum()
-        agg_meta = chunk.groupby(key_cols, sort=False)[meta_cols].first()
-        agg_df   = agg_num.join(agg_meta).reset_index()
+        agg_frames.append(agg_df)
+        rows_agg_running += len(agg_df)
+        _save_progress(rec, rows_read, rows_skipped, rows_agg_running, royalties_engine_)
+        if progress_callback:
+            progress_callback(rows_read, rows_skipped, rows_agg_running)
 
-        db_rows = [
-            {
-                "import_id":            rec.id,
-                "isrc":                 r["isrc"],
-                "platform":             r["platform"],
-                "country":              r["country"],
-                "sales_type":           r["sales_type"],
-                "reporting_month":      datetime.date.fromisoformat(r["rep_iso"]),
-                "sales_month":          datetime.date.fromisoformat(r["sal_iso"]),
-                "artist_name_csv":      r["artist_name"],
-                "track_title_csv":      r["track_title"],
-                "label_name":           r["label_name"],
-                "release_title":        r["release_title"],
-                "upc":                  r["upc"],
-                "streaming_sub_type":   r["streaming_sub_type"],
-                "release_type":         r["release_type"],
-                "currency":             r["currency"],
-                "total_quantity":       int(r["quantity"]),
-                "total_gross_revenue":  decimal.Decimal(str(round(float(r["gross_revenue"]), 6))),
-                "total_net_revenue":    decimal.Decimal(str(round(float(r["net_revenue"]), 6))),
-                "total_mechanical_fee": decimal.Decimal(str(round(float(r["mechanical_fee"]), 6))),
-                "track_id":             track_map.get(r["isrc"]),
-                "created_at":           now,
-            }
-            for r in agg_df.to_dict("records")
+    # Final cross-chunk aggregation + single bulk write
+    if agg_frames:
+        import psycopg2.extras as _pg2_extras
+        final_df = pd.concat(agg_frames, ignore_index=True)
+        final_agg = final_df.groupby(key_cols, sort=False).agg(
+            quantity=("quantity", "sum"),
+            gross_revenue=("gross_revenue", "sum"),
+            net_revenue=("net_revenue", "sum"),
+            mechanical_fee=("mechanical_fee", "sum"),
+            artist_name=("artist_name", "first"),
+            track_title=("track_title", "first"),
+            label_name=("label_name", "first"),
+            release_title=("release_title", "first"),
+            upc=("upc", "first"),
+            streaming_sub_type=("streaming_sub_type", "first"),
+            release_type=("release_type", "first"),
+            currency=("currency", "first"),
+        ).reset_index()
+
+        rows_aggregated_total = len(final_agg)
+
+        rows_tuples = [
+            (rec.id, r["isrc"], r["platform"], r["country"], r["sales_type"],
+             datetime.date.fromisoformat(r["rep_iso"]),
+             datetime.date.fromisoformat(r["sal_iso"]),
+             r["artist_name"], r["track_title"], r["label_name"], r["release_title"],
+             r["upc"], r["streaming_sub_type"], r["release_type"], r["currency"],
+             int(r["quantity"]),
+             round(float(r["gross_revenue"]), 6),
+             round(float(r["net_revenue"]), 6),
+             round(float(r["mechanical_fee"]), 6),
+             None, now)
+            for r in final_agg.to_dict("records")
         ]
 
-        with _engine.connect() as conn:
-            for i in range(0, len(db_rows), 1000):
-                conn.execute(_t(UPSERT), db_rows[i:i + 1000])
-            conn.commit()
-
-        rows_aggregated_total += len(db_rows)
-        _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
-        if progress_callback:
-            progress_callback(rows_read, rows_skipped, rows_aggregated_total)
+        UPSERT_EV = """
+            INSERT INTO streaming_royalty (
+                import_id, isrc, platform, country, sales_type,
+                reporting_month, sales_month,
+                artist_name_csv, track_title_csv, label_name, release_title,
+                upc, streaming_sub_type, release_type, currency,
+                total_quantity, total_gross_revenue, total_net_revenue, total_mechanical_fee,
+                track_id, created_at
+            ) VALUES %s
+            ON CONFLICT ON CONSTRAINT uq_streaming_royalty_agg_key DO UPDATE SET
+                total_quantity       = streaming_royalty.total_quantity       + EXCLUDED.total_quantity,
+                total_gross_revenue  = streaming_royalty.total_gross_revenue  + EXCLUDED.total_gross_revenue,
+                total_net_revenue    = streaming_royalty.total_net_revenue    + EXCLUDED.total_net_revenue,
+                total_mechanical_fee = streaming_royalty.total_mechanical_fee + EXCLUDED.total_mechanical_fee
+        """
+        raw_conn = _engine.raw_connection()
+        try:
+            with raw_conn.cursor() as cur:
+                _pg2_extras.execute_values(cur, UPSERT_EV, rows_tuples, page_size=5000)
+            raw_conn.commit()
+        finally:
+            raw_conn.close()
 
     _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_,
                    reporting_month=reporting_month_seen)
@@ -464,15 +470,10 @@ def _process_import(app, import_id):
             _update_status("error", "Import record not found")
             return
 
-        import logging as _lg
-        _log = _lg.getLogger(__name__)
-        _log.warning("IMP%d: claimed, file_path=%s", import_id, file_path)
-
         import os as _os
         if not _os.path.exists(file_path):
             _update_status("error", f"File not found: {file_path}")
             return
-        _log.warning("IMP%d: file exists, size=%d bytes", import_id, _os.path.getsize(file_path))
 
         # Build a lightweight rec-like object the helpers can use
         class _Rec:
@@ -482,9 +483,7 @@ def _process_import(app, import_id):
         _rec = _Rec()
         _rec.file_path = file_path
 
-        _log.warning("IMP%d: calling _aggregate_and_store", import_id)
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
-        _log.warning("IMP%d: _aggregate_and_store returned", import_id)
         _update_status("done")
 
         # Auto-map new individual artist names (display only — does not modify royalty_summary)
