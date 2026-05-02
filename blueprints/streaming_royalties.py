@@ -807,7 +807,7 @@ _ARD_BULK_SQL = """
         ROUND(SUM(rs.streams     * s.percentage / 100.0))::bigint AS streams,
         SUM(rs.net_revenue       * s.percentage / 100.0)          AS net_revenue
     FROM artist_royalty_split s
-    JOIN royalty_summary rs ON rs.isrc = s.isrc
+    JOIN royalty_summary rs ON rs.isrc = s.isrc AND rs.reporting_month = :month
     LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'
     GROUP BY COALESCE(m.canonical_name, s.artist_name), rs.reporting_month, rs.isrc, rs.platform, rs.country
 """
@@ -834,8 +834,8 @@ _ARD_PARTIAL_SQL = """
 
 def _rebuild_artist_detail(engine, artist_names=None):
     """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
-    Full rebuild (artist_names=None): TRUNCATE + single bulk INSERT for all artists.
-    Partial rebuild (artist_names=[...]): DELETE affected rows + single bulk INSERT filtered to those artists.
+    Full rebuild (artist_names=None): DELETE all + INSERT per reporting_month (avoids full 6M-row scan).
+    Partial rebuild (artist_names=[...]): DELETE affected artists + INSERT filtered to those artists.
     Always call from a background NullPool thread — never from a request thread.
     """
     import logging as _lg_ard
@@ -844,10 +844,16 @@ def _rebuild_artist_detail(engine, artist_names=None):
     try:
         with engine.connect() as conn:
             if artist_names is None:
-                _log.warning("ARD full rebuild: starting")
+                months = [r[0] for r in conn.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM royalty_summary ORDER BY 1"
+                )).fetchall()]
+                _log.warning("ARD full rebuild: %d months to process", len(months))
                 conn.execute(_t("DELETE FROM artist_royalty_detail"))
-                conn.execute(_t(_ARD_BULK_SQL))
                 conn.commit()
+                for month in months:
+                    conn.execute(_t(_ARD_BULK_SQL), {"month": month})
+                    conn.commit()
+                    _log.warning("ARD full rebuild: month %s done", month)
                 _log.warning("ARD full rebuild: complete")
             else:
                 names = list(artist_names)
