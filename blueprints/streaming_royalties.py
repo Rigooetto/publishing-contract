@@ -184,149 +184,209 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total, royalties_engin
 
 
 def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress_callback=None):
-    """Stream-parse the CSV and flush aggregated rows to the DB in bounded-memory chunks.
-    main_engine / royalties_engine_ are passed by the background thread so it uses
-    its own independent connections instead of the shared gunicorn pool."""
-    from models import StreamingRoyalty
+    """Parse CSV with pandas (chunked) and flush aggregated rows to the DB."""
+    import pandas as pd
+    from sqlalchemy import text as _t
 
-    agg = {}       # key → dict of accumulated values (cleared every FLUSH_EVERY unique keys)
-    meta = {}      # key → snapshot fields (first row wins)
     rows_read = 0
     rows_skipped = 0
     rows_aggregated_total = 0
-    FLUSH_EVERY = 50_000  # unique agg keys before flushing to DB to bound memory
+    reporting_month_seen = None
 
-    # Pre-load the full ISRC→track_id map once instead of querying per flush
-    track_map = _isrc_to_track_map(set(), main_engine, prefetch_all=True)
-
-    # Detect delimiter from first line (Believe uses ";" but guard against ",")
+    # Detect delimiter
     with open(rec.file_path, encoding="utf-8-sig", errors="replace") as _peek:
         first_line = _peek.readline()
     delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
 
-    with open(rec.file_path, encoding="utf-8-sig", errors="replace", newline="") as fh:
-        reader = csv.reader(fh, delimiter=delimiter, quotechar='"')
-        raw_header = next(reader, None)
-        if raw_header is None:
-            raise ValueError("CSV file is empty or missing header row")
-        header = [h.strip().strip('"') for h in raw_header]
+    # Pre-load ISRC→track_id map once
+    track_map = _isrc_to_track_map(set(), main_engine, prefetch_all=True)
 
-        # Case-insensitive column lookup with common aliases
-        _col_aliases = {
-            "isrc":                  ["isrc"],
-            "platform":              ["platform"],
-            "country":               ["country / region", "country/region", "country"],
-            "sales_type":            ["sales type", "salestype", "sale type"],
-            "reporting_month":       ["reporting month", "reporting_month", "report month"],
-            "sales_month":           ["sales month", "sales_month", "sale month"],
-            "quantity":              ["quantity", "qty", "units"],
-            "gross_revenue":         ["gross revenue", "gross_revenue", "gross"],
-            "net_revenue":           ["net revenue", "net_revenue", "net"],
-            "mechanical_fee":        ["mechanical fee", "mechanical_fee", "mechanical"],
-            "artist_name":           ["artist name", "artist_name", "artist"],
-            "track_title":           ["track title", "track_title", "track name", "title"],
-            "label_name":            ["label name", "label_name", "label"],
-            "release_title":         ["release title", "release_title", "release name", "album"],
-            "upc":                   ["upc"],
-            "streaming_sub_type":    ["streaming subscription type", "streaming_subscription_type", "subscription type"],
-            "release_type":          ["release type", "release_type"],
-            "currency":              ["client payment currency", "currency", "payment currency"],
-        }
-        header_lower = [h.lower() for h in header]
-        col = {}
-        for field, aliases in _col_aliases.items():
-            for alias in aliases:
-                if alias in header_lower:
-                    col[field] = header_lower.index(alias)
-                    break
+    # Build alias→canonical lookup
+    _alias_map = {}
+    for canonical, aliases in {
+        "isrc":               ["isrc"],
+        "platform":           ["platform"],
+        "country":            ["country / region", "country/region", "country"],
+        "sales_type":         ["sales type", "salestype", "sale type", "sales_type"],
+        "reporting_month":    ["reporting month", "reporting_month", "report month"],
+        "sales_month":        ["sales month", "sales_month", "sale month"],
+        "quantity":           ["quantity", "qty", "units"],
+        "gross_revenue":      ["gross revenue", "gross_revenue", "gross"],
+        "net_revenue":        ["net revenue", "net_revenue", "net"],
+        "mechanical_fee":     ["mechanical fee", "mechanical_fee", "mechanical"],
+        "artist_name":        ["artist name", "artist_name", "artist"],
+        "track_title":        ["track title", "track_title", "track name", "title"],
+        "label_name":         ["label name", "label_name", "label"],
+        "release_title":      ["release title", "release_title", "release name", "album"],
+        "upc":                ["upc"],
+        "streaming_sub_type": ["streaming subscription type", "streaming_subscription_type", "subscription type"],
+        "release_type":       ["release type", "release_type"],
+        "currency":           ["client payment currency", "currency", "payment currency"],
+    }.items():
+        for alias in aliases:
+            _alias_map[alias] = canonical
 
-        required = {"isrc", "platform", "country", "sales_type",
-                    "reporting_month", "sales_month", "quantity",
-                    "gross_revenue", "net_revenue", "mechanical_fee"}
-        missing = required - set(col.keys())
-        if missing:
-            raise ValueError(
-                f"CSV missing required columns: {missing}. "
-                f"Headers found: {header[:20]}"
+    REQUIRED = {"isrc", "platform", "country", "sales_type",
+                "reporting_month", "sales_month", "quantity",
+                "gross_revenue", "net_revenue", "mechanical_fee"}
+
+    def _parse_num_series(s):
+        s = s.fillna("0").str.strip().str.strip('"') \
+              .str.replace('\xa0', '', regex=False).str.replace(' ', '', regex=False)
+        eu = s.str.match(r'^-?\d{1,3}(\.\d{3})+(,\d+)?$', na=False)
+        s = s.copy()
+        s[eu]  = s[eu].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+        s[~eu] = s[~eu].str.replace(',', '', regex=False)
+        return pd.to_numeric(s, errors='coerce').fillna(0.0)
+
+    UPSERT = """
+        INSERT INTO streaming_royalty (
+            import_id, isrc, platform, country, sales_type,
+            reporting_month, sales_month,
+            artist_name_csv, track_title_csv, label_name, release_title,
+            upc, streaming_sub_type, release_type, currency,
+            total_quantity, total_gross_revenue, total_net_revenue, total_mechanical_fee,
+            track_id, created_at
+        ) VALUES (
+            :import_id, :isrc, :platform, :country, :sales_type,
+            :reporting_month, :sales_month,
+            :artist_name_csv, :track_title_csv, :label_name, :release_title,
+            :upc, :streaming_sub_type, :release_type, :currency,
+            :total_quantity, :total_gross_revenue, :total_net_revenue, :total_mechanical_fee,
+            :track_id, :created_at
+        )
+        ON CONFLICT ON CONSTRAINT uq_streaming_royalty_agg_key DO UPDATE SET
+            total_quantity       = streaming_royalty.total_quantity       + EXCLUDED.total_quantity,
+            total_gross_revenue  = streaming_royalty.total_gross_revenue  + EXCLUDED.total_gross_revenue,
+            total_net_revenue    = streaming_royalty.total_net_revenue    + EXCLUDED.total_net_revenue,
+            total_mechanical_fee = streaming_royalty.total_mechanical_fee + EXCLUDED.total_mechanical_fee
+    """
+
+    _engine = royalties_engine_ if royalties_engine_ is not None else _royalties_engine()
+    col_rename = None
+    now = datetime.datetime.utcnow()
+
+    for chunk in pd.read_csv(
+        rec.file_path,
+        sep=delimiter,
+        encoding="utf-8-sig",
+        dtype=str,
+        chunksize=100_000,
+        on_bad_lines="skip",
+        low_memory=False,
+    ):
+        # Build column rename map from first chunk
+        if col_rename is None:
+            col_rename = {c: _alias_map[c.strip().lower()]
+                          for c in chunk.columns if c.strip().lower() in _alias_map}
+            missing = REQUIRED - set(col_rename.values())
+            if missing:
+                raise ValueError(
+                    f"CSV missing required columns: {missing}. "
+                    f"Headers found: {list(chunk.columns[:20])}"
+                )
+
+        chunk = chunk.rename(columns=col_rename)
+        rows_read += len(chunk)
+
+        # Fill missing optional columns with defaults
+        for opt, default in [
+            ("artist_name",""), ("track_title",""), ("label_name",""),
+            ("release_title",""), ("upc",""), ("streaming_sub_type",""),
+            ("release_type",""), ("currency","EUR"),
+        ]:
+            if opt not in chunk.columns:
+                chunk[opt] = default
+
+        # Strip whitespace/quotes from all string columns
+        for c in chunk.select_dtypes("object").columns:
+            chunk[c] = chunk[c].fillna("").str.strip().str.strip('"')
+
+        chunk["isrc"] = chunk["isrc"].str.upper()
+
+        # UPC fallback for empty ISRC
+        empty = chunk["isrc"] == ""
+        if empty.any():
+            chunk.loc[empty, "isrc"] = "UPC:" + chunk.loc[empty, "upc"]
+
+        before = len(chunk)
+        chunk = chunk[chunk["isrc"].ne("")]
+        rows_skipped += before - len(chunk)
+
+        # Parse dates (two formats)
+        for dcol in ("reporting_month", "sales_month"):
+            parsed = pd.to_datetime(chunk[dcol], format="%Y/%m/%d", errors="coerce")
+            chunk[dcol] = parsed.fillna(
+                pd.to_datetime(chunk[dcol], format="%Y-%m-%d", errors="coerce")
             )
 
-        reporting_month_seen = None
+        before = len(chunk)
+        chunk = chunk.dropna(subset=["reporting_month", "sales_month"])
+        rows_skipped += before - len(chunk)
 
-        for raw_row in reader:
-            rows_read += 1
-            try:
-                isrc = raw_row[col["isrc"]].strip().strip('"').upper()
-                if not isrc:
-                    upc = raw_row[col["upc"]].strip().strip('"') if "upc" in col else ""
-                    if upc:
-                        isrc = f"UPC:{upc}"
-                    else:
-                        rows_skipped += 1
-                        continue
+        if chunk.empty:
+            _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
+            if progress_callback:
+                progress_callback(rows_read, rows_skipped, rows_aggregated_total)
+            continue
 
-                rep_month = _parse_date(raw_row[col["reporting_month"]])
-                sal_month = _parse_date(raw_row[col["sales_month"]])
-                if rep_month is None or sal_month is None:
-                    rows_skipped += 1
-                    continue
+        if reporting_month_seen is None:
+            reporting_month_seen = chunk["reporting_month"].iloc[0].date()
 
-                if reporting_month_seen is None:
-                    reporting_month_seen = rep_month
+        # Parse numerics with vectorized operations
+        chunk["quantity"]       = _parse_num_series(chunk["quantity"]).round(0).astype(int)
+        chunk["gross_revenue"]  = _parse_num_series(chunk["gross_revenue"])
+        chunk["net_revenue"]    = _parse_num_series(chunk["net_revenue"])
+        chunk["mechanical_fee"] = _parse_num_series(chunk["mechanical_fee"])
 
-                platform   = raw_row[col["platform"]].strip().strip('"')
-                country    = raw_row[col["country"]].strip().strip('"')
-                sales_type = raw_row[col["sales_type"]].strip().strip('"')
+        chunk["rep_iso"] = chunk["reporting_month"].dt.strftime("%Y-%m-%d")
+        chunk["sal_iso"] = chunk["sales_month"].dt.strftime("%Y-%m-%d")
 
-                qty   = int(_parse_decimal(raw_row[col["quantity"]].strip()))
-                gross = _parse_decimal(raw_row[col["gross_revenue"]].strip())
-                net   = _parse_decimal(raw_row[col["net_revenue"]].strip())
-                mech  = _parse_decimal(raw_row[col["mechanical_fee"]].strip())
+        key_cols  = ["isrc", "platform", "country", "sales_type", "rep_iso", "sal_iso"]
+        meta_cols = ["artist_name", "track_title", "label_name", "release_title",
+                     "upc", "streaming_sub_type", "release_type", "currency"]
+        num_cols  = ["quantity", "gross_revenue", "net_revenue", "mechanical_fee"]
 
-                key = (isrc, platform, country, sales_type,
-                       rep_month.isoformat(), sal_month.isoformat())
+        agg_num  = chunk.groupby(key_cols, sort=False)[num_cols].sum()
+        agg_meta = chunk.groupby(key_cols, sort=False)[meta_cols].first()
+        agg_df   = agg_num.join(agg_meta).reset_index()
 
-                if key not in agg:
-                    agg[key] = {"qty": 0, "gross": decimal.Decimal(0),
-                                "net": decimal.Decimal(0), "mech": decimal.Decimal(0)}
-                    meta[key] = {
-                        "artist_name_csv":    raw_row[col["artist_name"]].strip().strip('"') if "artist_name" in col else "",
-                        "track_title_csv":    raw_row[col["track_title"]].strip().strip('"') if "track_title" in col else "",
-                        "label_name":         raw_row[col["label_name"]].strip().strip('"') if "label_name" in col else "",
-                        "release_title":      raw_row[col["release_title"]].strip().strip('"') if "release_title" in col else "",
-                        "upc":                raw_row[col["upc"]].strip().strip('"') if "upc" in col else "",
-                        "streaming_sub_type": raw_row[col["streaming_sub_type"]].strip().strip('"') if "streaming_sub_type" in col else "",
-                        "release_type":       raw_row[col["release_type"]].strip().strip('"') if "release_type" in col else "",
-                        "currency":           raw_row[col["currency"]].strip().strip('"') if "currency" in col else "EUR",
-                    }
+        db_rows = [
+            {
+                "import_id":            rec.id,
+                "isrc":                 r["isrc"],
+                "platform":             r["platform"],
+                "country":              r["country"],
+                "sales_type":           r["sales_type"],
+                "reporting_month":      datetime.date.fromisoformat(r["rep_iso"]),
+                "sales_month":          datetime.date.fromisoformat(r["sal_iso"]),
+                "artist_name_csv":      r["artist_name"],
+                "track_title_csv":      r["track_title"],
+                "label_name":           r["label_name"],
+                "release_title":        r["release_title"],
+                "upc":                  r["upc"],
+                "streaming_sub_type":   r["streaming_sub_type"],
+                "release_type":         r["release_type"],
+                "currency":             r["currency"],
+                "total_quantity":       int(r["quantity"]),
+                "total_gross_revenue":  decimal.Decimal(str(round(float(r["gross_revenue"]), 6))),
+                "total_net_revenue":    decimal.Decimal(str(round(float(r["net_revenue"]), 6))),
+                "total_mechanical_fee": decimal.Decimal(str(round(float(r["mechanical_fee"]), 6))),
+                "track_id":             track_map.get(r["isrc"]),
+                "created_at":           now,
+            }
+            for r in agg_df.to_dict("records")
+        ]
 
-                agg[key]["qty"]   += qty
-                agg[key]["gross"] += gross
-                agg[key]["net"]   += net
-                agg[key]["mech"]  += mech
+        with _engine.connect() as conn:
+            for i in range(0, len(db_rows), 1000):
+                conn.execute(_t(UPSERT), db_rows[i:i + 1000])
+            conn.commit()
 
-            except Exception:
-                rows_skipped += 1
-                continue
-
-            # Flush and clear agg dict when it reaches FLUSH_EVERY unique keys
-            if len(agg) >= FLUSH_EVERY:
-                rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
-                                                    rows_aggregated_total, royalties_engine_)
-                agg.clear()
-                meta.clear()
-                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
-                if progress_callback:
-                    progress_callback(rows_read, rows_skipped, rows_aggregated_total)
-
-            if rows_read % 25_000 == 0:
-                _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
-                if progress_callback:
-                    progress_callback(rows_read, rows_skipped, rows_aggregated_total)
-
-    # Final flush for whatever remains in agg
-    if agg:
-        rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
-                                            rows_aggregated_total, royalties_engine_)
+        rows_aggregated_total += len(db_rows)
+        _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_)
+        if progress_callback:
+            progress_callback(rows_read, rows_skipped, rows_aggregated_total)
 
     _save_progress(rec, rows_read, rows_skipped, rows_aggregated_total, royalties_engine_,
                    reporting_month=reporting_month_seen)
