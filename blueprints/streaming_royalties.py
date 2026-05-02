@@ -486,6 +486,28 @@ def _process_import(app, import_id):
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
         _update_status("done")
 
+        # Sync royalty_summary from the new streaming_royalty rows
+        try:
+            with r_engine.connect() as _sc:
+                _sc.execute(_t("""
+                    INSERT INTO royalty_summary
+                        (reporting_month, isrc, artist_name_csv, platform, country,
+                         track_title_csv, streams, net_revenue)
+                    SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country,
+                           MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)
+                      FROM streaming_royalty
+                     WHERE import_id = :id
+                     GROUP BY reporting_month, isrc, platform, country
+                    ON CONFLICT (reporting_month, isrc, platform, country) DO UPDATE SET
+                        streams         = royalty_summary.streams     + EXCLUDED.streams,
+                        net_revenue     = royalty_summary.net_revenue + EXCLUDED.net_revenue,
+                        artist_name_csv = EXCLUDED.artist_name_csv,
+                        track_title_csv = EXCLUDED.track_title_csv
+                """), {"id": import_id})
+                _sc.commit()
+        except Exception:
+            pass
+
         # Auto-map new individual artist names, then rebuild ARD cache
         try:
             with r_engine.connect() as _nc:
