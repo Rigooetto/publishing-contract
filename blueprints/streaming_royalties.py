@@ -198,11 +198,7 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
         first_line = _peek.readline()
     delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
 
-    # Pre-load ISRC→track_id map once — optional enrichment, never block the import
-    try:
-        track_map = _isrc_to_track_map(set(), main_engine, prefetch_all=True) if main_engine else {}
-    except Exception:
-        track_map = {}
+    track_map = {}  # ISRC→track_id enrichment skipped — main DB query hangs under load
 
     # Build alias→canonical lookup
     _alias_map = {}
