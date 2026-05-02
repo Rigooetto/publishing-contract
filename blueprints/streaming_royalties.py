@@ -193,10 +193,14 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
     rows_aggregated_total = 0
     reporting_month_seen = None
 
+    import logging as _lg2; _log2 = _lg2.getLogger(__name__)
+    _log2.warning("AGG%d: start, detecting delimiter", rec.id)
+
     # Detect delimiter
     with open(rec.file_path, encoding="utf-8-sig", errors="replace") as _peek:
         first_line = _peek.readline()
     delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
+    _log2.warning("AGG%d: delimiter=%r, starting pd.read_csv", rec.id, delimiter)
 
     track_map = {}  # ISRC→track_id enrichment skipped — main DB query hangs under load
 
@@ -287,6 +291,8 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
 
         chunk = chunk.rename(columns=col_rename)
         rows_read += len(chunk)
+        if rows_read <= len(chunk):  # first chunk only
+            _log2.warning("AGG%d: first chunk read, rows_read=%d", rec.id, rows_read)
 
         # Fill missing optional columns with defaults
         for opt, default in [
@@ -454,6 +460,16 @@ def _process_import(app, import_id):
             _update_status("error", "Import record not found")
             return
 
+        import logging as _lg
+        _log = _lg.getLogger(__name__)
+        _log.warning("IMP%d: claimed, file_path=%s", import_id, file_path)
+
+        import os as _os
+        if not _os.path.exists(file_path):
+            _update_status("error", f"File not found: {file_path}")
+            return
+        _log.warning("IMP%d: file exists, size=%d bytes", import_id, _os.path.getsize(file_path))
+
         # Build a lightweight rec-like object the helpers can use
         class _Rec:
             id = import_id
@@ -462,7 +478,9 @@ def _process_import(app, import_id):
         _rec = _Rec()
         _rec.file_path = file_path
 
+        _log.warning("IMP%d: calling _aggregate_and_store", import_id)
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
+        _log.warning("IMP%d: _aggregate_and_store returned", import_id)
         _update_status("done")
 
         # Auto-map new individual artist names (display only — does not modify royalty_summary)
