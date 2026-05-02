@@ -348,26 +348,21 @@ with app.app_context():
                         _startup_app.logger.warning("DATA RECOVERY: sentinel found, skipping rebuild.")
 
                     with _eng.connect() as _ard_chk:
-                        _ard_artists = _ard_chk.execute(_t_bg(
-                            "SELECT COUNT(DISTINCT artist_name) FROM artist_royalty_detail"
-                        )).scalar() or 0
-                        _split_artists = _ard_chk.execute(_t_bg(
-                            "SELECT COUNT(DISTINCT COALESCE(m.canonical_name, s.artist_name)) "
-                            "FROM artist_royalty_split s "
-                            "LEFT JOIN artist_name_map m ON m.raw_name = s.artist_name AND m.status = 'confirmed'"
-                        )).scalar() or 0
-                    if _ard_artists >= _split_artists and _ard_artists > 0:
-                        _startup_app.logger.warning(
-                            "ARD build: skipped (table complete: %d/%d artists).",
-                            _ard_artists, _split_artists
-                        )
+                        _missing_months = [r[0] for r in _ard_chk.execute(_t_bg(
+                            "SELECT DISTINCT reporting_month FROM royalty_summary "
+                            "EXCEPT "
+                            "SELECT DISTINCT reporting_month FROM artist_royalty_detail "
+                            "ORDER BY 1"
+                        )).fetchall()]
+                    if not _missing_months:
+                        _startup_app.logger.warning("ARD build: skipped (all months present).")
                     else:
                         _startup_app.logger.warning(
-                            "ARD build: starting (table has %d/%d artists — empty or partial).",
-                            _ard_artists, _split_artists
+                            "ARD build: %d missing month(s): %s",
+                            len(_missing_months), _missing_months
                         )
                         from blueprints.streaming_royalties import _rebuild_artist_detail as _rad_bg
-                        _rad_bg(_eng)
+                        _rad_bg(_eng, months=_missing_months)
                         _startup_app.logger.warning("ARD build: complete.")
                 except Exception as _bg_e:
                     _startup_app.logger.warning("Startup bg thread failed: %s", _bg_e)

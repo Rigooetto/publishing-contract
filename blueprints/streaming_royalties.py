@@ -499,13 +499,17 @@ def _process_import(app, import_id):
             pass
 
         try:
-            from sqlalchemy import create_engine as _ce_ard
+            from sqlalchemy import create_engine as _ce_ard, text as _t_ard
             _ard_eng = _ce_ard(
                 r_engine.url.render_as_string(hide_password=False),
                 poolclass=NullPool,
                 connect_args={"connect_timeout": 10},
             )
-            _rebuild_artist_detail(_ard_eng)
+            with _ard_eng.connect() as _mc:
+                _imp_months = [r[0] for r in _mc.execute(_t_ard(
+                    "SELECT DISTINCT reporting_month FROM streaming_royalty WHERE import_id = :id"
+                ), {"id": import_id}).fetchall()]
+            _rebuild_artist_detail(_ard_eng, months=_imp_months if _imp_months else None)
             _ard_eng.dispose()
         except Exception:
             pass
@@ -832,10 +836,11 @@ _ARD_PARTIAL_SQL = """
 """
 
 
-def _rebuild_artist_detail(engine, artist_names=None):
+def _rebuild_artist_detail(engine, artist_names=None, months=None):
     """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
-    Full rebuild (artist_names=None): DELETE all + INSERT per reporting_month (avoids full 6M-row scan).
-    Partial rebuild (artist_names=[...]): DELETE affected artists + INSERT filtered to those artists.
+    Full rebuild (all None): DELETE all + INSERT per reporting_month.
+    months=[date,...]: INSERT only those months (assumes caller deleted first, or adds on top).
+    artist_names=[...]: DELETE those artists + INSERT filtered to those artists (all months).
     Always call from a background NullPool thread — never from a request thread.
     """
     import logging as _lg_ard
@@ -843,14 +848,23 @@ def _rebuild_artist_detail(engine, artist_names=None):
     _log = _lg_ard.getLogger(__name__)
     try:
         with engine.connect() as conn:
-            if artist_names is None:
-                months = [r[0] for r in conn.execute(_t(
+            if months is not None:
+                # Partial by month: delete affected rows then reinsert
+                for month in months:
+                    conn.execute(_t(
+                        "DELETE FROM artist_royalty_detail WHERE reporting_month = :m"
+                    ), {"m": month})
+                    conn.execute(_t(_ARD_BULK_SQL), {"month": month})
+                    conn.commit()
+                    _log.warning("ARD rebuild: month %s done", month)
+            elif artist_names is None:
+                all_months = [r[0] for r in conn.execute(_t(
                     "SELECT DISTINCT reporting_month FROM royalty_summary ORDER BY 1"
                 )).fetchall()]
-                _log.warning("ARD full rebuild: %d months to process", len(months))
+                _log.warning("ARD full rebuild: %d months to process", len(all_months))
                 conn.execute(_t("DELETE FROM artist_royalty_detail"))
                 conn.commit()
-                for month in months:
+                for month in all_months:
                     conn.execute(_t(_ARD_BULK_SQL), {"month": month})
                     conn.commit()
                     _log.warning("ARD full rebuild: month %s done", month)
