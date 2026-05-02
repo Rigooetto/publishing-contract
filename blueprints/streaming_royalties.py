@@ -198,8 +198,8 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
         first_line = _peek.readline()
     delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
 
-    # Pre-load ISRC→track_id map once
-    track_map = _isrc_to_track_map(set(), main_engine, prefetch_all=True)
+    # Pre-load ISRC→track_id map once (only when a main DB engine is available)
+    track_map = _isrc_to_track_map(set(), main_engine, prefetch_all=True) if main_engine else {}
 
     # Build alias→canonical lookup
     _alias_map = {}
