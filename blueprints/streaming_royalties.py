@@ -486,7 +486,7 @@ def _process_import(app, import_id):
         _aggregate_and_store(_rec, main_engine=m_engine, royalties_engine_=r_engine)
         _update_status("done")
 
-        # Auto-map new individual artist names (display only — does not modify royalty_summary)
+        # Auto-map new individual artist names, then rebuild ARD cache
         try:
             with r_engine.connect() as _nc:
                 _new_csvs = [r[0] for r in _nc.execute(_t(
@@ -495,6 +495,18 @@ def _process_import(app, import_id):
                 ), {"id": import_id}).fetchall()]
             with app.app_context():
                 _auto_map_individuals(_extract_individuals(_new_csvs))
+        except Exception:
+            pass
+
+        try:
+            from sqlalchemy import create_engine as _ce_ard
+            _ard_eng = _ce_ard(
+                r_engine.url.render_as_string(hide_password=False),
+                poolclass=NullPool,
+                connect_args={"connect_timeout": 10},
+            )
+            _rebuild_artist_detail(_ard_eng)
+            _ard_eng.dispose()
         except Exception:
             pass
 
