@@ -1719,8 +1719,8 @@ def retry_import(import_id):
 
     from models import StreamingImport
     rec = StreamingImport.query.get_or_404(import_id)
-    if rec.status not in ("pending", "error"):
-        flash("Import is already processing or done.", "error")
+    if rec.status not in ("pending", "error", "processing"):
+        flash("Import is already done.", "error")
         return redirect(url_for("streaming_royalties.imports_list"))
 
     rec.status = "pending"
@@ -2846,7 +2846,7 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
     {% if imp.status in ('pending','processing') %}
     <a href="/streaming-royalties/import-status/{{ imp.id }}" class="btn btn-sec btn-sm">View</a>
     {% endif %}
-    {% if imp.status in ('pending','error') %}
+    {% if imp.status in ('pending','error','processing') %}
     <form method="post" action="/streaming-royalties/import/{{ imp.id }}/retry" style="display:inline">
       <button class="btn btn-sm" style="color:var(--a)">&#9654; Retry</button>
     </form>
