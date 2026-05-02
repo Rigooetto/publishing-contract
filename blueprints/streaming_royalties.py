@@ -74,22 +74,24 @@ def _parse_decimal(val):
         return decimal.Decimal(0)
 
 
-def _isrc_to_track_map(isrc_set, main_engine=None):
-    """Return {isrc: track_id}.  Uses main_engine if provided (background thread),
-    otherwise falls back to db.session (request context)."""
+def _isrc_to_track_map(isrc_set, main_engine=None, prefetch_all=False):
+    """Return {isrc: track_id}.  Pass prefetch_all=True to load the full catalog at once."""
     from sqlalchemy import text as _t
     if main_engine is not None:
         with main_engine.connect() as conn:
-            rows = conn.execute(
-                _t("SELECT isrc, id FROM track WHERE isrc = ANY(:isrcs)"),
-                {"isrcs": list(isrc_set)}
-            ).fetchall()
+            if prefetch_all:
+                rows = conn.execute(_t("SELECT isrc, id FROM track WHERE isrc IS NOT NULL")).fetchall()
+            else:
+                rows = conn.execute(
+                    _t("SELECT isrc, id FROM track WHERE isrc = ANY(:isrcs)"),
+                    {"isrcs": list(isrc_set)}
+                ).fetchall()
         return {r[0]: r[1] for r in rows}
     from models import Track
     from sqlalchemy import select
-    rows = db.session.execute(
+    q = select(Track.isrc, Track.id).where(Track.isrc.isnot(None)) if prefetch_all else \
         select(Track.isrc, Track.id).where(Track.isrc.in_(list(isrc_set)))
-    ).fetchall()
+    rows = db.session.execute(q).fetchall()
     db.session.expunge_all()
     return {r[0]: r[1] for r in rows}
 
@@ -173,8 +175,8 @@ def _flush_agg(rec, agg, meta, track_map, rows_aggregated_total, royalties_engin
         "track_id","created_at",
     ]
     with _engine.connect() as conn:
-        for i in range(0, len(rows), 500):
-            chunk = [dict(zip(keys, r)) for r in rows[i:i + 500]]
+        for i in range(0, len(rows), 1000):
+            chunk = [dict(zip(keys, r)) for r in rows[i:i + 1000]]
             conn.execute(_t(UPSERT), chunk)
         conn.commit()
 
@@ -192,7 +194,10 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
     rows_read = 0
     rows_skipped = 0
     rows_aggregated_total = 0
-    FLUSH_EVERY = 10_000  # unique agg keys before flushing to DB to bound memory
+    FLUSH_EVERY = 50_000  # unique agg keys before flushing to DB to bound memory
+
+    # Pre-load the full ISRC→track_id map once instead of querying per flush
+    track_map = _isrc_to_track_map(set(), main_engine, prefetch_all=True)
 
     # Detect delimiter from first line (Believe uses ";" but guard against ",")
     with open(rec.file_path, encoding="utf-8-sig", errors="replace") as _peek:
@@ -305,8 +310,6 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
 
             # Flush and clear agg dict when it reaches FLUSH_EVERY unique keys
             if len(agg) >= FLUSH_EVERY:
-                isrc_set = {k[0] for k in agg}
-                track_map = _isrc_to_track_map(isrc_set, main_engine)
                 rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
                                                     rows_aggregated_total, royalties_engine_)
                 agg.clear()
@@ -322,8 +325,6 @@ def _aggregate_and_store(rec, main_engine=None, royalties_engine_=None, progress
 
     # Final flush for whatever remains in agg
     if agg:
-        isrc_set = {k[0] for k in agg}
-        track_map = _isrc_to_track_map(isrc_set, main_engine)
         rows_aggregated_total = _flush_agg(rec, agg, meta, track_map,
                                             rows_aggregated_total, royalties_engine_)
 
