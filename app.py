@@ -410,6 +410,14 @@ with app.app_context():
                         _rald_bg(_eng, months=_ald_missing)
                         _startup_app.logger.warning("ALD build: complete.")
 
+                    # Normalize ALD artist names to current canonical names on every startup
+                    try:
+                        from blueprints.streaming_royalties import _normalize_ald_artist_names as _norm_ald
+                        _norm_ald(_eng)
+                        _startup_app.logger.warning("ALD normalize: done.")
+                    except Exception as _norm_e:
+                        _startup_app.logger.warning("ALD normalize failed: %s", _norm_e)
+
                     # Trigger prewarm now that both ARD and ALD are fully built.
                     # Reset total=0 so the cache_status lazy-start can fire a fresh prewarm.
                     try:

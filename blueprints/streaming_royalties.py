@@ -986,6 +986,31 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
         _ard_rebuild_lock.release()
 
 
+def _normalize_ald_artist_names(engine):
+    """Update ALD artist_name to match current canonical names from artist_name_map.
+    Fixes casing mismatches when a mapping was added after ALD was last built.
+    Runs after every ALD rebuild and also at startup.
+    """
+    import logging as _lg_n
+    from sqlalchemy import text as _t
+    _log = _lg_n.getLogger(__name__)
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(_t("""
+                UPDATE artist_label_detail ald
+                   SET artist_name = m.canonical_name
+                  FROM artist_name_map m
+                 WHERE LOWER(ald.artist_name) = LOWER(m.raw_name)
+                   AND m.status = 'confirmed'
+                   AND ald.artist_name != m.canonical_name
+            """))
+            conn.commit()
+            if result.rowcount:
+                _log.warning("ALD normalize: updated %d rows to match canonical names", result.rowcount)
+    except Exception as _e:
+        _log.warning("ALD normalize failed: %s", _e)
+
+
 def _rebuild_artist_label_detail(engine, months=None):
     """Pre-aggregate royalty_summary (unnest artist_name_csv) into artist_label_detail.
     Provides a fast indexed path for label-view per-artist dashboard queries,
@@ -1017,6 +1042,8 @@ def _rebuild_artist_label_detail(engine, months=None):
                     conn.execute(_t(_ALD_BULK_SQL), {"month": month})
                     conn.commit()
                     _log.warning("ALD rebuild: month %s done", month)
+        # Normalize stored artist names to current canonical names so exact lookups work
+        _normalize_ald_artist_names(engine)
     except Exception as _e:
         _log.warning("_rebuild_artist_label_detail failed: %s", _e)
 
