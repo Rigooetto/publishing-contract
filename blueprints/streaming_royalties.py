@@ -1641,8 +1641,17 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                     ).fetchone()
                 if _ald_row:
                     return _compute_dashboard_data_ald(year, quarter, artist, _engine)
-            except Exception:
-                pass  # fall through to ILIKE slow path
+                else:
+                    import logging as _lg_ald
+                    _lg_ald.getLogger(__name__).warning(
+                        "ALD MISS: no entry for artist=%r — falling back to slow ILIKE. "
+                        "Run a manual ARD rebuild to repopulate ALD.", artist
+                    )
+            except Exception as _ald_exc:
+                import logging as _lg_ald2
+                _lg_ald2.getLogger(__name__).warning(
+                    "ALD check error for artist=%r: %s — falling back to ILIKE", artist, _ald_exc
+                )
 
         # Fast path: use pre-aggregated artist_royalty_detail if available (artist view only)
         if view == "artist":
@@ -1890,6 +1899,48 @@ def ard_rebuild():
             _eng.dispose()
     threading.Thread(target=_bg, daemon=True).start()
     return jsonify({"status": "rebuild started in background"})
+
+
+@bp.route("/streaming-royalties/admin/ald-debug")
+def ald_debug():
+    """Admin: show which artists appear in the dropdown but are missing from ALD."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        from flask import jsonify as _jq
+        return _jq({"error": "access restricted"}), 403
+    from flask import jsonify as _jq
+    from sqlalchemy import text as _t
+    _engine = _royalties_engine()
+    if not _engine:
+        return _jq({"error": "no royalties DB"}), 500
+    try:
+        with _engine.connect() as _c:
+            _ald_artists = {r[0] for r in _c.execute(_t(
+                "SELECT DISTINCT artist_name FROM artist_label_detail"
+            )).fetchall()}
+            _ald_count = _c.execute(_t("SELECT COUNT(*) FROM artist_label_detail")).scalar()
+        _raw_strings, _ = _get_dropdown_data(_engine)
+        try:
+            from models import ArtistNameMap as _ANM
+            _name_map = {m.raw_name: m.canonical_name for m in _ANM.query.filter_by(status='confirmed').all()}
+        except Exception:
+            _name_map = {}
+        _dd_artists: set = set()
+        for _s in _raw_strings:
+            for _part in _s.split(','):
+                _n = _part.strip()
+                if _n:
+                    _dd_artists.add(_name_map.get(_n, _n))
+        _missing = sorted(_dd_artists - _ald_artists)
+        return _jq({
+            "ald_row_count": _ald_count,
+            "ald_artist_count": len(_ald_artists),
+            "dropdown_artist_count": len(_dd_artists),
+            "missing_from_ald": _missing,
+        })
+    except Exception as _e:
+        return _jq({"error": str(_e)}), 500
 
 
 @bp.route("/streaming-royalties")
