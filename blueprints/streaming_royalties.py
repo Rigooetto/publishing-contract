@@ -987,28 +987,46 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
 
 
 def _normalize_ald_artist_names(engine):
-    """Update ALD artist_name to match current canonical names from artist_name_map.
-    Fixes casing mismatches when a mapping was added after ALD was last built.
-    Runs after every ALD rebuild and also at startup.
+    """Sync ALD artist_name to current canonical names from artist_name_map.
+    When a canonical already exists for the same key, delete the stale-casing duplicate.
+    Otherwise rename it. Raises on unexpected errors so callers can log accurately.
     """
     import logging as _lg_n
     from sqlalchemy import text as _t
     _log = _lg_n.getLogger(__name__)
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(_t("""
-                UPDATE artist_label_detail ald
-                   SET artist_name = m.canonical_name
-                  FROM artist_name_map m
-                 WHERE LOWER(ald.artist_name) = LOWER(m.raw_name)
-                   AND m.status = 'confirmed'
-                   AND ald.artist_name != m.canonical_name
-            """))
-            conn.commit()
-            if result.rowcount:
-                _log.warning("ALD normalize: updated %d rows to match canonical names", result.rowcount)
-    except Exception as _e:
-        _log.warning("ALD normalize failed: %s", _e)
+    with engine.connect() as conn:
+        # Step 1: delete rows whose canonical-cased twin already exists (avoid unique conflict)
+        del_result = conn.execute(_t("""
+            DELETE FROM artist_label_detail ald
+            USING artist_name_map m
+            WHERE LOWER(ald.artist_name) = LOWER(m.raw_name)
+              AND m.status = 'confirmed'
+              AND ald.artist_name != m.canonical_name
+              AND EXISTS (
+                SELECT 1 FROM artist_label_detail dup
+                 WHERE dup.artist_name      = m.canonical_name
+                   AND dup.reporting_month  = ald.reporting_month
+                   AND dup.isrc             = ald.isrc
+                   AND dup.platform         = ald.platform
+                   AND dup.country          = ald.country
+              )
+        """))
+        conn.commit()
+        # Step 2: rename the remaining stale-casing rows (no duplicate risk now)
+        upd_result = conn.execute(_t("""
+            UPDATE artist_label_detail ald
+               SET artist_name = m.canonical_name
+              FROM artist_name_map m
+             WHERE LOWER(ald.artist_name) = LOWER(m.raw_name)
+               AND m.status = 'confirmed'
+               AND ald.artist_name != m.canonical_name
+        """))
+        conn.commit()
+    if del_result.rowcount or upd_result.rowcount:
+        _log.warning(
+            "ALD normalize: deleted %d duplicates, renamed %d rows to canonical casing",
+            del_result.rowcount, upd_result.rowcount
+        )
 
 
 def _rebuild_artist_label_detail(engine, months=None):
