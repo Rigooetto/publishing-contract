@@ -810,8 +810,9 @@ def _prewarm_dashboard_cache():
     except Exception:
         p2_artists = []
 
+    # Per-artist periods: year×quarter + year totals only.
+    # Skip ("all","all") per-artist — slowest combo, cached on first user access instead.
     p2_periods = [(y, q) for y in years for q in ("1", "2", "3", "4", "all")]
-    p2_periods.append(("all", "all"))
     p2_combos_count = len(p2_artists) * len(p2_periods) * 2
 
     total = len(combos) + p2_combos_count
@@ -821,7 +822,7 @@ def _prewarm_dashboard_cache():
     # Phase 1: artist="all" combos — parallel with ThreadPoolExecutor
     from concurrent.futures import ThreadPoolExecutor as _TPE1, as_completed as _asc1
     p1_combos = [(db_url, y, qtr, artist, view) for (y, qtr, artist, view) in combos]
-    with _TPE1(max_workers=3) as _pool1:
+    with _TPE1(max_workers=6) as _pool1:
         futs1 = [_pool1.submit(_prewarm_worker_fn, c) for c in p1_combos]
         for _ in _asc1(futs1):
             with _prewarm_counter_lock:
@@ -837,7 +838,7 @@ def _prewarm_dashboard_cache():
         for view in ("label", "artist")
     ]
     _prewarm_status["current_artist"] = "Per-artist warming…"
-    with _TPE2(max_workers=3) as _pool2:
+    with _TPE2(max_workers=6) as _pool2:
         futs2 = [_pool2.submit(_prewarm_worker_fn, c) for c in p2_combos]
         for _ in _asc2(futs2):
             with _prewarm_counter_lock:
@@ -1537,7 +1538,7 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
     done = 0
     _prewarm_status.update({"running": True, "done": 0, "total": total_combos, "current_artist": "Warming…"})
 
-    with _TPE(max_workers=3) as _pool:
+    with _TPE(max_workers=6) as _pool:
         futures = [_pool.submit(_prewarm_worker_fn, c) for c in all_combos]
         for fut in _asc(futures):
             with _prewarm_counter_lock:
