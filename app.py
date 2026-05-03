@@ -459,6 +459,35 @@ with app.app_context():
                     except Exception as _norm_e:
                         _startup_app.logger.warning("ALD normalize failed: %s", _norm_e)
 
+                    # Eagerly warm the 4 most-hit dashboard combos so the first
+                    # real request after restart never has to compute from scratch.
+                    try:
+                        from blueprints.streaming_royalties import (
+                            _dashboard_data  as _ddata,
+                            _get_dropdown_data as _get_dd,
+                            _dropdown_cache  as _ddc,
+                            _engine_local    as _el,
+                            _parse_period    as _pp,
+                        )
+                        _el.override = _eng  # use the NullPool bg engine, not the main pool
+                        try:
+                            _get_dd(_eng)   # populates _dropdown_cache.latest_period etc.
+                            _latest = _ddc.get("latest_period")
+                            _ly, _lq = _pp(_latest) if _latest else ("all", "all")
+                            for _cy, _cq in [("all", "all"), (_ly, _lq)]:
+                                for _cv in ["label", "artist"]:
+                                    try:
+                                        _ddata(_cy, _cq, "all", _cv)
+                                        _startup_app.logger.warning(
+                                            "Critical pre-warm: %s|%s|all|%s done", _cy, _cq, _cv)
+                                    except Exception as _cpe:
+                                        _startup_app.logger.warning(
+                                            "Critical pre-warm: %s|%s|all|%s FAILED: %s", _cy, _cq, _cv, _cpe)
+                        finally:
+                            _el.override = None
+                    except Exception as _cpw_e:
+                        _startup_app.logger.warning("Critical pre-warm block failed: %s", _cpw_e)
+
                     # Trigger prewarm now that both ARD and ALD are fully built.
                     # Reset total=0 so the cache_status lazy-start can fire a fresh prewarm.
                     try:
