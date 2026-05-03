@@ -24,6 +24,10 @@ _SPLITS_CACHE_TTL = 120  # seconds
 
 _dropdown_cache: dict = {}  # {"raw_strings": [...], "all_years": [...], "ts": float}
 
+# Module-level ISRC→artist_name_csv cache (essentially static: doesn't change between imports)
+_isrc_csv_cache: dict = {}  # isrc → artist_name_csv string
+_isrc_csv_cache_lock = threading.Lock()
+
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
 _prewarm_lock = threading.Lock()
 _prewarm_counter_lock = threading.Lock()
@@ -941,6 +945,7 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
     import logging as _lg_ard
     from sqlalchemy import text as _t
     _log = _lg_ard.getLogger(__name__)
+    _invalidate_isrc_csv_cache()
     try:
         with engine.connect() as conn:
             if months is not None:
@@ -1008,6 +1013,33 @@ def _rebuild_artist_label_detail(engine, months=None):
                     _log.warning("ALD rebuild: month %s done", month)
     except Exception as _e:
         _log.warning("_rebuild_artist_label_detail failed: %s", _e)
+
+
+def _get_isrc_csv(engine, isrc_set: set) -> dict:
+    """Return {isrc: artist_name_csv} using a module-level cache to avoid repeated royalty_summary scans."""
+    missing = isrc_set - _isrc_csv_cache.keys()
+    if missing:
+        try:
+            with engine.connect() as _c:
+                rows = _c.execute(
+                    text("SELECT DISTINCT ON (isrc) isrc, artist_name_csv "
+                         "FROM royalty_summary WHERE isrc = ANY(:isrcs) "
+                         "AND artist_name_csv IS NOT NULL AND artist_name_csv != '' "
+                         "ORDER BY isrc"),
+                    {"isrcs": list(missing)}
+                ).fetchall()
+            with _isrc_csv_cache_lock:
+                for _isrc, _csv in rows:
+                    _isrc_csv_cache[_isrc] = _csv
+        except Exception:
+            pass
+    return {i: _isrc_csv_cache[i] for i in isrc_set if i in _isrc_csv_cache}
+
+
+def _invalidate_isrc_csv_cache():
+    """Clear ISRC→CSV cache on import/delete so stale artist names don't persist."""
+    with _isrc_csv_cache_lock:
+        _isrc_csv_cache.clear()
 
 
 def _compute_dashboard_data_ard_empty(year, quarter, artist, engine):
@@ -1093,16 +1125,12 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
              GROUP BY ard.isrc
         """)
         _isrc_rev = {r[0]: float(r[1]) for r in _isrc_rev_rows}
-        # Step 2 — look up artist_name_csv per ISRC (fast: ix_rs_isrc)
+        # Step 2 — look up artist_name_csv per ISRC using module-level cache (avoids repeated royalty_summary scans)
         by_artist_rows = []
         if _isrc_rev:
-            _csv_rows = _conn.execute(text(
-                "SELECT isrc, MAX(artist_name_csv) FROM royalty_summary "
-                "WHERE isrc = ANY(:isrcs) AND artist_name_csv IS NOT NULL AND artist_name_csv != '' "
-                "GROUP BY isrc"
-            ), {"isrcs": list(_isrc_rev.keys())}).fetchall()
+            _isrc_csv_map = _get_isrc_csv(engine, set(_isrc_rev.keys()))
             _csv_buckets: dict = {}
-            for _isrc, _csv in _csv_rows:
+            for _isrc, _csv in _isrc_csv_map.items():
                 _csv_buckets[_csv] = _csv_buckets.get(_csv, 0.0) + _isrc_rev.get(_isrc, 0.0)
             by_artist_rows = sorted(_csv_buckets.items(), key=lambda x: x[1], reverse=True)
 
@@ -1239,13 +1267,9 @@ def _compute_dashboard_data_ald(year, quarter, artist, engine):
         _isrc_rev = {r[0]: float(r[1]) for r in _isrc_rev_rows}
         by_artist_rows = []
         if _isrc_rev:
-            _csv_rows = _conn.execute(text(
-                "SELECT isrc, MAX(artist_name_csv) FROM royalty_summary "
-                "WHERE isrc = ANY(:isrcs) AND artist_name_csv IS NOT NULL AND artist_name_csv != '' "
-                "GROUP BY isrc"
-            ), {"isrcs": list(_isrc_rev.keys())}).fetchall()
+            _isrc_csv_map = _get_isrc_csv(engine, set(_isrc_rev.keys()))
             _csv_buckets: dict = {}
-            for _isrc, _csv in _csv_rows:
+            for _isrc, _csv in _isrc_csv_map.items():
                 _csv_buckets[_csv] = _csv_buckets.get(_csv, 0.0) + _isrc_rev.get(_isrc, 0.0)
             by_artist_rows = sorted(_csv_buckets.items(), key=lambda x: x[1], reverse=True)
 
