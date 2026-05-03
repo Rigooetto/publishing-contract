@@ -80,6 +80,16 @@ app.register_blueprint(streaming_royalties_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
+@app.before_request
+def _enforce_artist_scope():
+    from flask import session, request, redirect, url_for
+    if session.get("role") != "artist":
+        return
+    _allowed_prefixes = ("/streaming-royalties", "/login", "/logout", "/static")
+    if not any(request.path.startswith(p) for p in _allowed_prefixes):
+        return redirect(url_for("streaming_royalties.dashboard"))
+
+
 @app.context_processor
 def inject_globals():
     from flask import session

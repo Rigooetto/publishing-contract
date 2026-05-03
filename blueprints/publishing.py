@@ -79,6 +79,8 @@ def login():
                 session["username"]    = user.username
                 session["role"]        = user.role
                 session["artist_name"] = user.artist_name or ""
+                if user.role == "artist":
+                    return redirect(url_for("streaming_royalties.dashboard"))
                 return redirect(url_for(".formulario"))
         else:
             if username == TEAM_USERNAME and password == TEAM_PASSWORD:
