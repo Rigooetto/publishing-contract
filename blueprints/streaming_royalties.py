@@ -2589,6 +2589,82 @@ def artist_names_confirm_pending():
     return redirect(url_for("streaming_royalties.artist_names"))
 
 
+@bp.route("/streaming-royalties/artist-names/rename-canonical", methods=["POST"])
+def artist_names_rename_canonical():
+    """Rename a canonical artist name everywhere: artist_name_map + artist_royalty_split,
+    then rebuild ARD and prewarm dashboard cache in background."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    old_name = (request.form.get("old_name") or "").strip()
+    new_name = (request.form.get("new_name") or "").strip()
+    if not old_name or not new_name or old_name == new_name:
+        flash("Provide both old and new names.", "error")
+        return redirect(url_for("streaming_royalties.artist_names"))
+
+    from sqlalchemy import text as _t
+    eng = _royalties_engine()
+    try:
+        with eng.connect() as _c:
+            # Update all artist_name_map rows where canonical_name = old_name
+            r1 = _c.execute(_t(
+                "UPDATE artist_name_map SET canonical_name = :new WHERE canonical_name = :old"
+            ), {"new": new_name, "old": old_name})
+            # Also rename the self-mapping row (raw_name == old_name)
+            _c.execute(_t(
+                "UPDATE artist_name_map SET raw_name = :new, canonical_name = :new "
+                "WHERE raw_name = :old AND canonical_name = :old"
+            ), {"new": new_name, "old": old_name})
+            # Update artist_royalty_split
+            r2 = _c.execute(_t(
+                "UPDATE artist_royalty_split SET artist_name = :new WHERE artist_name = :old"
+            ), {"new": new_name, "old": old_name})
+            _c.commit()
+        flash(
+            f"Renamed '{old_name}' → '{new_name}': "
+            f"{r1.rowcount} map entries, {r2.rowcount} split entries updated. "
+            "Rebuilding ARD + warming cache in background…",
+            "success",
+        )
+    except Exception as e:
+        flash(f"Error renaming: {e}", "error")
+        return redirect(url_for("streaming_royalties.artist_names"))
+
+    _splits_cache.clear()
+    _clear_dashboard_cache(eng)
+
+    # Background: rebuild ARD for new name + prewarm
+    _ren_url = eng.url.render_as_string(hide_password=False)
+    _ren_app = current_app._get_current_object()
+    def _run_rename_ard(_url=_ren_url, _app=_ren_app, _new=new_name):
+        try:
+            from sqlalchemy import create_engine as _ce, text as _t2
+            from sqlalchemy.pool import NullPool
+            _e = _ce(_url, poolclass=NullPool)
+            with _app.app_context():
+                _rebuild_artist_detail(_e, artist_names=[_new])
+            try:
+                with _e.connect() as _cc:
+                    _mrows = _cc.execute(_t2(
+                        "SELECT DISTINCT reporting_month FROM artist_royalty_detail WHERE artist_name = :n"
+                    ), {"n": _new}).fetchall()
+                _months = [r[0] for r in _mrows if r[0]]
+                if _months:
+                    _prewarm_affected_periods(_e, _months)
+            except Exception as _pw_e:
+                import logging as _lg_r
+                _lg_r.getLogger(__name__).warning("rename prewarm failed: %s", _pw_e)
+            _e.dispose()
+        except Exception as _e2:
+            import logging as _lg_r2
+            _lg_r2.getLogger(__name__).warning("rename ARD failed: %s", _e2)
+    threading.Thread(target=_run_rename_ard, daemon=True).start()
+    return redirect(url_for("streaming_royalties.artist_names"))
+
+
 @bp.route("/streaming-royalties/artist-names", methods=["GET", "POST"])
 def artist_names():
     if auth_required():
@@ -3610,6 +3686,16 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% if messages %}{% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endif %}
 {% endwith %}
 
+<div class="card" style="padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <span style="font-size:13px;color:var(--t2);white-space:nowrap">&#9998; Rename canonical:</span>
+  <form method="post" action="/streaming-royalties/artist-names/rename-canonical" style="margin:0;display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap">
+    <input class="inp" name="old_name" placeholder="Current name (exact)" style="flex:1;min-width:160px;font-size:13px">
+    <span style="color:var(--t3)">&#8594;</span>
+    <input class="inp" name="new_name" placeholder="Correct name" style="flex:1;min-width:160px;font-size:13px">
+    <button type="submit" class="btn btn-sm" style="white-space:nowrap">Rename + Rebuild</button>
+  </form>
+</div>
+
 <div class="an-stats">
   <div class="an-stat"><strong>{{ total }}</strong>Individual names</div>
   <div class="an-stat"><strong>{{ n_confirmed }}</strong>Mapped</div>
@@ -4249,7 +4335,7 @@ def split_gaps_save_all():
         _ard_url_all = _royalties_engine().url.render_as_string(hide_password=False)
         def _run_ard_save_all(_names=_saved_artists_all, _url=_ard_url_all, _app2=_ard_app_all):
             try:
-                from sqlalchemy import create_engine as _ce_sa
+                from sqlalchemy import create_engine as _ce_sa, text as _t_sa
                 from sqlalchemy.pool import NullPool
                 _eng_sa = _ce_sa(_url, poolclass=NullPool)
                 with _app2.app_context():
@@ -4259,6 +4345,19 @@ def split_gaps_save_all():
                     except Exception:
                         _canon = _names
                     _rebuild_artist_detail(_eng_sa, artist_names=_canon)
+                    # Collect affected months then prewarm dashboard cache
+                    try:
+                        with _eng_sa.connect() as _cc:
+                            _month_rows = _cc.execute(_t_sa(
+                                "SELECT DISTINCT reporting_month FROM artist_royalty_detail "
+                                "WHERE artist_name = ANY(:n)"
+                            ), {"n": _canon}).fetchall()
+                        _imp_months = [r[0] for r in _month_rows if r[0]]
+                        if _imp_months:
+                            _prewarm_affected_periods(_eng_sa, _imp_months)
+                    except Exception as _pw_e:
+                        import logging as _lg_pw
+                        _lg_pw.getLogger(__name__).warning("Post-split prewarm failed: %s", _pw_e)
                 _eng_sa.dispose()
             except Exception as _e_sa:
                 import logging as _lg_sa
