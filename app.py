@@ -306,6 +306,31 @@ with app.app_context():
                         _ard_empty = not _c.execute(_t_bg("SELECT 1 FROM artist_royalty_detail LIMIT 1")).fetchone()
                     _startup_app.logger.warning("artist_royalty_detail DDL complete (empty=%s).", _ard_empty)
 
+                    # artist_label_detail: table + indexes (label-view fast path, built from artist_name_csv unnest)
+                    with _eng.connect() as _c:
+                        _c.execute(_t_bg("""
+                            CREATE TABLE IF NOT EXISTS artist_label_detail (
+                                id              BIGSERIAL PRIMARY KEY,
+                                artist_name     TEXT          NOT NULL,
+                                reporting_month DATE          NOT NULL,
+                                isrc            TEXT          NOT NULL,
+                                track_title     TEXT,
+                                platform        TEXT,
+                                country         TEXT,
+                                streams         BIGINT        DEFAULT 0,
+                                net_revenue     NUMERIC(16,6) DEFAULT 0
+                            )
+                        """))
+                        _c.execute(_t_bg("""
+                            CREATE UNIQUE INDEX IF NOT EXISTS ix_ald_natural
+                                ON artist_label_detail (artist_name, reporting_month, isrc, platform, country)
+                                NULLS NOT DISTINCT
+                        """))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_artist ON artist_label_detail (artist_name)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_month  ON artist_label_detail (reporting_month)"))
+                        _c.commit()
+                    _startup_app.logger.warning("artist_label_detail DDL complete.")
+
                     # Recovery sentinel check
                     _already_done = False
                     try:
@@ -364,6 +389,24 @@ with app.app_context():
                         from blueprints.streaming_royalties import _rebuild_artist_detail as _rad_bg
                         _rad_bg(_eng, months=_missing_months)
                         _startup_app.logger.warning("ARD build: complete.")
+
+                    # ALD missing-months rebuild (same logic as ARD above)
+                    with _eng.connect() as _ald_chk:
+                        _ald_missing = [r[0] for r in _ald_chk.execute(_t_bg(
+                            "SELECT DISTINCT reporting_month FROM royalty_summary "
+                            "EXCEPT "
+                            "SELECT DISTINCT reporting_month FROM artist_label_detail "
+                            "ORDER BY 1"
+                        )).fetchall()]
+                    if not _ald_missing:
+                        _startup_app.logger.warning("ALD build: skipped (all months present).")
+                    else:
+                        _startup_app.logger.warning(
+                            "ALD build: %d missing month(s): %s", len(_ald_missing), _ald_missing
+                        )
+                        from blueprints.streaming_royalties import _rebuild_artist_label_detail as _rald_bg
+                        _rald_bg(_eng, months=_ald_missing)
+                        _startup_app.logger.warning("ALD build: complete.")
                 except Exception as _bg_e:
                     _startup_app.logger.warning("Startup bg thread failed: %s", _bg_e)
                 finally:

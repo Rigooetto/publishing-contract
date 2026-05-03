@@ -26,6 +26,7 @@ _dropdown_cache: dict = {}  # {"raw_strings": [...], "all_years": [...], "ts": f
 
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
 _prewarm_lock = threading.Lock()
+_prewarm_counter_lock = threading.Lock()
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
@@ -531,6 +532,7 @@ def _process_import(app, import_id):
                 poolclass=NullPool, connect_args={"connect_timeout": 10},
             )
             _rebuild_artist_detail(_ard_eng, months=_imp_months if _imp_months else None)
+            _rebuild_artist_label_detail(_ard_eng, months=_imp_months if _imp_months else None)
             _ard_eng.dispose()
         except Exception:
             pass
@@ -698,6 +700,7 @@ def _process_import_sse(import_id, main_url, royalties_url, progress_q):
             _royalties_url_snap = _royalties_engine().url.render_as_string(hide_password=False)
             _eng_pi = _ce_pi(_royalties_url_snap, poolclass=_NP_pi)
             _rebuild_artist_detail(_eng_pi, months=_import_months if _import_months else None)
+            _rebuild_artist_label_detail(_eng_pi, months=_import_months if _import_months else None)
             _eng_pi.dispose()
         except Exception as _ard_pi_e:
             import logging as _lg_pi
@@ -810,26 +813,31 @@ def _prewarm_dashboard_cache():
     done  = 0
     _prewarm_status.update({"running": True, "done": 0, "total": total, "current_artist": "Warming cache…"})
 
-    # Phase 1: artist="all" combos
-    for (y, qtr, artist, view) in combos:
-        _prewarm_status["current_artist"] = f"{y} Q{qtr}" if qtr != "all" else str(y)
-        try:
-            _dashboard_data(y, qtr, artist, view)
-        except Exception:
-            pass
-        done += 1
-        _prewarm_status["done"] = done
-        _time.sleep(0.02)
-
-    # Phase 2: per-artist combos (skip combos already in DB cache)
-    for artist in p2_artists:
-        _prewarm_status["current_artist"] = artist
-        for (y, q) in p2_periods:
-            for view in ("label", "artist"):
-                _warm_if_missing(engine, y, q, artist, view)
+    # Phase 1: artist="all" combos — parallel with ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor as _TPE1, as_completed as _asc1
+    p1_combos = [(db_url, y, qtr, artist, view) for (y, qtr, artist, view) in combos]
+    with _TPE1(max_workers=6) as _pool1:
+        futs1 = [_pool1.submit(_prewarm_worker_fn, c) for c in p1_combos]
+        for _ in _asc1(futs1):
+            with _prewarm_counter_lock:
                 done += 1
                 _prewarm_status["done"] = done
-        _time.sleep(0.01)
+
+    # Phase 2: per-artist combos — parallel, skip already-cached DB entries
+    from concurrent.futures import ThreadPoolExecutor as _TPE2, as_completed as _asc2
+    p2_combos = [
+        (db_url, y, q, artist, view)
+        for artist in p2_artists
+        for (y, q) in p2_periods
+        for view in ("label", "artist")
+    ]
+    _prewarm_status["current_artist"] = "Per-artist warming…"
+    with _TPE2(max_workers=6) as _pool2:
+        futs2 = [_pool2.submit(_prewarm_worker_fn, c) for c in p2_combos]
+        for _ in _asc2(futs2):
+            with _prewarm_counter_lock:
+                done += 1
+                _prewarm_status["done"] = done
 
     _prewarm_status.update({"running": False, "current_artist": ""})
     _engine_local.override = None
@@ -897,6 +905,31 @@ _ARD_PARTIAL_SQL = """
     GROUP BY COALESCE(m.canonical_name, s.artist_name), rs.reporting_month, rs.isrc, rs.platform, rs.country
 """
 
+_ALD_BULK_SQL = """
+    INSERT INTO artist_label_detail
+        (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
+    SELECT
+        COALESCE(m.canonical_name, TRIM(a.val)) AS artist_name,
+        rs.reporting_month,
+        rs.isrc,
+        MAX(rs.track_title_csv)  AS track_title,
+        rs.platform,
+        rs.country,
+        SUM(rs.streams)          AS streams,
+        SUM(rs.net_revenue)      AS net_revenue
+    FROM royalty_summary rs
+    CROSS JOIN LATERAL unnest(string_to_array(rs.artist_name_csv, ',')) AS a(val)
+    LEFT JOIN artist_name_map m
+        ON LOWER(TRIM(m.raw_name)) = LOWER(TRIM(a.val))
+       AND m.status = 'confirmed'
+    WHERE rs.reporting_month = :month
+    GROUP BY COALESCE(m.canonical_name, TRIM(a.val)), rs.reporting_month, rs.isrc, rs.platform, rs.country
+    ON CONFLICT (artist_name, reporting_month, isrc, platform, country) DO UPDATE SET
+        streams     = EXCLUDED.streams,
+        net_revenue = EXCLUDED.net_revenue,
+        track_title = EXCLUDED.track_title
+"""
+
 
 def _rebuild_artist_detail(engine, artist_names=None, months=None):
     """Pre-aggregate artist_royalty_split × royalty_summary into artist_royalty_detail.
@@ -940,6 +973,41 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
                 conn.commit()
     except Exception as _e:
         _log.warning("_rebuild_artist_detail failed: %s", _e)
+
+
+def _rebuild_artist_label_detail(engine, months=None):
+    """Pre-aggregate royalty_summary (unnest artist_name_csv) into artist_label_detail.
+    Provides a fast indexed path for label-view per-artist dashboard queries,
+    replacing the slow ILIKE scan on royalty_summary (6M+ rows).
+    months=None: full rebuild. months=[...]: delete+reinsert those months only.
+    """
+    import logging as _lg_ald
+    from sqlalchemy import text as _t
+    _log = _lg_ald.getLogger(__name__)
+    try:
+        with engine.connect() as conn:
+            if months is None:
+                all_months = [r[0] for r in conn.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM royalty_summary ORDER BY 1"
+                )).fetchall()]
+                conn.execute(_t("DELETE FROM artist_label_detail"))
+                conn.commit()
+                _log.warning("ALD full rebuild: %d months", len(all_months))
+                for month in all_months:
+                    conn.execute(_t(_ALD_BULK_SQL), {"month": month})
+                    conn.commit()
+                    _log.warning("ALD full rebuild: month %s done", month)
+                _log.warning("ALD full rebuild: complete")
+            else:
+                for month in months:
+                    conn.execute(_t(
+                        "DELETE FROM artist_label_detail WHERE reporting_month = :m"
+                    ), {"m": month})
+                    conn.execute(_t(_ALD_BULK_SQL), {"month": month})
+                    conn.commit()
+                    _log.warning("ALD rebuild: month %s done", month)
+    except Exception as _e:
+        _log.warning("_rebuild_artist_label_detail failed: %s", _e)
 
 
 def _compute_dashboard_data_ard_empty(year, quarter, artist, engine):
@@ -1119,6 +1187,148 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
     }
 
 
+def _compute_dashboard_data_ald(year, quarter, artist, engine):
+    """Fast path for label view per-artist: query artist_label_detail (indexed by artist_name)
+    instead of scanning royalty_summary with ILIKE. Same structure as _compute_dashboard_data_ard
+    but without percentage weighting — label view shows full track revenue.
+    """
+    from sqlalchemy import text
+
+    conditions = ["ald.artist_name = :artist"]
+    params: dict = {"artist": artist}
+    if year and year != "all":
+        y = int(year)
+        conditions.append("ald.reporting_month >= :ys AND ald.reporting_month < :ye")
+        params.update({"ys": f"{y}-01-01", "ye": f"{y + 1}-01-01"})
+    if quarter and quarter != "all":
+        q_ranges = {"1": (1, 4), "2": (4, 7), "3": (7, 10), "4": (10, 1)}
+        q_start_m, q_end_m = q_ranges.get(str(quarter), (1, 1))
+        if year and year != "all":
+            y = int(year)
+            q_end_year = y + 1 if q_end_m == 1 else y
+            conditions.append("ald.reporting_month >= :q_start AND ald.reporting_month < :q_end")
+            params["q_start"] = f"{y}-{q_start_m:02d}-01"
+            params["q_end"]   = f"{q_end_year}-{q_end_m:02d}-01"
+        else:
+            _q_month_map = {"1": [1, 2, 3], "2": [4, 5, 6], "3": [7, 8, 9], "4": [10, 11, 12]}
+            _months = _q_month_map.get(str(quarter), [1, 2, 3])
+            _month_phs = ", ".join(f":qm_{i}" for i in range(len(_months)))
+            conditions.append(f"EXTRACT(MONTH FROM ald.reporting_month) IN ({_month_phs})")
+            for _i, _m in enumerate(_months):
+                params[f"qm_{_i}"] = _m
+    where = " AND ".join(conditions)
+
+    with engine.connect() as _conn:
+        try:
+            _conn.execute(text("SET statement_timeout = '45s'"))
+        except Exception:
+            pass
+
+        def q(sql, p=None):
+            return _conn.execute(text(sql), p if p is not None else params).fetchall()
+
+        kpi_total = float(q(
+            f"SELECT COALESCE(SUM(ald.net_revenue), 0) FROM artist_label_detail ald WHERE {where}"
+        )[0][0])
+
+        _isrc_rev_rows = q(f"""
+            SELECT ald.isrc, COALESCE(SUM(ald.net_revenue), 0)
+              FROM artist_label_detail ald WHERE {where}
+             GROUP BY ald.isrc
+        """)
+        _isrc_rev = {r[0]: float(r[1]) for r in _isrc_rev_rows}
+        by_artist_rows = []
+        if _isrc_rev:
+            _csv_rows = _conn.execute(text(
+                "SELECT isrc, MAX(artist_name_csv) FROM royalty_summary "
+                "WHERE isrc = ANY(:isrcs) AND artist_name_csv IS NOT NULL AND artist_name_csv != '' "
+                "GROUP BY isrc"
+            ), {"isrcs": list(_isrc_rev.keys())}).fetchall()
+            _csv_buckets: dict = {}
+            for _isrc, _csv in _csv_rows:
+                _csv_buckets[_csv] = _csv_buckets.get(_csv, 0.0) + _isrc_rev.get(_isrc, 0.0)
+            by_artist_rows = sorted(_csv_buckets.items(), key=lambda x: x[1], reverse=True)
+
+        by_month_rows = q(f"""
+            SELECT TO_CHAR(ald.reporting_month, 'Mon YYYY') AS mo,
+                   ald.reporting_month,
+                   COALESCE(SUM(ald.net_revenue), 0) AS rev
+              FROM artist_label_detail ald WHERE {where}
+             GROUP BY ald.reporting_month ORDER BY ald.reporting_month
+        """)
+
+        by_platform_rows = q(f"""
+            SELECT ald.platform, COALESCE(SUM(ald.net_revenue), 0) AS rev
+              FROM artist_label_detail ald
+             WHERE {where} AND ald.platform IS NOT NULL AND ald.platform != ''
+             GROUP BY ald.platform ORDER BY rev DESC LIMIT 15
+        """)
+
+        by_country_all = q(f"""
+            SELECT ald.country, COALESCE(SUM(ald.net_revenue), 0) AS rev
+              FROM artist_label_detail ald
+             WHERE {where} AND ald.country IS NOT NULL AND ald.country != ''
+             GROUP BY ald.country ORDER BY rev DESC
+        """)
+        top5 = by_country_all[:5]
+        other = sum(float(r[1]) for r in by_country_all[5:])
+        country_data = [(r[0], float(r[1])) for r in top5]
+        if other > 0:
+            country_data.append(("Other", other))
+
+        catalog_rows = q(f"""
+            SELECT ald.isrc,
+                   MAX(ald.track_title)              AS title,
+                   MAX(ald.artist_name)              AS artist,
+                   COALESCE(SUM(ald.streams), 0)     AS streams,
+                   COALESCE(SUM(ald.net_revenue), 0) AS rev
+              FROM artist_label_detail ald
+             WHERE {where}
+             GROUP BY ald.isrc ORDER BY rev DESC LIMIT 300
+        """)
+        catalog = [
+            {"isrc": r[0], "title": r[1] or r[0], "artist": r[2] or "",
+             "streams": int(r[3]), "revenue": float(r[4])}
+            for r in catalog_rows
+        ]
+
+    _raw_strings, all_years = _get_dropdown_data(engine)
+    _dd_name_map = {}
+    try:
+        from models import ArtistNameMap as _ANM_ald
+        _dd_name_map = {m.raw_name: m.canonical_name
+                        for m in _ANM_ald.query.filter_by(status='confirmed').all()}
+    except Exception:
+        pass
+    _artist_names_set: set = set()
+    for _s in _raw_strings:
+        for _part in _s.split(','):
+            _name = _part.strip()
+            if _name:
+                _artist_names_set.add(_dd_name_map.get(_name, _name))
+    all_artists = sorted(_artist_names_set, key=str.lower)
+
+    if _dd_name_map:
+        _norm: dict = {}
+        for row in by_artist_rows:
+            parts = [p.strip() for p in row[0].split(',') if p.strip()]
+            normalized = ', '.join(_dd_name_map.get(p, p) for p in parts)
+            _norm[normalized] = _norm.get(normalized, 0.0) + float(row[1])
+        by_artist_rows = sorted(_norm.items(), key=lambda x: x[1], reverse=True)
+
+    return {
+        "kpi_total":   kpi_total,
+        "by_artist":   [{"name": r[0], "revenue": float(r[1])} for r in by_artist_rows],
+        "by_month":    [{"month": r[0], "revenue": float(r[2])} for r in by_month_rows],
+        "by_platform": [{"platform": r[0], "revenue": float(r[1])} for r in by_platform_rows],
+        "by_country":  [{"country": k, "revenue": v} for k, v in country_data],
+        "catalog":     catalog,
+        "all_artists": all_artists,
+        "all_years":   all_years,
+        "all_periods": _dropdown_cache.get("all_periods", []),
+    }
+
+
 def _clear_dashboard_cache(engine=None):
     """Delete all persistent dashboard cache entries."""
     from sqlalchemy import text
@@ -1190,14 +1400,32 @@ def _warm_if_missing(engine, year, quarter, artist, view):
         pass
 
 
+def _prewarm_worker_fn(args):
+    """Thread worker for parallel cache prewarm. Creates its own NullPool engine per call."""
+    engine_url, year, quarter, artist, view = args
+    try:
+        from sqlalchemy import create_engine as _ce_pw
+        from sqlalchemy.pool import NullPool as _NP_pw
+        _eng_pw = _ce_pw(engine_url, poolclass=_NP_pw)
+        _engine_local.override = _eng_pw
+        try:
+            _warm_if_missing(_eng_pw, year, quarter, artist, view)
+        finally:
+            _engine_local.override = None
+            _eng_pw.dispose()
+    except Exception:
+        pass
+
+
 def _prewarm_affected_periods(engine, months, emit_fn=None):
-    """Compute and cache all artist × affected-period × both-view combos.
-    Called synchronously after each import so every dashboard hit is served from cache.
+    """Compute and cache all artist × affected-period × both-view combos in parallel.
+    Skips ("all","all") per-artist — those are warmed on first access or by startup Phase 2.
     emit_fn(msg) is optional — used by the SSE path to stream progress messages.
     """
     from sqlalchemy import text as _t
+    from concurrent.futures import ThreadPoolExecutor as _TPE, as_completed as _asc
 
-    # Derive the (year, quarter) pairs touched by these months, plus year totals + all-time
+    # Derive (year, quarter) pairs for affected months + year totals; skip all|all per-artist
     periods = set()
     for m in months:
         y = str(getattr(m, 'year', None) or str(m)[:4])
@@ -1205,7 +1433,8 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
         q = str((mn - 1) // 3 + 1)
         periods.add((y, q))
         periods.add((y, "all"))
-    periods.add(("all", "all"))
+    # Include all|all only for artist="all" (global totals)
+    all_time_period = ("all", "all")
 
     try:
         with engine.connect() as _ac:
@@ -1216,29 +1445,36 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
     except Exception:
         artists = []
 
-    total_combos = len(periods) * (len(artists) + 1) * 2
+    engine_url = engine.url.render_as_string(hide_password=False)
+    all_combos = []
+    # artist="all" gets all periods including all-time
+    for (y, q) in sorted(periods | {all_time_period}):
+        all_combos.append((engine_url, y, q, "all", "label"))
+        all_combos.append((engine_url, y, q, "all", "artist"))
+    # per-artist: only specific year×quarter + year totals (skip all-time — too expensive at import time)
+    for (y, q) in sorted(periods):
+        for artist in artists:
+            all_combos.append((engine_url, y, q, artist, "label"))
+            all_combos.append((engine_url, y, q, artist, "artist"))
+
+    total_combos = len(all_combos)
     done = 0
-    _engine_local.override = engine
-    try:
-        for (y, q) in sorted(periods):
-            # artist="all" — both views
-            for view in ("label", "artist"):
-                _warm_if_missing(engine, y, q, "all", view)
+    _prewarm_status.update({"running": True, "done": 0, "total": total_combos, "current_artist": "Warming…"})
+
+    with _TPE(max_workers=6) as _pool:
+        futures = [_pool.submit(_prewarm_worker_fn, c) for c in all_combos]
+        for fut in _asc(futures):
+            with _prewarm_counter_lock:
                 done += 1
-            # per-artist — both views
-            for artist in artists:
-                for view in ("label", "artist"):
-                    _warm_if_missing(engine, y, q, artist, view)
-                    done += 1
-                _time.sleep(0.01)
-            if emit_fn:
+                _prewarm_status["done"] = done
+            if emit_fn and done % 20 == 0:
                 try:
                     emit_fn({"status": "processing",
                              "message": f"Warming cache… {done}/{total_combos} combos"})
                 except Exception:
                     pass
-    finally:
-        _engine_local.override = None
+
+    _prewarm_status.update({"running": False, "current_artist": ""})
 
 
 def _get_dropdown_data(engine):
@@ -1370,6 +1606,19 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         else:
             conditions.append("sr.artist_name_csv ILIKE :artist_pat")
         params["artist_pat"] = f"%{artist}%"
+
+        # Label view fast path: use artist_label_detail (indexed by artist_name, no ILIKE needed)
+        if view == "label":
+            try:
+                with _engine.connect() as _ald_chk:
+                    _ald_row = _ald_chk.execute(
+                        text("SELECT 1 FROM artist_label_detail WHERE artist_name = :a LIMIT 1"),
+                        {"a": artist}
+                    ).fetchone()
+                if _ald_row:
+                    return _compute_dashboard_data_ald(year, quarter, artist, _engine)
+            except Exception:
+                pass  # fall through to ILIKE slow path
 
         # Fast path: use pre-aggregated artist_royalty_detail if available (artist view only)
         if view == "artist":
@@ -1598,6 +1847,18 @@ def ard_rebuild():
                 _rebuild_artist_detail(_eng, months=_missing)
             else:
                 _rebuild_artist_detail(_eng)
+            # ALD: rebuild months missing from artist_label_detail
+            with _eng.connect() as _c2:
+                _ald_missing = [r[0] for r in _c2.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM royalty_summary "
+                    "EXCEPT "
+                    "SELECT DISTINCT reporting_month FROM artist_label_detail "
+                    "ORDER BY 1"
+                )).fetchall()]
+            if _ald_missing:
+                _rebuild_artist_label_detail(_eng, months=_ald_missing)
+            else:
+                _rebuild_artist_label_detail(_eng)
             _lg.warning("Manual ARD rebuild: complete")
         except Exception as _e:
             _lg.warning("Manual ARD rebuild failed: %s", _e)
@@ -1990,6 +2251,7 @@ def delete_import(import_id):
                     poolclass=_NP_del, connect_args={"connect_timeout": 10}
                 )
                 _rebuild_artist_detail(_bg_eng, months=_del_months)
+                _rebuild_artist_label_detail(_bg_eng, months=_del_months)
                 _prewarm_affected_periods(_bg_eng, _del_months)
                 _bg_eng.dispose()
             except Exception:
@@ -2045,6 +2307,7 @@ def backfill_summary(import_id):
                     poolclass=NullPool, connect_args={"connect_timeout": 10}
                 )
                 _rebuild_artist_detail(_bg_engine, months=_imp_months if _imp_months else None)
+                _rebuild_artist_label_detail(_bg_engine, months=_imp_months if _imp_months else None)
                 _prewarm_affected_periods(_bg_engine, _imp_months)
                 _bg_engine.dispose()
             except Exception as _e:
@@ -2653,6 +2916,7 @@ def artist_names_rename_canonical():
                     ), {"n": _new}).fetchall()
                 _months = [r[0] for r in _mrows if r[0]]
                 if _months:
+                    _rebuild_artist_label_detail(_e, months=_months)
                     _prewarm_affected_periods(_e, _months)
             except Exception as _pw_e:
                 import logging as _lg_r
@@ -4345,7 +4609,7 @@ def split_gaps_save_all():
                     except Exception:
                         _canon = _names
                     _rebuild_artist_detail(_eng_sa, artist_names=_canon)
-                    # Collect affected months then prewarm dashboard cache
+                    # Collect affected months, rebuild ALD, then prewarm dashboard cache
                     try:
                         with _eng_sa.connect() as _cc:
                             _month_rows = _cc.execute(_t_sa(
@@ -4354,6 +4618,7 @@ def split_gaps_save_all():
                             ), {"n": _canon}).fetchall()
                         _imp_months = [r[0] for r in _month_rows if r[0]]
                         if _imp_months:
+                            _rebuild_artist_label_detail(_eng_sa, months=_imp_months)
                             _prewarm_affected_periods(_eng_sa, _imp_months)
                     except Exception as _pw_e:
                         import logging as _lg_pw
@@ -4444,6 +4709,17 @@ def split_gaps_save_split():
                 except Exception:
                     _canon_ss = _name
                 _rebuild_artist_detail(_eng_ss, artist_names=[_canon_ss])
+                try:
+                    from sqlalchemy import text as _t_ss2
+                    with _eng_ss.connect() as _cc_ss:
+                        _ss_months = [r[0] for r in _cc_ss.execute(_t_ss2(
+                            "SELECT DISTINCT reporting_month FROM artist_royalty_detail WHERE artist_name = :n"
+                        ), {"n": _canon_ss}).fetchall() if r[0]]
+                    if _ss_months:
+                        _rebuild_artist_label_detail(_eng_ss, months=_ss_months)
+                        _prewarm_affected_periods(_eng_ss, _ss_months)
+                except Exception:
+                    pass
             _eng_ss.dispose()
         except Exception as _e_ss:
             import logging as _lg_ss
