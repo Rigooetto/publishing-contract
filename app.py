@@ -407,6 +407,16 @@ with app.app_context():
                         from blueprints.streaming_royalties import _rebuild_artist_label_detail as _rald_bg
                         _rald_bg(_eng, months=_ald_missing)
                         _startup_app.logger.warning("ALD build: complete.")
+
+                    # Trigger prewarm now that both ARD and ALD are fully built.
+                    # Reset total=0 so the cache_status lazy-start can fire a fresh prewarm.
+                    try:
+                        from blueprints.streaming_royalties import _prewarm_status as _ps_bg
+                        _ps_bg["total"] = 0
+                        _ps_bg["running"] = False
+                        _startup_app.logger.warning("Startup bg: reset prewarm state — lazy-start will trigger on next cache-status poll.")
+                    except Exception as _pwr_e:
+                        _startup_app.logger.warning("Startup bg: prewarm reset failed: %s", _pwr_e)
                 except Exception as _bg_e:
                     _startup_app.logger.warning("Startup bg thread failed: %s", _bg_e)
                 finally:
