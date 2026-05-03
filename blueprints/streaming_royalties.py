@@ -3607,7 +3607,8 @@ function setView(v){
 }
 
 function applyFilters(){
-  const artist=document.getElementById('selArtist').value;
+  const artistEl=document.getElementById('selArtist');
+  const artist=artistEl ? artistEl.value : {{ artist|tojson }};
   const period=document.getElementById('selPeriod').value;
   const overlay=document.getElementById('loading-overlay');
   var _loadTimer=setTimeout(function(){ overlay.style.display='flex'; }, 1000);

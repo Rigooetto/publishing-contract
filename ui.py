@@ -900,12 +900,20 @@ def _sidebar(active):
 def _mobile_nav():
     return """
 <div class="mobile-nav">
+  {% if current_role == 'artist' %}
+  <a href="/streaming-royalties" class="mnav-item" onclick="pwaNav(this,event)"><span>&#127925;</span><small>Royalties</small></a>
+  {% else %}
   <a href="/works" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128466;</span><small>Sessions</small></a>
   <a href="/releases" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128191;</span><small>Releases</small></a>
+  {% endif %}
   <button class="mnav-item mnav-more-btn" id="mnavMoreBtn" onclick="toggleMobileMore()"><span>&#8943;</span><small>More</small></button>
 </div>
 <div class="mnav-more-overlay" id="mnavMoreOverlay">
+  {% if current_role == 'artist' %}
+  <div class="mnav-more-sec">Streaming</div>
+  <a href="/streaming-royalties" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#127925;</span>Streaming Royalties</a>
+  {% else %}
   <div class="mnav-more-sec">Contracts</div>
   <a href="/works" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128395;</span>Works</a>
   <a href="/batches" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128466;</span>Sessions</a>
@@ -915,6 +923,7 @@ def _mobile_nav():
   <a href="/writers" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128101;</span>Writer Directory</a>
   <a href="/artists" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#127908;</span>Artist Directory</a>
   <a href="#" class="mnav-more-link" onclick="openSettings();return false;"><span>&#127899;</span>Settings</a>
+  {% endif %}
   {% if current_role in ('admin', 'label_manager', 'publishing_manager') %}
   <div class="mnav-more-sec">Reporting</div>
   <a href="/reports" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128202;</span>Reports</a>
