@@ -822,7 +822,7 @@ def _prewarm_dashboard_cache():
     # Phase 1: artist="all" combos — parallel with ThreadPoolExecutor
     from concurrent.futures import ThreadPoolExecutor as _TPE1, as_completed as _asc1
     p1_combos = [(db_url, y, qtr, artist, view) for (y, qtr, artist, view) in combos]
-    with _TPE1(max_workers=6) as _pool1:
+    with _TPE1(max_workers=4) as _pool1:
         futs1 = [_pool1.submit(_prewarm_worker_fn, c) for c in p1_combos]
         for _ in _asc1(futs1):
             with _prewarm_counter_lock:
@@ -839,7 +839,7 @@ def _prewarm_dashboard_cache():
         for view in ("label", "artist")
     ]
     _prewarm_status["current_artist"] = "Per-artist warming…"
-    with _TPE2(max_workers=6) as _pool2:
+    with _TPE2(max_workers=4) as _pool2:
         futs2 = [_pool2.submit(_prewarm_worker_fn, c) for c in p2_combos]
         for _ in _asc2(futs2):
             with _prewarm_counter_lock:
@@ -1161,7 +1161,7 @@ def _compute_dashboard_data_ard(year, quarter, artist, engine):
 
     with engine.connect() as _conn:
         try:
-            _conn.execute(text("SET statement_timeout = '120s'"))
+            _conn.execute(text("SET statement_timeout = '60s'"))
         except Exception:
             pass
 
@@ -1303,7 +1303,7 @@ def _compute_dashboard_data_ald(year, quarter, artist, engine):
 
     with engine.connect() as _conn:
         try:
-            _conn.execute(text("SET statement_timeout = '120s'"))
+            _conn.execute(text("SET statement_timeout = '60s'"))
         except Exception:
             pass
 
@@ -1575,7 +1575,7 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
     done = 0
     _prewarm_status.update({"running": True, "done": 0, "total": total_combos, "current_artist": "Warming…"})
 
-    with _TPE(max_workers=6) as _pool:
+    with _TPE(max_workers=4) as _pool:
         futures = [_pool.submit(_prewarm_worker_fn, c) for c in all_combos]
         for fut in _asc(futures):
             with _prewarm_counter_lock:
@@ -1810,7 +1810,7 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
     def q(sql, p=None):
         with _engine.connect() as conn:
             try:
-                conn.execute(text("SET statement_timeout = '120s'"))
+                conn.execute(text("SET statement_timeout = '60s'"))
             except Exception:
                 pass
             return conn.execute(text(cte + sql), p or params).fetchall()
