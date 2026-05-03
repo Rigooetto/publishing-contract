@@ -828,6 +828,7 @@ def _prewarm_dashboard_cache():
             with _prewarm_counter_lock:
                 done += 1
                 _prewarm_status["done"] = done
+    _cleanup_prewarm_engines()
 
     # Phase 2: per-artist combos — parallel, skip already-cached DB entries
     from concurrent.futures import ThreadPoolExecutor as _TPE2, as_completed as _asc2
@@ -844,6 +845,7 @@ def _prewarm_dashboard_cache():
             with _prewarm_counter_lock:
                 done += 1
                 _prewarm_status["done"] = done
+    _cleanup_prewarm_engines()
 
     _prewarm_status.update({"running": False, "current_artist": ""})
     _engine_local.override = None
@@ -1477,19 +1479,43 @@ def _warm_if_missing(engine, year, quarter, artist, view):
         pass
 
 
+# Per-thread persistent engines for prewarm workers (avoids NullPool create/destroy per combo)
+_prewarm_thread_engines: dict = {}
+_prewarm_thread_engines_lock = threading.Lock()
+
+
+def _get_prewarm_engine(engine_url):
+    """Return a cached per-thread engine, creating one if needed."""
+    tid = threading.get_ident()
+    if tid not in _prewarm_thread_engines:
+        from sqlalchemy import create_engine as _ce_t
+        _e = _ce_t(engine_url, pool_size=1, max_overflow=0,
+                   pool_pre_ping=True, pool_recycle=300,
+                   connect_args={"connect_timeout": 10})
+        with _prewarm_thread_engines_lock:
+            _prewarm_thread_engines[tid] = _e
+    return _prewarm_thread_engines[tid]
+
+
+def _cleanup_prewarm_engines():
+    """Dispose all per-thread prewarm engines after pool shuts down."""
+    with _prewarm_thread_engines_lock:
+        for _e in _prewarm_thread_engines.values():
+            try:
+                _e.dispose()
+            except Exception:
+                pass
+        _prewarm_thread_engines.clear()
+    _engine_local.override = None
+
+
 def _prewarm_worker_fn(args):
-    """Thread worker for parallel cache prewarm. Creates its own NullPool engine per call."""
+    """Thread worker: reuses a persistent per-thread engine — no NullPool teardown per combo."""
     engine_url, year, quarter, artist, view = args
     try:
-        from sqlalchemy import create_engine as _ce_pw
-        from sqlalchemy.pool import NullPool as _NP_pw
-        _eng_pw = _ce_pw(engine_url, poolclass=_NP_pw)
-        _engine_local.override = _eng_pw
-        try:
-            _warm_if_missing(_eng_pw, year, quarter, artist, view)
-        finally:
-            _engine_local.override = None
-            _eng_pw.dispose()
+        _eng = _get_prewarm_engine(engine_url)
+        _engine_local.override = _eng
+        _warm_if_missing(_eng, year, quarter, artist, view)
     except Exception:
         pass
 
@@ -1550,6 +1576,7 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
                              "message": f"Warming cache… {done}/{total_combos} combos"})
                 except Exception:
                     pass
+    _cleanup_prewarm_engines()
 
     _prewarm_status.update({"running": False, "current_artist": ""})
 
