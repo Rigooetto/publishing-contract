@@ -165,6 +165,17 @@ def backfill_artists_cmd():
 
 
 with app.app_context():
+    # Add artist_name column to user table (idempotent — no-op if already exists)
+    try:
+        from sqlalchemy import text as _text_main
+        with db.engine.connect() as _mc:
+            _mc.execute(_text_main(
+                'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS artist_name VARCHAR(255)'
+            ))
+            _mc.commit()
+    except Exception as _col_e:
+        app.logger.warning("user.artist_name column migration: %s", _col_e)
+
     _run_artist_backfill()
     # Create royalties DB tables if they don't exist yet
     if raw_royalties_url:
