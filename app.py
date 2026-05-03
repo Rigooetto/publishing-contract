@@ -300,8 +300,9 @@ with app.app_context():
                                 ON artist_royalty_detail (artist_name, reporting_month, isrc, platform, country)
                                 NULLS NOT DISTINCT
                         """))
-                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_artist ON artist_royalty_detail (artist_name)"))
-                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_month  ON artist_royalty_detail (reporting_month)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_artist       ON artist_royalty_detail (artist_name)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_artist_lower ON artist_royalty_detail (LOWER(artist_name))"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ard_month        ON artist_royalty_detail (reporting_month)"))
                         _c.commit()
                         _ard_empty = not _c.execute(_t_bg("SELECT 1 FROM artist_royalty_detail LIMIT 1")).fetchone()
                     _startup_app.logger.warning("artist_royalty_detail DDL complete (empty=%s).", _ard_empty)
@@ -326,8 +327,9 @@ with app.app_context():
                                 ON artist_label_detail (artist_name, reporting_month, isrc, platform, country)
                                 NULLS NOT DISTINCT
                         """))
-                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_artist ON artist_label_detail (artist_name)"))
-                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_month  ON artist_label_detail (reporting_month)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_artist       ON artist_label_detail (artist_name)"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_artist_lower ON artist_label_detail (LOWER(artist_name))"))
+                        _c.execute(_t_bg("CREATE INDEX IF NOT EXISTS ix_ald_month        ON artist_label_detail (reporting_month)"))
                         _c.commit()
                     _startup_app.logger.warning("artist_label_detail DDL complete.")
 

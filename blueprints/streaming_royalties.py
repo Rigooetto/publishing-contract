@@ -1642,12 +1642,16 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
         if view == "label":
             try:
                 with _engine.connect() as _ald_chk:
+                    # Case-insensitive lookup: ALD may store different casing than the URL param
                     _ald_row = _ald_chk.execute(
-                        text("SELECT 1 FROM artist_label_detail WHERE artist_name = :a LIMIT 1"),
+                        text("SELECT artist_name FROM artist_label_detail "
+                             "WHERE LOWER(artist_name) = LOWER(:a) LIMIT 1"),
                         {"a": artist}
                     ).fetchone()
                 if _ald_row:
-                    return _compute_dashboard_data_ald(year, quarter, artist, _engine)
+                    # Use the exact casing stored in ALD so downstream WHERE clauses match
+                    _ald_artist = _ald_row[0]
+                    return _compute_dashboard_data_ald(year, quarter, _ald_artist, _engine)
                 else:
                     import logging as _lg_ald
                     _lg_ald.getLogger(__name__).warning(
@@ -1666,7 +1670,8 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                 import logging as _lg_fp
                 with _engine.connect() as _chk:
                     _ard_row = _chk.execute(
-                        text("SELECT 1 FROM artist_royalty_detail WHERE artist_name = :a LIMIT 1"),
+                        text("SELECT artist_name FROM artist_royalty_detail "
+                             "WHERE LOWER(artist_name) = LOWER(:a) LIMIT 1"),
                         {"a": artist}
                     ).fetchone()
                     if not _ard_row:
@@ -1677,8 +1682,9 @@ def _compute_dashboard_data(year=None, quarter=None, artist=None, view="label"):
                     else:
                         _split_check = True
                 if _ard_row:
-                    _lg_fp.getLogger(__name__).warning("ARD fast path: HIT for artist=%r", artist)
-                    return _compute_dashboard_data_ard(year, quarter, artist, _engine)
+                    _ard_artist = _ard_row[0]
+                    _lg_fp.getLogger(__name__).warning("ARD fast path: HIT for artist=%r", _ard_artist)
+                    return _compute_dashboard_data_ard(year, quarter, _ard_artist, _engine)
                 else:
                     _lg_fp.getLogger(__name__).warning("ARD fast path: MISS (no rows) for artist=%r", artist)
                     if not _split_check:
