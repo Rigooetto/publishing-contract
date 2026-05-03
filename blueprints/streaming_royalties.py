@@ -2061,7 +2061,7 @@ def dashboard():
         artist = request.args.get("artist", "all")
 
     period  = request.args.get("period")
-    view    = request.args.get("view", "label")
+    view    = "artist" if _role == "artist" else request.args.get("view", "label")
     is_artist_user = (_role == "artist")
 
     try:
@@ -2120,7 +2120,7 @@ def dashboard_data():
     _session_artist = session.get("artist_name", "")
 
     period = request.args.get("period", "all")
-    view   = request.args.get("view", "label")
+    view   = "artist" if _role == "artist" else request.args.get("view", "label")
 
     if _role == "artist":
         artist = _session_artist or "all"
@@ -3393,10 +3393,12 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
         <option value="{{ pval }}"{% if period==pval %} selected{% endif %}>{{ y }} Q{{ q }}</option>
         {% endfor %}
       </select>
+      {% if not is_artist_user %}
       <div class="sr-view-toggle">
         <button id="btnLabel" class="{{ 'active' if view=='label' else '' }}" onclick="setView('label')">Label View</button>
         <button id="btnArtist" class="{{ 'active' if view=='artist' else '' }}" onclick="setView('artist')">Artist View</button>
       </div>
+      {% endif %}
     </div>
     <div class="sr-kpi">
       <div class="sr-kpi-val" id="kpiVal">${{ "{:,.2f}".format(data.kpi_total) }}</div>
