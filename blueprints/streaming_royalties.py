@@ -1489,8 +1489,8 @@ def _get_prewarm_engine(engine_url):
     tid = threading.get_ident()
     if tid not in _prewarm_thread_engines:
         from sqlalchemy import create_engine as _ce_t
-        _e = _ce_t(engine_url, pool_size=1, max_overflow=0,
-                   pool_pre_ping=True, pool_recycle=300,
+        from sqlalchemy.pool import NullPool as _NP_t
+        _e = _ce_t(engine_url, poolclass=_NP_t,
                    connect_args={"connect_timeout": 10})
         with _prewarm_thread_engines_lock:
             _prewarm_thread_engines[tid] = _e
