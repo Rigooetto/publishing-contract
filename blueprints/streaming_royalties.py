@@ -3603,9 +3603,13 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
     </div>
   </div>
 </div>
-<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b2);display:flex;gap:12px;align-items:center">
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--b2);display:flex;gap:12px;align-items:center;flex-wrap:wrap">
   <form method="post" action="/streaming-royalties/clear-cache">
     <button class="btn btn-sm">Clear Dashboard Cache</button>
+  </form>
+  <form method="post" action="/streaming-royalties/ard-rebuild"
+        onsubmit="return confirm('Rebuild the artist revenue cache (ARD + ALD) from scratch? This runs in the background and may take a few minutes.')">
+    <button class="btn btn-sm" style="color:var(--ac,#4f8ef7)">Rebuild Artist Cache (ARD)</button>
   </form>
   <form method="post" action="/streaming-royalties/purge-all"
         onsubmit="return confirm('This will delete ALL royalty rows from the database. Are you sure?')">
