@@ -1479,45 +1479,56 @@ def _warm_if_missing(engine, year, quarter, artist, view):
         pass
 
 
-# Per-thread persistent engines for prewarm workers (avoids NullPool create/destroy per combo)
-_prewarm_thread_engines: dict = {}
-_prewarm_thread_engines_lock = threading.Lock()
+# Shared pool engine for all prewarm workers — pool_size=12 handles 6 workers × 2 nested connects.
+# NullPool was creating a new TCP/SSL/auth roundtrip per connect() call (~100-200ms on Render),
+# multiplied by ~4 connects per combo = 400-800ms overhead per combo. Shared pool amortizes this.
+_prewarm_shared_engine = None
+_prewarm_shared_engine_lock = threading.Lock()
+import logging as _lg_pw
 
 
 def _get_prewarm_engine(engine_url):
-    """Return a cached per-thread engine, creating one if needed."""
-    tid = threading.get_ident()
-    if tid not in _prewarm_thread_engines:
-        from sqlalchemy import create_engine as _ce_t
-        from sqlalchemy.pool import NullPool as _NP_t
-        _e = _ce_t(engine_url, poolclass=_NP_t,
-                   connect_args={"connect_timeout": 10})
-        with _prewarm_thread_engines_lock:
-            _prewarm_thread_engines[tid] = _e
-    return _prewarm_thread_engines[tid]
+    """Return the shared prewarm engine, creating it once on first call."""
+    global _prewarm_shared_engine
+    if _prewarm_shared_engine is None:
+        with _prewarm_shared_engine_lock:
+            if _prewarm_shared_engine is None:
+                from sqlalchemy import create_engine as _ce_t
+                _prewarm_shared_engine = _ce_t(
+                    engine_url,
+                    pool_size=12,
+                    max_overflow=4,
+                    pool_pre_ping=True,
+                    pool_recycle=300,
+                    connect_args={"connect_timeout": 10},
+                )
+                _lg_pw.getLogger(__name__).info("prewarm: shared pool engine created (pool_size=12)")
+    return _prewarm_shared_engine
 
 
 def _cleanup_prewarm_engines():
-    """Dispose all per-thread prewarm engines after pool shuts down."""
-    with _prewarm_thread_engines_lock:
-        for _e in _prewarm_thread_engines.values():
+    """Dispose the shared prewarm engine after the pool shuts down."""
+    global _prewarm_shared_engine
+    with _prewarm_shared_engine_lock:
+        if _prewarm_shared_engine is not None:
             try:
-                _e.dispose()
+                _prewarm_shared_engine.dispose()
             except Exception:
                 pass
-        _prewarm_thread_engines.clear()
+            _prewarm_shared_engine = None
     _engine_local.override = None
 
 
 def _prewarm_worker_fn(args):
-    """Thread worker: reuses a persistent per-thread engine — no NullPool teardown per combo."""
+    """Thread worker: all workers share one pooled engine — connections reused, no per-connect overhead."""
     engine_url, year, quarter, artist, view = args
     try:
         _eng = _get_prewarm_engine(engine_url)
         _engine_local.override = _eng
         _warm_if_missing(_eng, year, quarter, artist, view)
-    except Exception:
-        pass
+    except Exception as _pw_exc:
+        _lg_pw.getLogger(__name__).warning("prewarm worker error (%s|%s|%s|%s): %s",
+                                           year, quarter, artist, view, _pw_exc)
 
 
 def _prewarm_affected_periods(engine, months, emit_fn=None):
