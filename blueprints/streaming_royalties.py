@@ -2045,13 +2045,24 @@ def ald_debug():
 def dashboard():
     if auth_required():
         return redirect(url_for("publishing.login"))
-    if role_required(_ADMIN_ONLY):
-        flash("Access restricted.", "error")
-        return redirect(url_for("publishing.works_list"))
+
+    _role = session.get("role", "")
+    _session_artist = session.get("artist_name", "")
+
+    if _role == "artist":
+        if not _session_artist:
+            flash("Your account is not linked to an artist. Contact an admin.", "error")
+            return redirect(url_for("publishing.login"))
+        artist = _session_artist
+    else:
+        if role_required(_ADMIN_ONLY):
+            flash("Access restricted.", "error")
+            return redirect(url_for("publishing.works_list"))
+        artist = request.args.get("artist", "all")
 
     period  = request.args.get("period")
-    artist  = request.args.get("artist", "all")
     view    = request.args.get("view", "label")
+    is_artist_user = (_role == "artist")
 
     try:
         _get_dropdown_data(_royalties_engine())
@@ -2073,10 +2084,15 @@ def dashboard():
             data["all_periods"] = fresh_periods
     except Exception:
         pass
+    if is_artist_user:
+        data = dict(data)
+        data["all_artists"] = [artist]
+
     return render_template_string(
         _DASHBOARD_HTML,
         data=data, period=period,
         artist=artist, view=view,
+        is_artist_user=is_artist_user,
         _sidebar_html=_sb(),
     )
 
@@ -2100,13 +2116,37 @@ def dashboard_data():
     if auth_required():
         return jsonify({"error": "auth"}), 401
 
-    period  = request.args.get("period", "all")
-    artist  = request.args.get("artist", "all")
-    view    = request.args.get("view", "label")
-    year, quarter = _parse_period(period)
+    _role = session.get("role", "")
+    _session_artist = session.get("artist_name", "")
 
+    period = request.args.get("period", "all")
+    view   = request.args.get("view", "label")
+
+    if _role == "artist":
+        artist = _session_artist or "all"
+    else:
+        if role_required(_ADMIN_ONLY):
+            return jsonify({"error": "access denied"}), 403
+        artist = request.args.get("artist", "all")
+
+    year, quarter = _parse_period(period)
     data = _dashboard_data(year, quarter, artist, view)
     return jsonify(data)
+
+
+@bp.route("/streaming-royalties/artist-names")
+def artist_names_json():
+    """Lightweight endpoint: returns canonical artist names for autocomplete."""
+    if auth_required():
+        return jsonify({"error": "auth"}), 401
+    if role_required(_ADMIN_ONLY):
+        return jsonify({"error": "access denied"}), 403
+    from models import ArtistNameMap as _ANM
+    names = sorted({
+        m.canonical_name for m in _ANM.query.filter_by(status="confirmed").all()
+        if m.canonical_name
+    }, key=str.lower)
+    return jsonify({"artists": names})
 
 
 @bp.route("/streaming-royalties/imports")
@@ -3336,12 +3376,16 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
   <div class="sr-header">
     <div class="sr-logo">AfinArte <span>Music</span> Royalty System</div>
     <div class="sr-filters">
+      {% if is_artist_user %}
+      <span style="font-size:13px;font-weight:600;color:var(--t1);padding:6px 10px;background:var(--s1);border:1px solid var(--b0);border-radius:8px">{{ artist }}</span>
+      {% else %}
       <select id="selArtist" onchange="applyFilters()">
         <option value="all"{% if artist=='all' %} selected{% endif %}>All Artists</option>
         {% for a in data.all_artists %}
         <option value="{{ a }}"{% if artist==a %} selected{% endif %}>{{ a }}</option>
         {% endfor %}
       </select>
+      {% endif %}
       <select id="selPeriod" onchange="applyFilters()">
         <option value="all"{% if period=='all' %} selected{% endif %}>All Time</option>
         {% for y, q in (data.all_periods or []) %}

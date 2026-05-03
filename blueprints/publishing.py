@@ -75,16 +75,18 @@ def login():
             user = UserModel.query.filter_by(username=username, is_active=True).first()
             if user and user.check_password(password):
                 session.clear()
-                session["user_id"]  = user.id
-                session["username"] = user.username
-                session["role"]     = user.role
+                session["user_id"]     = user.id
+                session["username"]    = user.username
+                session["role"]        = user.role
+                session["artist_name"] = user.artist_name or ""
                 return redirect(url_for(".formulario"))
         else:
             if username == TEAM_USERNAME and password == TEAM_PASSWORD:
                 session.clear()
-                session["logged_in"] = True
-                session["username"]  = username
-                session["role"]      = "admin"
+                session["logged_in"]   = True
+                session["username"]    = username
+                session["role"]        = "admin"
+                session["artist_name"] = ""
                 return redirect(url_for(".formulario"))
 
         flash("Incorrect username or password.")

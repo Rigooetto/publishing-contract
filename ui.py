@@ -7269,14 +7269,19 @@ USERS_HTML = """<!DOCTYPE html>
         <div><label class="label">Email</label>
         <input class="inp" name="email" type="email" placeholder="user@afinarte.com"></div>
         <div><label class="label">Role *</label>
-        <select class="inp" name="role">
+        <select class="inp" name="role" id="newUserRole" onchange="toggleArtistNameField(this,'newArtistNameRow')">
           <option value="ar">A&amp;R</option>
           <option value="label_manager">Label Manager</option>
           <option value="publishing_manager">Publishing Manager</option>
           <option value="admin">Admin</option>
+          <option value="artist">Artist (portal access)</option>
         </select></div>
         <div><label class="label">Password *</label>
         <input class="inp" type="password" name="password" required placeholder="Min 8 characters"></div>
+      </div>
+      <div id="newArtistNameRow" style="display:none;margin-bottom:14px">
+        <label class="label">Artist Name</label>
+        <input class="inp" name="artist_name" list="artistDatalist" autocomplete="off" placeholder="Start typing…">
       </div>
       <button type="submit" class="btn btn-primary">Create User</button>
     </form>
@@ -7291,7 +7296,7 @@ USERS_HTML = """<!DOCTYPE html>
   <div style="overflow-x:auto">
   <table class="tbl" style="width:100%">
     <thead><tr>
-      <th>Username</th><th>Email</th><th style="min-width:230px">Role</th>
+      <th>Username</th><th>Email</th><th style="min-width:280px">Role</th>
       <th>Status</th><th style="min-width:240px">Reset Password</th><th></th>
     </tr></thead>
     <tbody>
@@ -7302,13 +7307,17 @@ USERS_HTML = """<!DOCTYPE html>
       </td>
       <td style="font-size:12px;color:var(--t2)">{{ u.email or '—' }}</td>
       <td>
-        <form method="post" action="/users/{{ u.id }}/role" style="display:flex;gap:6px;align-items:center">
-          <select name="role" class="inp" style="padding:4px 8px;font-size:12px;width:auto">
+        <form method="post" action="/users/{{ u.id }}/role" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <select name="role" class="inp" style="padding:4px 8px;font-size:12px;width:auto" onchange="toggleArtistNameField(this,'anf-{{ u.id }}')">
             <option value="ar"{% if u.role=='ar' %} selected{% endif %}>A&amp;R</option>
             <option value="label_manager"{% if u.role=='label_manager' %} selected{% endif %}>Label Manager</option>
             <option value="publishing_manager"{% if u.role=='publishing_manager' %} selected{% endif %}>Publishing Manager</option>
             <option value="admin"{% if u.role=='admin' %} selected{% endif %}>Admin</option>
+            <option value="artist"{% if u.role=='artist' %} selected{% endif %}>Artist (portal)</option>
           </select>
+          <input id="anf-{{ u.id }}" name="artist_name" value="{{ u.artist_name or '' }}"
+                 placeholder="Artist name" class="inp" list="artistDatalist" autocomplete="off"
+                 style="padding:4px 8px;font-size:12px;width:160px;display:{% if u.role=='artist' %}inline-block{% else %}none{% endif %}">
           <button type="submit" class="btn btn-sec btn-sm">Save</button>
         </form>
       </td>
@@ -7338,6 +7347,27 @@ USERS_HTML = """<!DOCTYPE html>
   {% endif %}
 </div>
 </div></main></div>
+<datalist id="artistDatalist"></datalist>
+<script>
+function toggleArtistNameField(sel, targetId) {
+  var el = document.getElementById(targetId);
+  if (el) el.style.display = (sel.value === 'artist') ? 'block' : 'none';
+}
+(function loadArtistNames() {
+  fetch('/streaming-royalties/artist-names')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var dl = document.getElementById('artistDatalist');
+      if (!dl || !d.artists) return;
+      d.artists.forEach(function(name){
+        var opt = document.createElement('option');
+        opt.value = name;
+        dl.appendChild(opt);
+      });
+    })
+    .catch(function(){});
+})();
+</script>
 """ + _SB_JS + """
 """ + _mobile_nav() + """
 </body></html>"""

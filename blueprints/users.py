@@ -73,14 +73,15 @@ def create_user():
     if len(password) < 8:
         flash("Password must be at least 8 characters.", "error")
         return redirect(url_for("users.users_list"))
-    if role not in ("admin", "label_manager", "publishing_manager", "ar"):
+    if role not in ("admin", "label_manager", "publishing_manager", "ar", "artist"):
         flash("Invalid role.", "error")
         return redirect(url_for("users.users_list"))
     if User.query.filter_by(username=username).first():
         flash(f"Username '{username}' is already taken.", "error")
         return redirect(url_for("users.users_list"))
 
-    user = User(username=username, email=email, role=role, is_active=True)
+    artist_name = request.form.get("artist_name", "").strip() if role == "artist" else None
+    user = User(username=username, email=email, role=role, artist_name=artist_name, is_active=True)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -118,11 +119,16 @@ def change_role(user_id):
 
     user = User.query.get_or_404(user_id)
     new_role = request.form.get("role", "").strip()
-    if new_role not in ("admin", "label_manager", "publishing_manager", "ar"):
+    if new_role not in ("admin", "label_manager", "publishing_manager", "ar", "artist"):
         flash("Invalid role.", "error")
         return redirect(url_for("users.users_list"))
 
     user.role = new_role
+    if new_role == "artist":
+        new_artist_name = request.form.get("artist_name", "").strip()
+        user.artist_name = new_artist_name or None
+    else:
+        user.artist_name = None
     db.session.commit()
     flash(f"Role updated for '{user.username}'.", "success")
     return redirect(url_for("users.users_list"))
