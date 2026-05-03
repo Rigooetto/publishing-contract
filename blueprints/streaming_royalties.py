@@ -1898,7 +1898,8 @@ def ard_rebuild():
         finally:
             _eng.dispose()
     threading.Thread(target=_bg, daemon=True).start()
-    return jsonify({"status": "rebuild started in background"})
+    flash("Artist cache rebuild started in background. This may take a few minutes.", "success")
+    return redirect(url_for("streaming_royalties.imports_list"))
 
 
 @bp.route("/streaming-royalties/admin/ald-debug")
