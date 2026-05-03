@@ -31,6 +31,7 @@ _isrc_csv_cache_lock = threading.Lock()
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
 _prewarm_lock = threading.Lock()
 _prewarm_counter_lock = threading.Lock()
+_ard_rebuild_lock = threading.Lock()  # prevents concurrent ARD/ALD rebuilds
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
@@ -946,6 +947,9 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
     from sqlalchemy import text as _t
     _log = _lg_ard.getLogger(__name__)
     _invalidate_isrc_csv_cache()
+    if not _ard_rebuild_lock.acquire(blocking=True, timeout=5):
+        _log.warning("_rebuild_artist_detail: another rebuild already running, skipping.")
+        return
     try:
         with engine.connect() as conn:
             if months is not None:
@@ -978,6 +982,8 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
                 conn.commit()
     except Exception as _e:
         _log.warning("_rebuild_artist_detail failed: %s", _e)
+    finally:
+        _ard_rebuild_lock.release()
 
 
 def _rebuild_artist_label_detail(engine, months=None):
@@ -1017,6 +1023,7 @@ def _rebuild_artist_label_detail(engine, months=None):
 
 def _get_isrc_csv(engine, isrc_set: set) -> dict:
     """Return {isrc: artist_name_csv} using a module-level cache to avoid repeated royalty_summary scans."""
+    from sqlalchemy import text
     missing = isrc_set - _isrc_csv_cache.keys()
     if missing:
         try:
@@ -2424,10 +2431,11 @@ def cache_status():
     if not _prewarm_status["running"] and _prewarm_status["total"] == 0:
         _ald_ready = False
         try:
+            from sqlalchemy import text as _text_cs
             _eng_cs = _royalties_engine()
             with _eng_cs.connect() as _c_cs:
                 _ald_ready = bool(_c_cs.execute(
-                    text("SELECT 1 FROM artist_label_detail LIMIT 1")
+                    _text_cs("SELECT 1 FROM artist_label_detail LIMIT 1")
                 ).fetchone())
         except Exception:
             pass
