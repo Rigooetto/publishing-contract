@@ -257,6 +257,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role          = db.Column(db.String(30),  nullable=False, default="ar")
     artist_name   = db.Column(db.String(255), nullable=True,  default=None)
+    permissions   = db.Column(db.Text,        nullable=True,  default=None)
     is_active     = db.Column(db.Boolean, default=True)
     created_at    = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 

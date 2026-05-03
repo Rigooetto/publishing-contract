@@ -81,7 +81,9 @@ def create_user():
         return redirect(url_for("users.users_list"))
 
     artist_name = request.form.get("artist_name", "").strip() if role == "artist" else None
-    user = User(username=username, email=email, role=role, artist_name=artist_name, is_active=True)
+    perms = ",".join(request.form.getlist("permissions")) if role == "artist" else None
+    user = User(username=username, email=email, role=role, artist_name=artist_name,
+                permissions=perms or "royalties", is_active=True)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -125,10 +127,11 @@ def change_role(user_id):
 
     user.role = new_role
     if new_role == "artist":
-        new_artist_name = request.form.get("artist_name", "").strip()
-        user.artist_name = new_artist_name or None
+        user.artist_name = request.form.get("artist_name", "").strip() or None
+        user.permissions = ",".join(request.form.getlist("permissions")) or "royalties"
     else:
         user.artist_name = None
+        user.permissions = None
     db.session.commit()
     flash(f"Role updated for '{user.username}'.", "success")
     return redirect(url_for("users.users_list"))

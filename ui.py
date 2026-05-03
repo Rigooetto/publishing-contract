@@ -7269,7 +7269,7 @@ USERS_HTML = """<!DOCTYPE html>
         <div><label class="label">Email</label>
         <input class="inp" name="email" type="email" placeholder="user@afinarte.com"></div>
         <div><label class="label">Role *</label>
-        <select class="inp" name="role" id="newUserRole" onchange="toggleArtistNameField(this,'newArtistNameRow')">
+        <select class="inp" name="role" id="newUserRole" onchange="toggleArtistNameField(this,null,'newArtistNameRow')">
           <option value="ar">A&amp;R</option>
           <option value="label_manager">Label Manager</option>
           <option value="publishing_manager">Publishing Manager</option>
@@ -7281,7 +7281,20 @@ USERS_HTML = """<!DOCTYPE html>
       </div>
       <div id="newArtistNameRow" style="display:none;margin-bottom:14px">
         <label class="label">Artist Name</label>
-        <input class="inp" name="artist_name" list="artistDatalist" autocomplete="off" placeholder="Start typing…">
+        <input class="inp" name="artist_name" list="artistDatalist" autocomplete="off" placeholder="Start typing…" style="margin-bottom:12px">
+        <label class="label">Access</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px 20px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t1);cursor:pointer">
+            <input type="checkbox" name="permissions" value="royalties" checked> Streaming Royalties</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t1);cursor:pointer">
+            <input type="checkbox" name="permissions" value="releases"> Releases</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t1);cursor:pointer">
+            <input type="checkbox" name="permissions" value="publishing"> Works &amp; Publishing</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t1);cursor:pointer">
+            <input type="checkbox" name="permissions" value="artists"> Artists</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t1);cursor:pointer">
+            <input type="checkbox" name="permissions" value="reports"> Reports</label>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary">Create User</button>
     </form>
@@ -7307,18 +7320,33 @@ USERS_HTML = """<!DOCTYPE html>
       </td>
       <td style="font-size:12px;color:var(--t2)">{{ u.email or '—' }}</td>
       <td>
-        <form method="post" action="/users/{{ u.id }}/role" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-          <select name="role" class="inp" style="padding:4px 8px;font-size:12px;width:auto" onchange="toggleArtistNameField(this,'anf-{{ u.id }}')">
-            <option value="ar"{% if u.role=='ar' %} selected{% endif %}>A&amp;R</option>
-            <option value="label_manager"{% if u.role=='label_manager' %} selected{% endif %}>Label Manager</option>
-            <option value="publishing_manager"{% if u.role=='publishing_manager' %} selected{% endif %}>Publishing Manager</option>
-            <option value="admin"{% if u.role=='admin' %} selected{% endif %}>Admin</option>
-            <option value="artist"{% if u.role=='artist' %} selected{% endif %}>Artist (portal)</option>
-          </select>
-          <input id="anf-{{ u.id }}" name="artist_name" value="{{ u.artist_name or '' }}"
-                 placeholder="Artist name" class="inp" list="artistDatalist" autocomplete="off"
-                 style="padding:4px 8px;font-size:12px;width:160px;display:{% if u.role=='artist' %}inline-block{% else %}none{% endif %}">
-          <button type="submit" class="btn btn-sec btn-sm">Save</button>
+        <form method="post" action="/users/{{ u.id }}/role">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <select name="role" class="inp" style="padding:4px 8px;font-size:12px;width:auto" onchange="toggleArtistNameField(this,'anf-{{ u.id }}','apf-{{ u.id }}')">
+              <option value="ar"{% if u.role=='ar' %} selected{% endif %}>A&amp;R</option>
+              <option value="label_manager"{% if u.role=='label_manager' %} selected{% endif %}>Label Manager</option>
+              <option value="publishing_manager"{% if u.role=='publishing_manager' %} selected{% endif %}>Publishing Manager</option>
+              <option value="admin"{% if u.role=='admin' %} selected{% endif %}>Admin</option>
+              <option value="artist"{% if u.role=='artist' %} selected{% endif %}>Artist (portal)</option>
+            </select>
+            <input id="anf-{{ u.id }}" name="artist_name" value="{{ u.artist_name or '' }}"
+                   placeholder="Artist name" class="inp" list="artistDatalist" autocomplete="off"
+                   style="padding:4px 8px;font-size:12px;width:160px;display:{% if u.role=='artist' %}inline-block{% else %}none{% endif %}">
+            <button type="submit" class="btn btn-sec btn-sm">Save</button>
+          </div>
+          {% set _perms = (u.permissions or 'royalties').split(',') %}
+          <div id="apf-{{ u.id }}" style="display:{% if u.role=='artist' %}flex{% else %}none{% endif %};flex-wrap:wrap;gap:8px 16px;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer">
+              <input type="checkbox" name="permissions" value="royalties" {% if 'royalties' in _perms %}checked{% endif %}> Royalties</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer">
+              <input type="checkbox" name="permissions" value="releases" {% if 'releases' in _perms %}checked{% endif %}> Releases</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer">
+              <input type="checkbox" name="permissions" value="publishing" {% if 'publishing' in _perms %}checked{% endif %}> Works</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer">
+              <input type="checkbox" name="permissions" value="artists" {% if 'artists' in _perms %}checked{% endif %}> Artists</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer">
+              <input type="checkbox" name="permissions" value="reports" {% if 'reports' in _perms %}checked{% endif %}> Reports</label>
+          </div>
         </form>
       </td>
       <td>{% if u.is_active %}<span style="color:#4caf8a;font-size:12px;font-weight:600">&#9679; Active</span>
@@ -7349,9 +7377,15 @@ USERS_HTML = """<!DOCTYPE html>
 </div></main></div>
 <datalist id="artistDatalist"></datalist>
 <script>
-function toggleArtistNameField(sel, targetId) {
-  var el = document.getElementById(targetId);
-  if (el) el.style.display = (sel.value === 'artist') ? 'block' : 'none';
+function toggleArtistNameField(sel, nameId, permsId) {
+  var isArtist = sel.value === 'artist';
+  var nameEl = nameId ? document.getElementById(nameId) : null;
+  var permsEl = permsId ? document.getElementById(permsId) : null;
+  if (nameEl) nameEl.style.display = isArtist ? 'inline-block' : 'none';
+  if (permsEl) {
+    var isInput = permsEl.tagName === 'INPUT';
+    permsEl.style.display = isArtist ? (isInput ? 'inline-block' : permsEl.dataset.display || 'block') : 'none';
+  }
 }
 (function loadArtistNames() {
   fetch('/streaming-royalties/artist-names')

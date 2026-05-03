@@ -80,14 +80,29 @@ app.register_blueprint(streaming_royalties_bp)
 
 # ── Context processor ─────────────────────────────────────────────────────────
 
+_ARTIST_PERM_ROUTES = {
+    "royalties":   ("/streaming-royalties",),
+    "releases":    ("/releases",),
+    "artists":     ("/artists",),
+    "publishing":  ("/works", "/sessions", "/writers", "/camps", "/contract", "/new-session", "/new-work"),
+    "reports":     ("/reports", "/pro-audit", "/mechanical-audit", "/neighboring-rights-audit", "/registration-report", "/title-review"),
+}
+
 @app.before_request
 def _enforce_artist_scope():
     from flask import session, request, redirect, url_for
     if session.get("role") != "artist":
         return
-    _allowed_prefixes = ("/streaming-royalties", "/login", "/logout", "/static")
-    if not any(request.path.startswith(p) for p in _allowed_prefixes):
-        return redirect(url_for("streaming_royalties.dashboard"))
+    _always_allowed = ("/login", "/logout", "/static")
+    if any(request.path.startswith(p) for p in _always_allowed):
+        return
+    perms = set((session.get("permissions") or "royalties").split(","))
+    allowed = [p for key in perms if key in _ARTIST_PERM_ROUTES for p in _ARTIST_PERM_ROUTES[key]]
+    if not any(request.path.startswith(p) for p in allowed):
+        first = next(iter(perms & _ARTIST_PERM_ROUTES.keys()), "royalties")
+        if first == "royalties":
+            return redirect(url_for("streaming_royalties.dashboard"))
+        return redirect("/")
 
 
 @app.context_processor
@@ -175,16 +190,19 @@ def backfill_artists_cmd():
 
 
 with app.app_context():
-    # Add artist_name column to user table (idempotent — no-op if already exists)
+    # Add new columns to user table (idempotent — no-op if already exists)
     try:
         from sqlalchemy import text as _text_main
         with db.engine.connect() as _mc:
             _mc.execute(_text_main(
                 'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS artist_name VARCHAR(255)'
             ))
+            _mc.execute(_text_main(
+                'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS permissions TEXT'
+            ))
             _mc.commit()
     except Exception as _col_e:
-        app.logger.warning("user.artist_name column migration: %s", _col_e)
+        app.logger.warning("user column migration: %s", _col_e)
 
     _run_artist_backfill()
     # Create royalties DB tables if they don't exist yet
