@@ -32,6 +32,7 @@ _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artis
 _prewarm_lock = threading.Lock()
 _prewarm_counter_lock = threading.Lock()
 _ard_rebuild_lock = threading.Lock()  # prevents concurrent ARD/ALD rebuilds
+_normalize_lock = threading.Lock()    # prevents concurrent royalty_summary normalization runs
 
 from flask import (
     Blueprint, render_template_string, request, redirect, url_for,
@@ -2956,6 +2957,7 @@ def _normalize_royalty_summary_bg():
 
         name_map = {m.raw_name: m.canonical_name
                     for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
+        db.session.remove()  # release main DB connection before slow royalties work
         if not name_map:
             _clear_dashboard_cache()
             return
@@ -3049,12 +3051,17 @@ def _normalize_royalty_summary_bg():
 
 def _start_normalize_bg():
     """Start _normalize_royalty_summary_bg in a daemon thread with a captured app context.
-    Call this from any request handler instead of starting the thread directly.
+    If a normalization is already in progress, skip — the running one will apply all current mappings.
     """
+    if not _normalize_lock.acquire(blocking=False):
+        return  # already running; current run will apply the latest mappings
     _app = current_app._get_current_object()
     def _run():
-        with _app.app_context():
-            _normalize_royalty_summary_bg()
+        try:
+            with _app.app_context():
+                _normalize_royalty_summary_bg()
+        finally:
+            _normalize_lock.release()
     threading.Thread(target=_run, daemon=True).start()
 
 
