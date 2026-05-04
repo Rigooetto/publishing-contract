@@ -81,7 +81,7 @@ app.register_blueprint(streaming_royalties_bp)
 # ── Context processor ─────────────────────────────────────────────────────────
 
 _ARTIST_PERM_ROUTES = {
-    "royalties":   ("/streaming-royalties",),
+    "royalties":   ("/streaming-royalties", "/releases"),
     "releases":    ("/releases",),
     "artists":     ("/artists",),
     "publishing":  ("/works", "/sessions", "/writers", "/camps", "/contract", "/new-session", "/new-work"),
