@@ -3366,6 +3366,9 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 @media(orientation:landscape) and (max-height:500px){
   .sb{display:none!important}
   .main{margin-left:0!important}
+  .sr-grid{grid-template-columns:1fr;padding:10px 12px;gap:10px}
+  .sr-grid-3{grid-template-columns:1fr;padding:0 12px 10px;gap:10px}
+  .sr-kpi{min-width:unset;width:100%;box-sizing:border-box}
 }
 @media(max-width:768px){
   .sb{display:none!important}
