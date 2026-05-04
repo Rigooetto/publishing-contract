@@ -4199,7 +4199,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
   <div class="an-stat" onclick="setFilter(null,this)"><strong>{{ total }}</strong>Individual names</div>
   <div class="an-stat" onclick="setFilter('confirmed',this)"><strong>{{ n_confirmed }}</strong>Mapped</div>
   <div class="an-stat" onclick="setFilter('auto',this)"><strong style="color:#6385ff">{{ n_auto }}</strong>Already canonical</div>
-  <div class="an-stat" onclick="setFilter('pending',this)" style="{{ 'border-color:#f59e0b66' if n_pending else '' }}"><strong style="{{ 'color:#f59e0b' if n_pending else '' }}">{{ n_pending }}</strong>Pending review</div>
+  <div class="an-stat" onclick="setFilter('pending_review',this)" style="{{ 'border-color:#f59e0b66' if n_pending else '' }}"><strong style="{{ 'color:#f59e0b' if n_pending else '' }}">{{ n_pending }}</strong>Pending review</div>
   <div class="an-stat" onclick="setFilter('unmapped',this)" style="{{ 'border-color:#ff4f6a66' if n_unmapped else '' }}"><strong style="{{ 'color:var(--err)' if n_unmapped else '' }}">{{ n_unmapped }}</strong>Needs mapping</div>
 </div>
 
@@ -4271,7 +4271,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
     </div>
     {% set groups_seen.val = groups_seen.val + [item.suggestion] %}
   {% elif item.group_size == 1 %}
-    {% if gi > 0 and ordered[gi-1].group_size > 1 %}</div>{% endif %}
+    {% if gi > 0 %}</div>{% endif %}
     <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n" data-status="{{ item.status }}">
   {% endif %}
     <div class="an-row" data-status="{{ item.status }}">
@@ -4331,7 +4331,7 @@ function autoApplyAll(){
 function doSearch(q){
   q = q.toLowerCase();
   const multiOnly = document.getElementById('chkMulti').checked;
-  const filterStatus = (_activeFilter && _activeFilter !== 'pending') ? _activeFilter : null;
+  const filterStatus = _activeFilter;
   document.querySelectorAll('.an-group').forEach(g => {
     const matchSearch = !q || g.dataset.search.includes(q);
     const matchMulti  = !multiOnly || g.dataset.multi === 'y';
