@@ -109,10 +109,11 @@ def _enforce_artist_scope():
 def inject_globals():
     from flask import session
     return {
-        "team_auth_enabled":  bool(TEAM_USERNAME and TEAM_PASSWORD),
-        "current_role":       session.get("role", ""),
-        "current_username":   session.get("username", ""),
-        "current_user_id":    session.get("user_id"),
+        "team_auth_enabled":    bool(TEAM_USERNAME and TEAM_PASSWORD),
+        "current_role":         session.get("role", ""),
+        "current_username":     session.get("username", ""),
+        "current_user_id":      session.get("user_id"),
+        "current_artist_name":  session.get("artist_name", ""),
     }
 
 # ── Startup ───────────────────────────────────────────────────────────────────
