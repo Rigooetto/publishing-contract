@@ -3417,7 +3417,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Artist</div>
       {% if data.by_artist %}
-      <div id="chartArtistWrap" style="overflow-y:auto;max-height:380px">
+      <div id="chartArtistWrap" style="position:relative;overflow-y:auto;max-height:380px">
         <canvas id="chartArtist"></canvas>
       </div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
@@ -3492,13 +3492,9 @@ function fmt2(n){ return '$'+Number(n).toLocaleString('en-US',{minimumFractionDi
 let charts = {};
 function destroyCharts(){ Object.values(charts).forEach(c=>c.destroy()); charts={}; }
 
-const H = 280;
 function mkCanvas(id){
   const el = document.getElementById(id);
-  if(!el) return null;
-  el.width  = el.parentElement.clientWidth  || 500;
-  el.height = H;
-  return el;
+  return el || null;
 }
 
 function buildCharts(d){
@@ -3507,9 +3503,8 @@ function buildCharts(d){
   const elA = document.getElementById('chartArtist');
   if(elA && d.by_artist?.length){
     const rowH = 26;
-    const w = elA.parentElement.clientWidth || 500;
     const h = Math.max(280, d.by_artist.length * rowH);
-    elA.width = w; elA.height = h;
+    elA.parentElement.style.height = h + 'px';
     charts.artist = new Chart(elA, {
       type:'bar', plugins:[DL],
       data:{
@@ -3517,7 +3512,7 @@ function buildCharts(d){
         datasets:[{data:d.by_artist.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:false, indexAxis:'y',
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.x)}},
@@ -3541,7 +3536,7 @@ function buildCharts(d){
         datasets:[{data:d.by_month.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:false,
+        responsive:true, maintainAspectRatio:false,
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.y)}},
@@ -3566,7 +3561,7 @@ function buildCharts(d){
         datasets:[{data:d.by_country.map(r=>r.revenue), backgroundColor:PALETTE, borderWidth:2, borderColor:'#161b27'}]
       },
       options:{
-        responsive:false,
+        responsive:true, maintainAspectRatio:false,
         plugins:{
           legend:{display:true,position:'bottom',labels:{color:'#8a96b0',font:{size:11},padding:8,boxWidth:12}},
           tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmt2(ctx.parsed)} (${(ctx.parsed/tot*100).toFixed(1)}%)`}},
@@ -3585,7 +3580,7 @@ function buildCharts(d){
         datasets:[{data:d.by_platform.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:false,
+        responsive:true, maintainAspectRatio:false,
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.y)}},
