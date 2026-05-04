@@ -4148,7 +4148,9 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 <title>Artist Names — AfinArte</title>""" + _STYLE + """
 <style>
 .an-stats{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
-.an-stat{background:var(--c2);border:1px solid var(--bdr);border-radius:8px;padding:10px 18px;font-size:13px;color:var(--t2)}
+.an-stat{background:var(--c2);border:1px solid var(--bdr);border-radius:8px;padding:10px 18px;font-size:13px;color:var(--t2);cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+.an-stat:hover{border-color:#6385ff66;background:rgba(99,133,255,.06)}
+.an-stat.active{border-color:#6385ff !important;background:rgba(99,133,255,.12) !important}
 .an-stat strong{color:var(--t1);font-size:18px;display:block}
 .an-section-title{font-size:14px;font-weight:600;color:var(--t1);margin:20px 0 10px;display:flex;align-items:center;gap:10px}
 .an-group{background:var(--c2);border:1px solid var(--bdr);border-radius:10px;margin-bottom:8px;overflow:hidden}
@@ -4194,14 +4196,15 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 </div>
 
 <div class="an-stats">
-  <div class="an-stat"><strong>{{ total }}</strong>Individual names</div>
-  <div class="an-stat"><strong>{{ n_confirmed }}</strong>Mapped</div>
-  <div class="an-stat"><strong style="color:#6385ff">{{ n_auto }}</strong>Already canonical</div>
-  <div class="an-stat" style="{{ 'border-color:#f59e0b66' if n_pending else '' }}"><strong style="{{ 'color:#f59e0b' if n_pending else '' }}">{{ n_pending }}</strong>Pending review</div>
-  <div class="an-stat" style="{{ 'border-color:#ff4f6a66' if n_unmapped else '' }}"><strong style="{{ 'color:var(--err)' if n_unmapped else '' }}">{{ n_unmapped }}</strong>Needs mapping</div>
+  <div class="an-stat" onclick="setFilter(null,this)"><strong>{{ total }}</strong>Individual names</div>
+  <div class="an-stat" onclick="setFilter('confirmed',this)"><strong>{{ n_confirmed }}</strong>Mapped</div>
+  <div class="an-stat" onclick="setFilter('auto',this)"><strong style="color:#6385ff">{{ n_auto }}</strong>Already canonical</div>
+  <div class="an-stat" onclick="setFilter('pending',this)" style="{{ 'border-color:#f59e0b66' if n_pending else '' }}"><strong style="{{ 'color:#f59e0b' if n_pending else '' }}">{{ n_pending }}</strong>Pending review</div>
+  <div class="an-stat" onclick="setFilter('unmapped',this)" style="{{ 'border-color:#ff4f6a66' if n_unmapped else '' }}"><strong style="{{ 'color:var(--err)' if n_unmapped else '' }}">{{ n_unmapped }}</strong>Needs mapping</div>
 </div>
 
 {% if pending %}
+<div id="pending-section">
 <div class="an-section-title">
   <span class="an-badge an-badge-pend">{{ pending|length }} pending review</span>
   Auto-matched by fuzzy similarity — confirm or reject each
@@ -4230,7 +4233,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
   </div>
   {% endfor %}
 </div>
-{% endif %}
+</div>{% endif %}
 
 <div class="an-section-title" style="margin-top:24px">
   All Individual Names
@@ -4257,7 +4260,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
   {% set gi = loop.index0 %}
   {% if item.group_size > 1 and item.suggestion not in groups_seen.val %}
     {% if gi > 0 %}</div>{% endif %}
-    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="y">
+    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="y" data-status="{{ item.status }}">
     <div class="an-group-hd">
       <span class="an-badge an-badge-var">{{ item.group_size }} variants</span>
       <span style="font-size:13px;color:var(--t1);font-weight:500">{{ item.suggestion[:60] }}{% if item.suggestion|length > 60 %}…{% endif %}</span>
@@ -4269,7 +4272,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
     {% set groups_seen.val = groups_seen.val + [item.suggestion] %}
   {% elif item.group_size == 1 %}
     {% if gi > 0 and ordered[gi-1].group_size > 1 %}</div>{% endif %}
-    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n">
+    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n" data-status="{{ item.status }}">
   {% endif %}
     <div class="an-row">
       <span class="an-raw" title="{{ item.raw }}">{{ item.raw }}
@@ -4297,6 +4300,23 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 </form>
 </div></div></div>""" + _SB_JS + """
 <script>
+let _activeFilter = null;
+
+function setFilter(status, el) {
+  if (_activeFilter === status) {
+    _activeFilter = null;
+    document.querySelectorAll('.an-stat').forEach(s => s.classList.remove('active'));
+  } else {
+    _activeFilter = status;
+    document.querySelectorAll('.an-stat').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+  }
+  if (_activeFilter === 'pending') {
+    document.getElementById('pending-section')?.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  doSearch(document.getElementById('srch').value);
+}
+
 function applyGroup(sugg){
   document.querySelectorAll('.row-can[data-gs="'+sugg+'"]').forEach(el => el.value = sugg);
 }
@@ -4308,10 +4328,12 @@ function autoApplyAll(){
 function doSearch(q){
   q = q.toLowerCase();
   const multiOnly = document.getElementById('chkMulti').checked;
+  const filterStatus = (_activeFilter && _activeFilter !== 'pending') ? _activeFilter : null;
   document.querySelectorAll('.an-group').forEach(g => {
     const matchSearch = !q || g.dataset.search.includes(q);
     const matchMulti  = !multiOnly || g.dataset.multi === 'y';
-    g.style.display = (matchSearch && matchMulti) ? '' : 'none';
+    const matchFilter = !filterStatus || g.dataset.status === filterStatus;
+    g.style.display = (matchSearch && matchMulti && matchFilter) ? '' : 'none';
   });
 }
 </script>
