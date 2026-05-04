@@ -7397,7 +7397,7 @@ function toggleArtistNameField(sel, nameId, permsId) {
   }
 }
 (function loadArtistNames() {
-  fetch('/streaming-royalties/artist-names')
+  fetch('/streaming-royalties/artist-names.json')
     .then(function(r){ return r.json(); })
     .then(function(d){
       var dl = document.getElementById('artistDatalist');

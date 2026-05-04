@@ -2134,7 +2134,7 @@ def dashboard_data():
     return jsonify(data)
 
 
-@bp.route("/streaming-royalties/artist-names")
+@bp.route("/streaming-royalties/artist-names.json")
 def artist_names_json():
     """Lightweight endpoint: returns canonical artist names for autocomplete."""
     if auth_required():
