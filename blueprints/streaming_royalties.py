@@ -3417,7 +3417,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
     <div class="sr-panel">
       <div class="sr-panel-title">Revenue by Artist</div>
       {% if data.by_artist %}
-      <div id="chartArtistWrap" style="position:relative;overflow-y:auto;max-height:380px">
+      <div id="chartArtistWrap" style="overflow-y:auto;max-height:380px">
         <canvas id="chartArtist"></canvas>
       </div>
       {% else %}<div class="sr-no-data">No data</div>{% endif %}
@@ -3503,8 +3503,9 @@ function buildCharts(d){
   const elA = document.getElementById('chartArtist');
   if(elA && d.by_artist?.length){
     const rowH = 26;
+    const w = elA.parentElement.clientWidth || 500;
     const h = Math.max(280, d.by_artist.length * rowH);
-    elA.parentElement.style.height = h + 'px';
+    elA.width = w; elA.height = h;
     charts.artist = new Chart(elA, {
       type:'bar', plugins:[DL],
       data:{
@@ -3512,7 +3513,7 @@ function buildCharts(d){
         datasets:[{data:d.by_artist.map(r=>r.revenue), backgroundColor:BLUE, borderRadius:3}]
       },
       options:{
-        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        responsive:false, indexAxis:'y',
         plugins:{
           legend:{display:false},
           tooltip:{callbacks:{label:ctx=>fmt2(ctx.parsed.x)}},
@@ -3600,7 +3601,7 @@ const initialData = {{ data|tojson }};
 let currentView = '{{ view }}';
 
 document.addEventListener('DOMContentLoaded', function(){
-  buildCharts(initialData);
+  requestAnimationFrame(()=>buildCharts(initialData));
 });
 
 function setView(v){
