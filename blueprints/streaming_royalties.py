@@ -3281,6 +3281,15 @@ def artist_names():
                 "suggestion": sugg,
             })
 
+    # Pre-compute the set of statuses present in each suggestion group so the
+    # template can emit a single data-statuses attribute for reliable JS filtering.
+    from collections import defaultdict
+    _sugg_statuses: dict = defaultdict(set)
+    for _row in ordered:
+        _sugg_statuses[_row["suggestion"]].add(_row["status"])
+    for _row in ordered:
+        _row["group_statuses"] = " ".join(sorted(_sugg_statuses[_row["suggestion"]]))
+
     n_confirmed = sum(1 for m in all_map_entries if m.status == 'confirmed')
     n_auto      = sum(1 for row in ordered if row["status"] == "auto")
     # Only count as unmapped if the name would actually change after normalization
@@ -4260,7 +4269,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
   {% set gi = loop.index0 %}
   {% if item.group_size > 1 and item.suggestion not in groups_seen.val %}
     {% if gi > 0 %}</div>{% endif %}
-    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="y" data-status="{{ item.status }}">
+    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="y" data-statuses="{{ item.group_statuses }}">
     <div class="an-group-hd">
       <span class="an-badge an-badge-var">{{ item.group_size }} variants</span>
       <span style="font-size:13px;color:var(--t1);font-weight:500">{{ item.suggestion[:60] }}{% if item.suggestion|length > 60 %}…{% endif %}</span>
@@ -4272,7 +4281,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
     {% set groups_seen.val = groups_seen.val + [item.suggestion] %}
   {% elif item.group_size == 1 %}
     {% if gi > 0 %}</div>{% endif %}
-    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n" data-status="{{ item.status }}">
+    <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n" data-statuses="{{ item.group_statuses }}">
   {% endif %}
     <div class="an-row" data-status="{{ item.status }}">
       <span class="an-raw" title="{{ item.raw }}">{{ item.raw }}
@@ -4337,8 +4346,7 @@ function doSearch(q){
     const matchMulti  = !multiOnly || g.dataset.multi === 'y';
     let matchFilter = true;
     if (filterStatus) {
-      const rows = g.querySelectorAll('.an-row[data-status]');
-      matchFilter = Array.from(rows).some(r => r.dataset.status === filterStatus);
+      matchFilter = (g.dataset.statuses || '').split(' ').includes(filterStatus);
     }
     g.style.display = (matchSearch && matchMulti && matchFilter) ? '' : 'none';
   });
