@@ -4274,7 +4274,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
     {% if gi > 0 and ordered[gi-1].group_size > 1 %}</div>{% endif %}
     <div class="an-group" data-search="{{ item.raw|lower }}" data-multi="n" data-status="{{ item.status }}">
   {% endif %}
-    <div class="an-row">
+    <div class="an-row" data-status="{{ item.status }}">
       <span class="an-raw" title="{{ item.raw }}">{{ item.raw }}
         {% if item.status == 'confirmed' and item.confidence is not none %}
           <span class="conf-pct" style="color:#22c55e">&#10003; auto-mapped</span>
@@ -4335,7 +4335,11 @@ function doSearch(q){
   document.querySelectorAll('.an-group').forEach(g => {
     const matchSearch = !q || g.dataset.search.includes(q);
     const matchMulti  = !multiOnly || g.dataset.multi === 'y';
-    const matchFilter = !filterStatus || g.dataset.status === filterStatus;
+    let matchFilter = true;
+    if (filterStatus) {
+      const rows = g.querySelectorAll('.an-row[data-status]');
+      matchFilter = Array.from(rows).some(r => r.dataset.status === filterStatus);
+    }
     g.style.display = (matchSearch && matchMulti && matchFilter) ? '' : 'none';
   });
 }
