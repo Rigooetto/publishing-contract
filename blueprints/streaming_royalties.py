@@ -4310,11 +4310,14 @@ function setFilter(status, el) {
     _activeFilter = status;
     document.querySelectorAll('.an-stat').forEach(s => s.classList.remove('active'));
     el.classList.add('active');
+    // Clear other filters so the stat filter always shows its full results
+    document.getElementById('srch').value = '';
+    document.getElementById('chkMulti').checked = false;
   }
   if (_activeFilter === 'pending') {
     document.getElementById('pending-section')?.scrollIntoView({behavior:'smooth', block:'start'});
   }
-  doSearch(document.getElementById('srch').value);
+  doSearch('');
 }
 
 function applyGroup(sugg){
