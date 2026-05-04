@@ -348,6 +348,7 @@ select.inp option{background:var(--bg2);color:var(--t1)}
     justify-content:space-around;
     align-items:center;
     z-index:9999;
+    overflow:visible;
   }
 
   .mnav-item{
@@ -358,16 +359,58 @@ select.inp option{background:var(--bg2);color:var(--t1)}
     color:#9ca3af;
     font-size:11px;
     text-decoration:none;
+    gap:2px;
   }
 
   .mnav-item span{
-    font-size:18px;
-    margin-bottom:2px;
+    font-size:20px;
+    line-height:1;
   }
 
-  .mnav-item:hover{
-    color:#fff;
+  .mnav-item:hover{color:#fff}
+  .mnav-item.on{color:#6385ff}
+
+  /* ── Logo FAB center button ── */
+  .mnav-logo-btn{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding:0;
+    transform:translateY(-18px);
+    color:#9ca3af;
+    font-size:11px;
+    gap:0;
   }
+  .mnav-logo-circle{
+    width:58px;
+    height:58px;
+    border-radius:50%;
+    background:#111827;
+    border:1.5px solid rgba(255,255,255,.12);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 -4px 16px rgba(0,0,0,.5);
+  }
+  .mnav-logo-circle img{
+    width:42px;
+    height:42px;
+    border-radius:50%;
+    object-fit:contain;
+  }
+  .mnav-logo-btn small{
+    color:#9ca3af;
+    font-size:11px;
+    margin-top:2px;
+  }
+  .mnav-logo-btn:hover .mnav-logo-circle{border-color:rgba(99,133,255,.5)}
+  .mnav-logo-btn:hover small{color:#fff}
+  .mnav-logo-btn.open .mnav-logo-circle{border-color:#6385ff;box-shadow:0 -4px 20px rgba(99,133,255,.35)}
+  .mnav-logo-btn.open small{color:#6385ff}
 
   .mnav-more-btn{background:none;border:none;cursor:pointer;padding:0}
   .mnav-more-overlay{display:none;position:fixed;bottom:60px;left:0;right:0;max-height:70vh;overflow-y:auto;background:#111827;border-top:1px solid rgba(255,255,255,.12);z-index:9998;padding:8px 0 16px}
@@ -378,7 +421,6 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .mnav-more-link{display:flex;align-items:center;gap:10px;padding:10px 16px;color:#9ca3af;text-decoration:none;font-size:13px}
   .mnav-more-link span{font-size:16px;width:20px;text-align:center}
   .mnav-more-link.on,.mnav-more-link:active{color:#6385ff}
-  .mnav-item.on{color:#6385ff}
 
   .page{
     padding-bottom:160px;
@@ -795,6 +837,7 @@ document.getElementById('settingsModal').addEventListener('click', function(e){
 [data-theme="light"] .topbar{background:rgba(240,242,247,.95);border-bottom-color:#e5e7eb}
 [data-theme="light"] .card{background:#fff;border-color:#e5e7eb}
 [data-theme="light"] .mobile-nav{background:#fff;border-top-color:#e5e7eb}
+[data-theme="light"] .mnav-logo-circle{background:#fff;border-color:#e5e7eb}
 [data-theme="light"] .inp{background:#f5f6fa;border-color:#d1d5db;color:#0f1117}
 [data-theme="light"] .inp:focus{border-color:var(--a)}
 [data-theme="light"] .btn-sec{background:#f0f1f5;border-color:#d1d5db;color:#374151}
@@ -923,12 +966,20 @@ def _mobile_nav():
 <div class="mobile-nav">
   {% if current_role == 'artist' %}
   <a href="/streaming-royalties" class="mnav-item" onclick="pwaNav(this,event)"><span>&#127925;</span><small>Royalties</small></a>
+  <button class="mnav-logo-btn" id="mnavMoreBtn" onclick="toggleMobileMore()">
+    <div class="mnav-logo-circle"><img src="/static/labelmind-icon.png" alt="Menu"></div>
+    <small>Menu</small>
+  </button>
+  <a href="/releases" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128191;</span><small>Releases</small></a>
   {% else %}
   <a href="/works" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128395;</span><small>Works</small></a>
   <a href="/batches" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128466;</span><small>Sessions</small></a>
+  <button class="mnav-logo-btn" id="mnavMoreBtn" onclick="toggleMobileMore()">
+    <div class="mnav-logo-circle"><img src="/static/labelmind-icon.png" alt="Menu"></div>
+    <small>Menu</small>
+  </button>
   <a href="/releases" class="mnav-item" onclick="pwaNav(this,event)"><span>&#128191;</span><small>Releases</small></a>
   {% endif %}
-  <button class="mnav-item mnav-more-btn" id="mnavMoreBtn" onclick="toggleMobileMore()"><span>&#8943;</span><small>More</small></button>
 </div>
 <div class="mnav-more-overlay" id="mnavMoreOverlay">
   {% if current_role == 'artist' %}
@@ -986,13 +1037,13 @@ function toggleMobileMore(){
   var o=document.getElementById('mnavMoreOverlay');
   var open=o.classList.toggle('open');
   document.getElementById('mnavMoreBackdrop').classList.toggle('open',open);
-  document.getElementById('mnavMoreBtn').classList.toggle('on',open);
+  document.getElementById('mnavMoreBtn').classList.toggle('open',open);
   if(open){var path=window.location.pathname;o.querySelectorAll('.mnav-more-link').forEach(function(a){a.classList.toggle('on',a.getAttribute('href')===path);});}
 }
 function closeMobileMore(){
   document.getElementById('mnavMoreOverlay').classList.remove('open');
   document.getElementById('mnavMoreBackdrop').classList.remove('open');
-  document.getElementById('mnavMoreBtn').classList.remove('on');
+  document.getElementById('mnavMoreBtn').classList.remove('open');
 }
 </script>"""
 
