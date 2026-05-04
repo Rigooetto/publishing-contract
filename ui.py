@@ -4237,11 +4237,14 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
     <div class="ph-icon">&#128191;</div>
     <div><div class="ph-title">Releases</div><div class="ph-sub">Albums, EPs and Singles</div></div>
   </div>
+  {% if not is_artist_user %}
   <div class="ph-actions">
     <a href="/releases/new" class="btn btn-primary" style="color:#fff">+ New Release</a>
   </div>
+  {% endif %}
 </div>
 
+{% if not is_artist_user %}
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
   <div class="card-body">
@@ -4258,6 +4261,7 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
     </form>
   </div>
 </div>
+{% endif %}
 
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128191;</div><span class="card-title">All Releases</span></div>
@@ -4320,10 +4324,12 @@ RELEASES_LIST_HTML = """<!DOCTYPE html>
                     <tr><td style="color:var(--t3)">Total Tracks</td><td>{{ r.num_tracks or r.tracks|length }}</td></tr>
                   </tbody>
                 </table>
+                {% if not is_artist_user %}
                 <div style="display:flex;gap:8px;margin-top:16px">
                   <a href="/releases/{{ r.id }}" class="btn btn-primary btn-sm" style="color:#fff" onclick="event.stopPropagation()">Full View</a>
                   <a href="/releases/{{ r.id }}/edit" class="btn btn-sec btn-sm" onclick="event.stopPropagation()">Edit</a>
                 </div>
+                {% endif %}
               </div>
             </div>
           </td>

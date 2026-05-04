@@ -32,7 +32,12 @@ def releases_list():
     from sqlalchemy import func as _func, or_ as _or
     from models import Track as _Track
 
-    q    = (request.args.get("q") or "").strip()
+    from flask import session as _sess
+    _is_artist = _sess.get("role") == "artist"
+    if _is_artist:
+        q = (_sess.get("artist_name") or "").strip()
+    else:
+        q = (request.args.get("q") or "").strip()
     sort = (request.args.get("sort") or "newest").strip()
 
     query = Release.query
@@ -74,7 +79,7 @@ def releases_list():
         r.artist_display = ", ".join(r.artists_list[:3]) + (" +" + str(len(r.artists_list)-3) + " more" if len(r.artists_list) > 3 else "")
         for t in r.tracks:
             t.artists_list = safe_json_loads(t.artists)
-    return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort, pagination=pagination)
+    return render_template_string(RELEASES_LIST_HTML, releases=releases, q=q, sort=sort, pagination=pagination, is_artist_user=_is_artist)
 
 
 @bp.route("/releases/new", methods=["GET", "POST"])
