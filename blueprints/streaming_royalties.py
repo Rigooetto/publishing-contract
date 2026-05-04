@@ -3322,7 +3322,7 @@ def _page(title, active, body):
     return f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>{title} — AfinArte</title>{_STYLE}</head>
-<body><div class="app">
+<body><div class="app" id="mainApp">
 {_sidebar(active)}
 <div class="main"><div class="page">
 {body}
@@ -3381,7 +3381,7 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 }
 </style>
 </head><body style="background:#0d1117;margin:0">
-<div class="app">""" + "{{ _sidebar_html|safe }}" + """
+<div class="app" id="mainApp">""" + "{{ _sidebar_html|safe }}" + """
 <div class="main">
 <div class="sr-dash">
   <div class="sr-header">
@@ -3683,7 +3683,7 @@ def _tojson_filter(value):
 _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Streaming Imports — AfinArte</title>""" + _STYLE + """
-</head><body><div class="app">{{ _sidebar_html|safe }}
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Streaming Imports</h1></div>
 <div class="ph-actions">
@@ -3827,7 +3827,7 @@ _IMPORT_FORM_HTML = """<!DOCTYPE html><html lang="en"><head>
 #uploadBtn{margin-top:18px}
 #fileInfo{margin-top:10px;font-size:13px;color:var(--t2)}
 </style>
-</head><body><div class="app">
+</head><body><div class="app" id="mainApp">
 {{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Upload Monthly Report</h1></div>
@@ -3951,7 +3951,7 @@ uploadBtn.addEventListener('click', async () => {
 _BULK_IMPORT_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Bulk Import — AfinArte</title>""" + _STYLE + """
-</head><body><div class="app">
+</head><body><div class="app" id="mainApp">
 {{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Bulk Historical Import</h1></div>
@@ -3998,7 +3998,7 @@ _STATUS_HTML = """<!DOCTYPE html><html lang="en"><head>
 .stat-label{color:var(--t2)}
 .stat-val{font-weight:600;color:var(--t1);min-width:70px;text-align:right}
 </style>
-</head><body><div class="app">
+</head><body><div class="app" id="mainApp">
 {{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Import Status</h1></div>
@@ -4095,7 +4095,7 @@ function poll(){
 _CATALOG_UPLOAD_HTML = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>Catalog Upload — AfinArte</title>""" + _STYLE + """
-</head><body><div class="app">
+</head><body><div class="app" id="mainApp">
 {{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left"><h1 class="ph-title">Artist Royalty Catalog</h1></div>
@@ -4183,7 +4183,7 @@ _ARTIST_NAMES_HTML = """<!DOCTYPE html><html lang="en"><head>
 .btn-reject{background:rgba(255,79,106,.1);color:var(--err);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
 .btn-reject:hover{background:rgba(255,79,106,.2)}
 </style>
-</head><body><div class="app">{{ _sidebar_html|safe }}
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph">
   <div class="ph-left"><h1 class="ph-title">Artist Name Consolidation</h1>
@@ -4380,7 +4380,7 @@ _SPLIT_GAPS_HTML = """<!DOCTYPE html><html lang="en"><head>
 .missing-tag{font-size:10px;font-weight:700;color:var(--err);background:rgba(255,79,106,.12);border-radius:4px;padding:1px 6px}
 .sugg-pct{font-size:11px;color:#f59e0b;margin-left:4px}
 </style>
-</head><body><div class="app">{{ _sidebar_html|safe }}
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left">
   <h1 class="ph-title">Split Gaps</h1>
@@ -5013,7 +5013,7 @@ _ARTIST_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
 .src-miss{font-size:10px;font-weight:700;color:var(--err);background:rgba(255,79,106,.12);border-radius:4px;padding:1px 6px}
 .audit-footer td{font-weight:700;color:var(--t1);border-top:2px solid var(--bdr);padding:10px 10px}
 </style>
-</head><body><div class="app">{{ _sidebar_html|safe }}
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
 <div class="main"><div class="page">
 <div class="ph"><div class="ph-left">
   <h1 class="ph-title">Artist Audit</h1>
