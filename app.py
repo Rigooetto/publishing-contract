@@ -374,12 +374,22 @@ with app.app_context():
                         _c.commit()
                     _startup_app.logger.warning("artist_label_detail DDL complete.")
 
-                    # Recovery sentinel check
+                    # Durable migration flags table — never cleared by cache operations
+                    with _eng.connect() as _c:
+                        _c.execute(_t_bg("""
+                            CREATE TABLE IF NOT EXISTS _migration_flags (
+                                flag_name  TEXT PRIMARY KEY,
+                                applied_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                        _c.commit()
+
+                    # Recovery sentinel check (stored in _migration_flags, not dashboard_cache)
                     _already_done = False
                     try:
                         with _eng.connect() as _c:
                             _already_done = bool(_c.execute(_t_bg(
-                                "SELECT 1 FROM dashboard_cache WHERE cache_key = '_recovery_v2'"
+                                "SELECT 1 FROM _migration_flags WHERE flag_name = '_recovery_v2'"
                             )).fetchone())
                     except Exception:
                         pass
@@ -387,7 +397,6 @@ with app.app_context():
                     if not _already_done:
                         _startup_app.logger.warning("DATA RECOVERY: starting rebuild.")
                         with _eng.connect() as _c:
-                            _c.execute(_t_bg("DELETE FROM artist_name_map"))
                             _c.execute(_t_bg("TRUNCATE royalty_summary"))
                             _c.execute(_t_bg("DELETE FROM dashboard_cache WHERE cache_key != '_recovery_v2'"))
                             _c.commit()
@@ -405,9 +414,9 @@ with app.app_context():
                             _c.commit()
                         with _eng.connect() as _c:
                             _c.execute(_t_bg("""
-                                INSERT INTO dashboard_cache (cache_key, data_json, computed_at)
-                                VALUES ('_recovery_v2', '{}', NOW())
-                                ON CONFLICT (cache_key) DO NOTHING
+                                INSERT INTO _migration_flags (flag_name)
+                                VALUES ('_recovery_v2')
+                                ON CONFLICT DO NOTHING
                             """))
                             _c.commit()
                         _ard_empty = True
