@@ -291,6 +291,10 @@ select.inp option{background:var(--bg2);color:var(--t1)}
   .g4,.g4a{grid-template-columns:1fr 1fr}
 }
 
+@media(orientation:landscape) and (max-height:500px){
+  .sb{display:none!important}
+  .main{margin-left:0!important}
+}
 @media(max-width:640px){
   .sb{display:none}
   .main{margin-left:0!important}
@@ -820,6 +824,7 @@ def _sidebar(active):
     html += "<span class='sb-toggle' id='sbToggle' onclick='toggleSidebar(event)' title='Pin sidebar closed'>&lt;</span>"
     html += "</a>"
 
+    html += "{% if current_role != 'artist' %}"
     html += "<div class='sb-sec'>Contracts</div>"
     html += "<nav class='sb-nav'>"
 
@@ -847,6 +852,11 @@ def _sidebar(active):
     html += "<a href='/artists'" + (" class='on'" if active == "artists_list" else "") + " title='Artist Directory'><span class='ni'>&#127908;</span><span class='nl'>Artist Directory</span></a>"
     html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#127899;</span><span class='nl'>Settings</span></a>"
     html += "</nav>"
+    html += "{% else %}"
+    html += "<nav class='sb-nav'>"
+    html += "<a href='#' title='Settings' onclick='openSettings();return false;'><span class='ni'>&#127899;</span><span class='nl'>Settings</span></a>"
+    html += "</nav>"
+    html += "{% endif %}"
 
     html += "{% if current_role in ('admin', 'label_manager', 'publishing_manager') %}"
     html += "<div class='sb-sec'>Reporting</div>"

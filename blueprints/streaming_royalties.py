@@ -3363,6 +3363,10 @@ _DASHBOARD_HTML = """<!DOCTYPE html><html lang="en"><head>
 .mnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9ca3af;font-size:11px;text-decoration:none;gap:2px}
 .mnav-item span{font-size:20px;line-height:1}
 .mnav-item.active{color:#6385ff}
+@media(orientation:landscape) and (max-height:500px){
+  .sb{display:none!important}
+  .main{margin-left:0!important}
+}
 @media(max-width:768px){
   .sb{display:none!important}
   .main{margin-left:0!important}
