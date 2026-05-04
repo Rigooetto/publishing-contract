@@ -2946,15 +2946,6 @@ def _normalize_royalty_summary_bg():
         from sqlalchemy import text as _t
         engine = _royalties_engine()
 
-        # Delete corrupt map entries (canonical contains a comma → was never valid individual mapping)
-        bad_entries = [m for m in ArtistNameMap.query.filter_by(status='confirmed').all()
-                       if ',' in (m.canonical_name or '')]
-        if bad_entries:
-            for m in bad_entries:
-                db.session.delete(m)
-            db.session.commit()
-            _log.warning("_normalize_royalty_summary_bg: deleted %d corrupt map entries (canonical had commas)", len(bad_entries))
-
         name_map = {m.raw_name: m.canonical_name
                     for m in ArtistNameMap.query.filter_by(status='confirmed').all()}
         db.session.remove()  # release main DB connection before slow royalties work
