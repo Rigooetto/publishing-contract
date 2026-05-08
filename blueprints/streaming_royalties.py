@@ -2197,9 +2197,33 @@ def import_coverage():
             ORDER BY reporting_month DESC
         """)).fetchall()
 
+        # Compare raw streaming_royalty totals vs royalty_summary totals per month
+        raw_by_month = {r[0]: float(r[1]) for r in c.execute(_t("""
+            SELECT reporting_month, SUM(total_net_revenue)
+            FROM streaming_royalty
+            GROUP BY reporting_month
+            ORDER BY reporting_month DESC
+        """)).fetchall()}
+
+        summary_by_month = {r[0]: float(r[1]) for r in c.execute(_t("""
+            SELECT reporting_month, SUM(net_revenue)
+            FROM royalty_summary
+            GROUP BY reporting_month
+            ORDER BY reporting_month DESC
+        """)).fetchall()}
+
     overlap_months = {r[0] for r in overlap}
 
-    # Group by month for the summary table
+    # Months where royalty_summary is significantly higher than raw (inflated)
+    inflated_months = {}
+    all_months = sorted(set(list(raw_by_month.keys()) + list(summary_by_month.keys())), reverse=True)
+    for m in all_months:
+        raw = raw_by_month.get(m, 0.0)
+        summ = summary_by_month.get(m, 0.0)
+        ratio = (summ / raw) if raw > 0 else 0
+        inflated_months[m] = {"raw": raw, "summary": summ, "ratio": ratio, "inflated": ratio > 1.05}
+
+    # Group by month for the coverage table
     from collections import OrderedDict
     by_month = OrderedDict()
     for r in rows:
@@ -2211,6 +2235,7 @@ def import_coverage():
     return render_template_string(_COVERAGE_HTML,
         by_month=by_month,
         overlap_months=overlap_months,
+        inflated_months=inflated_months,
         _sidebar_html=_sb())
 
 
@@ -3887,7 +3912,7 @@ _COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% if overlap_months %}
 <div class="card" style="margin-bottom:18px;border:1px solid var(--ar);background:rgba(255,59,48,.06)">
   <div style="padding:14px 18px">
-    <div style="font-weight:700;color:var(--ar);font-size:14px;margin-bottom:6px">&#9888; Double-Counted Months Detected</div>
+    <div style="font-weight:700;color:var(--ar);font-size:14px;margin-bottom:6px">&#9888; Double-Counted Months Detected (duplicate imports)</div>
     <div style="font-size:13px;color:var(--t2)">The following months have rows from <strong>multiple imports</strong>. Since the upsert is additive, their revenue in <code>royalty_summary</code> is inflated:</div>
     <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">
       {% for m in overlap_months|sort(reverse=true) %}
@@ -3896,7 +3921,6 @@ _COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
     </div>
     <div style="margin-top:12px;font-size:13px;color:var(--t2)">
       <strong>Fix:</strong> Delete the overlapping import(s) from the Imports page, then run <em>Rebuild Artist Cache (ARD)</em>.
-      If both imports are needed (e.g., different platforms), verify the raw data does not contain duplicate rows before re-importing.
     </div>
   </div>
 </div>
@@ -3906,8 +3930,66 @@ _COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
 </div>
 {% endif %}
 
+{% set inflated_list = inflated_months.items()|selectattr('1.inflated')|list %}
+{% if inflated_list %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ar);background:rgba(255,59,48,.06)">
+  <div style="padding:14px 18px">
+    <div style="font-weight:700;color:var(--ar);font-size:14px;margin-bottom:6px">&#9888; royalty_summary Inflated vs Raw Data</div>
+    <div style="font-size:13px;color:var(--t2);margin-bottom:12px">
+      These months show more revenue in <code>royalty_summary</code> than in the raw <code>streaming_royalty</code> table.
+      This typically means <strong>Sync→Dashboard was clicked on an already-synced import</strong>, adding the same data twice.
+      <br><strong>Fix:</strong> For each inflated month, run the query below to reset it, then click <em>Rebuild Artist Cache (ARD)</em>.
+    </div>
+    <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Month</th><th class="num">Raw (streaming_royalty)</th><th class="num">Summary (royalty_summary)</th><th class="num">Ratio</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for m, d in inflated_months.items()|sort(reverse=true) %}
+    {% if d.inflated %}
+    <tr style="background:rgba(255,59,48,.06)">
+      <td style="color:var(--ar);font-weight:700">{{ m.strftime('%B %Y') if m else '—' }}</td>
+      <td class="num">${{ "{:,.2f}".format(d.raw) }}</td>
+      <td class="num" style="color:var(--ar)">${{ "{:,.2f}".format(d.summary) }}</td>
+      <td class="num" style="color:var(--ar);font-weight:700">{{ "%.2f"|format(d.ratio) }}×</td>
+      <td><span style="background:var(--ar);color:#fff;border-radius:4px;padding:2px 7px;font-size:11px">INFLATED</span></td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </tbody></table></div>
+    <div style="margin-top:14px;padding:10px 14px;background:var(--b1);border-radius:6px;font-size:12px;font-family:monospace;color:var(--t2)">
+      -- Run this for each inflated month to reset royalty_summary from raw data:<br>
+      DELETE FROM royalty_summary WHERE reporting_month = '2025-10-01';<br>
+      INSERT INTO royalty_summary (reporting_month, isrc, artist_name_csv, platform, country, track_title_csv, streams, net_revenue)<br>
+      SELECT reporting_month, isrc, MAX(artist_name_csv), platform, country, MAX(track_title_csv), SUM(total_quantity), SUM(total_net_revenue)<br>
+      FROM streaming_royalty WHERE reporting_month = '2025-10-01'<br>
+      GROUP BY reporting_month, isrc, platform, country;<br>
+      -- Repeat for 2025-11-01, 2025-12-01, then rebuild ARD.
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ag);background:rgba(52,199,89,.06)">
+  <div style="padding:12px 18px;font-size:13px;color:var(--ag);font-weight:600">&#10003; royalty_summary matches raw data — no inflation detected.</div>
+</div>
+{% endif %}
+
 <div class="card">
-<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">Month-by-Month Coverage</div>
+<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">Raw vs Summary by Month</div>
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr><th>Month</th><th class="num">Raw Revenue</th><th class="num">Summary Revenue</th><th class="num">Ratio</th></tr></thead>
+<tbody>
+{% for m, d in inflated_months.items()|sort(reverse=true) %}
+<tr style="{{ 'background:rgba(255,59,48,.06)' if d.inflated else '' }}">
+  <td style="{{ 'color:var(--ar);font-weight:700' if d.inflated else '' }}">{{ m.strftime('%B %Y') if m else '—' }}</td>
+  <td class="num">${{ "{:,.2f}".format(d.raw) }}</td>
+  <td class="num" style="{{ 'color:var(--ar)' if d.inflated else '' }}">${{ "{:,.2f}".format(d.summary) }}</td>
+  <td class="num" style="{{ 'color:var(--ar);font-weight:700' if d.inflated else '' }}">{{ "%.2f"|format(d.ratio) }}×</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+</div>
+
+<div class="card" style="margin-top:18px">
+<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">Month-by-Month Import Coverage</div>
 {% if by_month %}
 <div class="tbl-wrap"><table class="tbl">
 <thead><tr>
