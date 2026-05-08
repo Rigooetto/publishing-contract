@@ -4515,6 +4515,101 @@ function saveAll(){
 <div class="card" style="color:var(--t2);font-size:13px;padding:16px 20px">No missing splits — every ISRC has at least one split entry.</div>
 {% endif %}
 
+<!-- Section C: Browse splits by artist -->
+<div class="sec-hdr" style="margin-top:32px">
+  <span>Section C — Browse Splits by Artist</span>
+</div>
+<div class="card" style="padding:16px 20px 20px">
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+    <input id="splitSearchInp" class="inp" placeholder="Search artist name…" style="max-width:320px"
+      oninput="searchSplits(this.value)">
+    <span id="splitSearchCount" style="font-size:12px;color:var(--t3)"></span>
+  </div>
+  <div id="splitSearchResults" style="display:none">
+    <table class="gaps-tbl">
+      <thead><tr>
+        <th>ISRC</th><th>Track</th><th>Artist (stored)</th><th style="text-align:right">Split %</th><th class="rev-cell">Total Rev</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="splitSearchBody"></tbody>
+    </table>
+  </div>
+  <div id="splitSearchEmpty" style="display:none;color:var(--t3);font-size:13px">No splits found for that artist.</div>
+</div>
+
+<!-- inline edit modal -->
+<div id="splitEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--c2);border:1px solid var(--bdr);border-radius:12px;padding:24px 28px;width:340px">
+    <div style="font-weight:600;font-size:15px;margin-bottom:4px">Edit Split %</div>
+    <div id="splitEditLabel" style="font-size:12px;color:var(--t2);margin-bottom:16px"></div>
+    <label style="font-size:12px;color:var(--t3)">New percentage</label>
+    <input id="splitEditPct" type="number" min="0" max="100" step="0.01" class="inp" style="width:100%;margin:6px 0 20px">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-sec btn-sm" onclick="closeSplitEdit()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="color:#fff" onclick="saveSplitEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var _splitEditIsrc = null, _splitEditArtist = null;
+
+function searchSplits(q){
+  q = q.trim();
+  if(q.length < 2){
+    document.getElementById('splitSearchResults').style.display='none';
+    document.getElementById('splitSearchEmpty').style.display='none';
+    document.getElementById('splitSearchCount').textContent='';
+    return;
+  }
+  fetch('/streaming-royalties/split-gaps/search?q='+encodeURIComponent(q))
+    .then(r=>r.json()).then(rows=>{
+      var body = document.getElementById('splitSearchBody');
+      body.innerHTML='';
+      document.getElementById('splitSearchResults').style.display = rows.length ? '' : 'none';
+      document.getElementById('splitSearchEmpty').style.display = rows.length ? 'none' : '';
+      document.getElementById('splitSearchCount').textContent = rows.length ? rows.length+' rows' : '';
+      rows.forEach(function(r){
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td style="font-family:monospace;font-size:11px;color:var(--t3)">'+r.isrc+'</td>'+
+          '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.title+'">'+r.title+'</td>'+
+          '<td>'+r.artist+'</td>'+
+          '<td id="pct-'+r.isrc.replace(/[^a-z0-9]/gi,'_')+'-'+r.artist.replace(/[^a-z0-9]/gi,'_')+'" style="text-align:right;font-weight:600;color:'+(r.pct<8?'#ef4444':r.pct<12?'#f59e0b':'#22c55e')+'">'+r.pct.toFixed(2)+'%</td>'+
+          '<td class="rev-cell">$'+r.rev.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
+          '<td><button class="btn-save" onclick="openSplitEdit(\''+r.isrc.replace(/'/g,"\\'")+"','"+r.artist.replace(/'/g,"\\'")+"','"+r.pct+"','"+r.title.replace(/'/g,"\\'")+'\'">Edit</button></td>';
+        body.appendChild(tr);
+      });
+    });
+}
+
+function openSplitEdit(isrc, artist, pct, title){
+  _splitEditIsrc=isrc; _splitEditArtist=artist;
+  document.getElementById('splitEditLabel').textContent=title+' — '+artist;
+  document.getElementById('splitEditPct').value=pct;
+  var m=document.getElementById('splitEditModal');
+  m.style.display='flex';
+  setTimeout(function(){document.getElementById('splitEditPct').focus();},50);
+}
+function closeSplitEdit(){
+  document.getElementById('splitEditModal').style.display='none';
+}
+function saveSplitEdit(){
+  var pct = parseFloat(document.getElementById('splitEditPct').value);
+  if(isNaN(pct)||pct<0||pct>100){alert('Enter a valid percentage 0–100');return;}
+  fetch('/streaming-royalties/split-gaps/edit-split',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({isrc:_splitEditIsrc, artist:_splitEditArtist, pct:pct})
+  }).then(r=>r.json()).then(function(res){
+    if(res.ok){
+      closeSplitEdit();
+      searchSplits(document.getElementById('splitSearchInp').value);
+    } else { alert(res.error||'Save failed'); }
+  });
+}
+</script>
+
 </div></div></div>""" + _SB_JS + """</body></html>"""
 
 
@@ -4999,6 +5094,101 @@ def split_gaps_save_split():
             _lg_ss.getLogger(__name__).warning("ARD rebuild (save_split) failed: %s", _e_ss)
     threading.Thread(target=_run_ard_save_split, daemon=True).start()
     return redirect(url_for("streaming_royalties.split_gaps"))
+
+
+@bp.route("/streaming-royalties/split-gaps/search")
+def split_gaps_search():
+    if auth_required():
+        from flask import jsonify
+        return jsonify([])
+    if role_required(_ADMIN_ONLY):
+        from flask import jsonify
+        return jsonify([])
+    from flask import jsonify
+    from sqlalchemy import text as _t
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    eng = _royalties_engine()
+    try:
+        with eng.connect() as _c:
+            rows = _c.execute(_t("""
+                SELECT s.isrc,
+                       COALESCE(MAX(rs.track_title_csv), s.isrc) AS title,
+                       s.artist_name,
+                       s.percentage,
+                       COALESCE(SUM(rs.net_revenue), 0) AS rev
+                  FROM artist_royalty_split s
+                  LEFT JOIN royalty_summary rs ON rs.isrc = s.isrc
+                 WHERE LOWER(s.artist_name) LIKE LOWER(:q)
+                 GROUP BY s.isrc, s.artist_name, s.percentage
+                 ORDER BY rev DESC
+                 LIMIT 200
+            """), {"q": f"%{q}%"}).fetchall()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify([{"isrc": r[0], "title": r[1] or r[0], "artist": r[2],
+                     "pct": float(r[3]), "rev": float(r[4])} for r in rows])
+
+
+@bp.route("/streaming-royalties/split-gaps/edit-split", methods=["POST"])
+def split_gaps_edit_split():
+    if auth_required():
+        from flask import jsonify
+        return jsonify({"error": "not logged in"}), 401
+    if role_required(_ADMIN_ONLY):
+        from flask import jsonify
+        return jsonify({"error": "access denied"}), 403
+    from flask import jsonify
+    from sqlalchemy import text as _t
+    data = request.get_json(force=True)
+    isrc = (data.get("isrc") or "").strip().upper()
+    artist = (data.get("artist") or "").strip()
+    pct = data.get("pct")
+    if not isrc or not artist or pct is None:
+        return jsonify({"error": "missing fields"}), 400
+    try:
+        pct = float(pct)
+        if pct < 0 or pct > 100:
+            return jsonify({"error": "percentage out of range"}), 400
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid percentage"}), 400
+    eng = _royalties_engine()
+    try:
+        with eng.connect() as _c:
+            result = _c.execute(_t("""
+                UPDATE artist_royalty_split
+                   SET percentage = :pct
+                 WHERE isrc = :isrc AND artist_name = :artist
+            """), {"pct": pct, "isrc": isrc, "artist": artist})
+            _c.commit()
+            if result.rowcount == 0:
+                return jsonify({"error": "no row updated — ISRC/artist not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    _splits_cache.clear()
+    # Rebuild ARD for this artist in background
+    _ard_app_es = current_app._get_current_object()
+    _ard_url_es = eng.url.render_as_string(hide_password=False)
+    def _run_ard_edit(_name=artist, _url=_ard_url_es, _app=_ard_app_es):
+        try:
+            from sqlalchemy import create_engine as _ce_es
+            from sqlalchemy.pool import NullPool
+            _eng_es = _ce_es(_url, poolclass=NullPool)
+            with _app.app_context():
+                try:
+                    from models import ArtistNameMap as _ANM_es
+                    _m = _ANM_es.query.filter_by(raw_name=_name, status='confirmed').first()
+                    _canon = _m.canonical_name if _m else _name
+                except Exception:
+                    _canon = _name
+                _rebuild_artist_detail(_eng_es, artist_names=[_canon])
+            _eng_es.dispose()
+        except Exception as _e:
+            import logging as _lg
+            _lg.getLogger(__name__).warning("ARD rebuild (edit_split) failed: %s", _e)
+    threading.Thread(target=_run_ard_edit, daemon=True).start()
+    return jsonify({"ok": True})
 
 
 # ── Artist Audit UI ───────────────────────────────────────────────────────────
