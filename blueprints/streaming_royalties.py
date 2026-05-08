@@ -2270,6 +2270,77 @@ def import_coverage():
         _sidebar_html=_sb())
 
 
+@bp.route("/streaming-royalties/isrc-detail/<path:isrc>")
+def isrc_detail(isrc):
+    """Full breakdown of streaming_royalty rows for one ISRC."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    eng = _royalties_engine()
+    from sqlalchemy import text as _t
+
+    with eng.connect() as c:
+        by_month = c.execute(_t("""
+            SELECT reporting_month, SUM(total_net_revenue) AS rev, SUM(total_quantity) AS qty
+            FROM streaming_royalty WHERE isrc = :isrc
+            GROUP BY reporting_month ORDER BY reporting_month DESC
+        """), {"isrc": isrc}).fetchall()
+
+        by_platform = c.execute(_t("""
+            SELECT platform, SUM(total_net_revenue) AS rev, SUM(total_quantity) AS qty
+            FROM streaming_royalty WHERE isrc = :isrc
+            GROUP BY platform ORDER BY rev DESC
+        """), {"isrc": isrc}).fetchall()
+
+        by_country = c.execute(_t("""
+            SELECT country, SUM(total_net_revenue) AS rev
+            FROM streaming_royalty WHERE isrc = :isrc
+            GROUP BY country ORDER BY rev DESC LIMIT 20
+        """), {"isrc": isrc}).fetchall()
+
+        by_sales_type = c.execute(_t("""
+            SELECT sales_type, SUM(total_net_revenue) AS rev, SUM(total_quantity) AS qty
+            FROM streaming_royalty WHERE isrc = :isrc
+            GROUP BY sales_type ORDER BY rev DESC
+        """), {"isrc": isrc}).fetchall()
+
+        # Raw rows for spot-check (top 50 by revenue)
+        raw_rows = c.execute(_t("""
+            SELECT reporting_month, sales_month, platform, country, sales_type,
+                   artist_name_csv, track_title_csv, total_quantity, total_net_revenue, import_id
+            FROM streaming_royalty WHERE isrc = :isrc
+            ORDER BY total_net_revenue DESC LIMIT 50
+        """), {"isrc": isrc}).fetchall()
+
+        # Summary from royalty_summary
+        rs_total = c.execute(_t("""
+            SELECT SUM(net_revenue), COUNT(*)
+            FROM royalty_summary WHERE isrc = :isrc
+        """), {"isrc": isrc}).fetchone()
+
+        track_info = c.execute(_t("""
+            SELECT MAX(artist_name_csv), MAX(track_title_csv)
+            FROM streaming_royalty WHERE isrc = :isrc
+        """), {"isrc": isrc}).fetchone()
+
+    grand_total = sum(float(r[1]) for r in by_month)
+
+    return render_template_string(_ISRC_DETAIL_HTML,
+        isrc=isrc,
+        track_info=track_info,
+        by_month=by_month,
+        by_platform=by_platform,
+        by_country=by_country,
+        by_sales_type=by_sales_type,
+        raw_rows=raw_rows,
+        rs_total=rs_total,
+        grand_total=grand_total,
+        _sidebar_html=_sb())
+
+
 @bp.route("/streaming-royalties/ald-audit")
 def ald_audit():
     """Diagnostic: compare artist_label_detail vs royalty_summary for a specific artist + period."""
@@ -4202,6 +4273,128 @@ _COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
 </body></html>"""
 
 
+# ── ISRC detail drilldown ─────────────────────────────────────────────────────
+
+_ISRC_DETAIL_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png">
+<script src="/static/pwa-nav.js"></script>
+<title>ISRC Detail — LabelMind</title>""" + _STYLE + """
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph"><div class="ph-left">
+  <h1 class="ph-title" style="font-family:monospace;font-size:20px">{{ isrc }}</h1>
+  {% if track_info %}
+  <p style="color:var(--t2);font-size:14px;margin-top:4px">
+    <strong>{{ track_info[1] or '—' }}</strong> &nbsp;·&nbsp; {{ track_info[0] or '—' }}
+  </p>
+  {% endif %}
+</div>
+<div class="ph-actions">
+  <a href="javascript:history.back()" class="btn btn-sec">&#8592; Back</a>
+  <a href="/streaming-royalties/ald-audit" class="btn btn-sec">ALD Audit</a>
+</div></div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
+  <div class="card" style="padding:16px 18px">
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">All-Time Revenue (streaming_royalty)</div>
+    <div style="font-size:22px;font-weight:700;color:var(--t1)">${{ "{:,.2f}".format(grand_total) }}</div>
+  </div>
+  <div class="card" style="padding:16px 18px">
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">royalty_summary Total</div>
+    <div style="font-size:22px;font-weight:700;color:{{ 'var(--ar)' if rs_total and (rs_total[0]|float - grand_total)|abs > 1 else 'var(--ag)' }}">${{ "{:,.2f}".format(rs_total[0]|float if rs_total and rs_total[0] else 0) }}</div>
+    {% if rs_total and (rs_total[0]|float - grand_total)|abs > 1 %}
+    <div style="font-size:11px;color:var(--ar);margin-top:2px">Mismatch vs raw — royalty_summary may be inflated</div>
+    {% else %}
+    <div style="font-size:11px;color:var(--ag);margin-top:2px">Matches raw data ✓</div>
+    {% endif %}
+  </div>
+  <div class="card" style="padding:16px 18px">
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">royalty_summary Rows</div>
+    <div style="font-size:22px;font-weight:700;color:var(--t1)">{{ rs_total[1] if rs_total else 0 }}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+  <div class="card">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--b2);font-weight:600;font-size:13px">Revenue by Month</div>
+    <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Month</th><th class="num">Streams</th><th class="num">Revenue</th></tr></thead>
+    <tbody>
+    {% for r in by_month %}
+    <tr><td>{{ r[0].strftime('%B %Y') if r[0] else '—' }}</td>
+        <td class="num">{{ "{:,}".format(r[2]|int) }}</td>
+        <td class="num">${{ "{:,.2f}".format(r[1]|float) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--b2);font-weight:600;font-size:13px">Revenue by Platform</div>
+    <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Platform</th><th class="num">Streams</th><th class="num">Revenue</th></tr></thead>
+    <tbody>
+    {% for r in by_platform %}
+    <tr><td>{{ r[0] or '—' }}</td>
+        <td class="num">{{ "{:,}".format(r[2]|int) }}</td>
+        <td class="num">${{ "{:,.2f}".format(r[1]|float) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+  <div class="card">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--b2);font-weight:600;font-size:13px">Revenue by Sales Type</div>
+    <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Sales Type</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead>
+    <tbody>
+    {% for r in by_sales_type %}
+    <tr><td>{{ r[0] or '—' }}</td>
+        <td class="num">{{ "{:,}".format(r[2]|int) }}</td>
+        <td class="num">${{ "{:,.2f}".format(r[1]|float) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--b2);font-weight:600;font-size:13px">Top 20 Countries</div>
+    <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Country</th><th class="num">Revenue</th></tr></thead>
+    <tbody>
+    {% for r in by_country %}
+    <tr><td>{{ r[0] or '—' }}</td>
+        <td class="num">${{ "{:,.2f}".format(r[1]|float) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+
+<div class="card">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--b2);font-weight:600;font-size:13px">Top 50 Raw Rows (streaming_royalty)</div>
+  <div class="tbl-wrap"><table class="tbl">
+  <thead><tr>
+    <th>Rep. Month</th><th>Sales Month</th><th>Platform</th><th>Country</th>
+    <th>Sales Type</th><th>Artist CSV</th><th class="num">Qty</th><th class="num">Revenue</th><th>Import #</th>
+  </tr></thead>
+  <tbody>
+  {% for r in raw_rows %}
+  <tr>
+    <td>{{ r[0].strftime('%b %Y') if r[0] else '—' }}</td>
+    <td>{{ r[1].strftime('%b %Y') if r[1] else '—' }}</td>
+    <td>{{ r[2] or '—' }}</td><td>{{ r[3] or '—' }}</td>
+    <td>{{ r[4] or '—' }}</td>
+    <td style="font-size:12px;color:var(--t2)">{{ r[5] or '—' }}</td>
+    <td class="num">{{ "{:,}".format(r[7]|int) }}</td>
+    <td class="num">${{ "{:,.2f}".format(r[8]|float) }}</td>
+    <td style="color:var(--t3);font-size:12px">#{{ r[9] }}</td>
+  </tr>
+  {% endfor %}
+  </tbody></table></div>
+</div>
+
+</div></div></div>""" + _SB_JS + """
+</body></html>"""
+
+
 # ── ALD audit ────────────────────────────────────────────────────────────────
 
 _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
@@ -4256,7 +4449,7 @@ _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
     <tbody>
     {% for r in dup_rows %}
     <tr style="background:rgba(255,59,48,.06)">
-      <td style="font-family:monospace">{{ r[0] }}</td>
+      <td style="font-family:monospace"><a href="/streaming-royalties/isrc-detail/{{ r[0] }}" style="color:var(--a)">{{ r[0] }}</a></td>
       <td>{{ r[1].strftime('%b %Y') if r[1] else '—' }}</td>
       <td>{{ r[2] }}</td>
       <td>{{ r[3] }}</td>
@@ -4318,7 +4511,7 @@ _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% set csv_val = r[1] or '' %}
 {% set is_dup = ',' in csv_val and csv_val.split(',')[0].strip().lower() in csv_val.split(',')[1].strip().lower() %}
 <tr {{ 'style="background:rgba(255,59,48,.06)"' if is_dup }}>
-  <td style="font-family:monospace;font-size:12px">{{ r[0] }}</td>
+  <td style="font-family:monospace;font-size:12px"><a href="/streaming-royalties/isrc-detail/{{ r[0] }}" style="color:var(--a)">{{ r[0] }}</a></td>
   <td>
     <code style="font-size:12px">{{ csv_val }}</code>
     {% if is_dup %}<span style="margin-left:6px;font-size:11px;background:var(--ar);color:#fff;border-radius:4px;padding:1px 5px">name appears twice?</span>{% endif %}
