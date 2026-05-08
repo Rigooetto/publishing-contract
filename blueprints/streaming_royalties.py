@@ -2270,6 +2270,115 @@ def import_coverage():
         _sidebar_html=_sb())
 
 
+@bp.route("/streaming-royalties/ald-audit")
+def ald_audit():
+    """Diagnostic: compare artist_label_detail vs royalty_summary for a specific artist + period."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    artist = (request.args.get("artist") or "").strip()
+    year   = (request.args.get("year")   or "").strip()
+    qtr    = (request.args.get("quarter") or "").strip()
+
+    results = None
+    rs_total = None
+    ald_variants = []
+    rs_by_isrc = []
+    ald_by_isrc = []
+
+    if artist:
+        eng = _royalties_engine()
+        from sqlalchemy import text as _t
+
+        # Build date filter
+        date_cond_ald = ""
+        date_cond_rs  = ""
+        params: dict = {}
+        if year:
+            y = int(year)
+            if qtr:
+                q_ranges = {"1":(1,4),"2":(4,7),"3":(7,10),"4":(10,1)}
+                qs, qe = q_ranges.get(qtr, (1,1))
+                qey = y+1 if qe == 1 else y
+                date_cond_ald = "AND ald.reporting_month >= :qs AND ald.reporting_month < :qe"
+                date_cond_rs  = "AND rs.reporting_month  >= :qs AND rs.reporting_month  < :qe"
+                params["qs"] = f"{y}-{qs:02d}-01"
+                params["qe"] = f"{qey}-{qe:02d}-01"
+            else:
+                date_cond_ald = "AND ald.reporting_month >= :ys AND ald.reporting_month < :ye"
+                date_cond_rs  = "AND rs.reporting_month  >= :ys AND rs.reporting_month  < :ye"
+                params["ys"] = f"{y}-01-01"
+                params["ye"] = f"{y+1}-01-01"
+
+        with eng.connect() as c:
+            # All artist_name variants in ALD that fuzzy-match the search
+            ald_variants = c.execute(_t(f"""
+                SELECT artist_name,
+                       COUNT(DISTINCT isrc)      AS isrcs,
+                       COUNT(*)                  AS rows,
+                       SUM(net_revenue)          AS revenue
+                  FROM artist_label_detail ald
+                 WHERE LOWER(ald.artist_name) LIKE LOWER(:pat)
+                   {date_cond_ald}
+                 GROUP BY artist_name
+                 ORDER BY revenue DESC
+            """), {**params, "pat": f"%{artist}%"}).fetchall()
+
+            # ALD per-ISRC for exact artist name (LOWER match) — first variant found
+            exact_name = ald_variants[0][0] if ald_variants else artist
+            ald_by_isrc = c.execute(_t(f"""
+                SELECT ald.isrc,
+                       MAX(ald.track_title)  AS title,
+                       COUNT(*)              AS rows,
+                       SUM(ald.net_revenue)  AS ald_rev
+                  FROM artist_label_detail ald
+                 WHERE LOWER(ald.artist_name) LIKE LOWER(:pat)
+                   {date_cond_ald}
+                 GROUP BY ald.isrc
+                 ORDER BY ald_rev DESC
+                 LIMIT 50
+            """), {**params, "pat": f"%{artist}%"}).fetchall()
+
+            # royalty_summary for the same ISRCs — shows artist_name_csv stored
+            if ald_by_isrc:
+                isrc_list = [r[0] for r in ald_by_isrc]
+                rs_by_isrc = c.execute(_t(f"""
+                    SELECT rs.isrc,
+                           rs.artist_name_csv,
+                           SUM(rs.net_revenue) AS rs_rev
+                      FROM royalty_summary rs
+                     WHERE rs.isrc = ANY(:isrcs)
+                       {date_cond_rs}
+                     GROUP BY rs.isrc, rs.artist_name_csv
+                     ORDER BY rs_rev DESC
+                     LIMIT 100
+                """), {**params, "isrcs": isrc_list}).fetchall()
+
+            # Duplicate check: ISRCs that appear more than once in ALD for this artist
+            dup_rows = c.execute(_t(f"""
+                SELECT ald.isrc, ald.reporting_month, ald.platform, ald.country,
+                       COUNT(*) AS dup_count, SUM(ald.net_revenue) AS total_rev
+                  FROM artist_label_detail ald
+                 WHERE LOWER(ald.artist_name) LIKE LOWER(:pat)
+                   {date_cond_ald}
+                 GROUP BY ald.isrc, ald.reporting_month, ald.platform, ald.country
+                HAVING COUNT(*) > 1
+                 ORDER BY total_rev DESC
+                 LIMIT 20
+            """), {**params, "pat": f"%{artist}%"}).fetchall()
+
+    return render_template_string(_ALD_AUDIT_HTML,
+        artist=artist, year=year, qtr=qtr,
+        ald_variants=ald_variants,
+        ald_by_isrc=ald_by_isrc,
+        rs_by_isrc=rs_by_isrc,
+        dup_rows=dup_rows if artist else [],
+        _sidebar_html=_sb())
+
+
 @bp.route("/streaming-royalties/import", methods=["GET", "POST"])
 def import_file():
     if auth_required():
@@ -4089,6 +4198,141 @@ _COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div style="padding:40px;text-align:center;color:var(--t3)">No royalty data found.</div>
 {% endif %}
 </div>
+</div></div></div>""" + _SB_JS + """
+</body></html>"""
+
+
+# ── ALD audit ────────────────────────────────────────────────────────────────
+
+_ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png">
+<script src="/static/pwa-nav.js"></script>
+<title>ALD Audit — LabelMind</title>""" + _STYLE + """
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph"><div class="ph-left"><h1 class="ph-title">ALD Audit</h1>
+<p style="color:var(--t3);font-size:13px;margin-top:4px">Compare artist_label_detail vs royalty_summary for a specific artist to find duplicate rows.</p>
+</div>
+<div class="ph-actions"><a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; Imports</a></div>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+<form method="get" style="padding:16px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <label style="font-size:12px;color:var(--t3)">Artist name (partial ok)</label>
+    <input name="artist" value="{{ artist }}" placeholder="e.g. Los Austeros" style="padding:7px 10px;border-radius:6px;border:1px solid var(--b0);background:var(--b1);color:var(--t1);font-size:13px;min-width:220px">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <label style="font-size:12px;color:var(--t3)">Year</label>
+    <input name="year" value="{{ year }}" placeholder="2025" style="padding:7px 10px;border-radius:6px;border:1px solid var(--b0);background:var(--b1);color:var(--t1);font-size:13px;width:80px">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <label style="font-size:12px;color:var(--t3)">Quarter</label>
+    <select name="quarter" style="padding:7px 10px;border-radius:6px;border:1px solid var(--b0);background:var(--b1);color:var(--t1);font-size:13px">
+      <option value="">All</option>
+      <option value="1" {{ 'selected' if qtr=='1' }}>Q1</option>
+      <option value="2" {{ 'selected' if qtr=='2' }}>Q2</option>
+      <option value="3" {{ 'selected' if qtr=='3' }}>Q3</option>
+      <option value="4" {{ 'selected' if qtr=='4' }}>Q4</option>
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Run Audit</button>
+</form>
+</div>
+
+{% if artist %}
+
+{% if dup_rows %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ar);background:rgba(255,59,48,.06)">
+  <div style="padding:14px 18px">
+    <div style="font-weight:700;color:var(--ar);font-size:14px;margin-bottom:6px">&#9888; Duplicate ALD Rows Found — ROOT CAUSE OF DOUBLE-COUNTING</div>
+    <div style="font-size:13px;color:var(--t2);margin-bottom:10px">
+      These ISRC/month/platform/country combos have <strong>more than one row</strong> in artist_label_detail for this artist.
+      Each duplicate adds the full track revenue again — causing the label view to show 2× (or more) the real amount.
+    </div>
+    <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>ISRC</th><th>Month</th><th>Platform</th><th>Country</th><th class="num">Duplicate Rows</th><th class="num">Inflated Total</th></tr></thead>
+    <tbody>
+    {% for r in dup_rows %}
+    <tr style="background:rgba(255,59,48,.06)">
+      <td style="font-family:monospace">{{ r[0] }}</td>
+      <td>{{ r[1].strftime('%b %Y') if r[1] else '—' }}</td>
+      <td>{{ r[2] }}</td>
+      <td>{{ r[3] }}</td>
+      <td class="num" style="color:var(--ar);font-weight:700">{{ r[4] }}</td>
+      <td class="num" style="color:var(--ar)">${{ "{:,.2f}".format(r[5]|float) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+    <div style="margin-top:14px;font-size:13px;color:var(--t2)">
+      <strong>Fix:</strong> Click <strong>Rebuild Artist Cache (ARD)</strong> on the Imports page — but first check the
+      <em>ALD Name Variants</em> table below. If multiple artist name spellings map to the same artist,
+      the ALD rebuild will re-create the duplicates. Remove the incorrect artist_name_map entries first.
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ag);background:rgba(52,199,89,.06)">
+  <div style="padding:12px 18px;font-size:13px;color:var(--ag);font-weight:600">&#10003; No duplicate ALD rows found for this artist/period.</div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:18px">
+<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">ALD Name Variants
+  <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px">All artist_name values in ALD matching "{{ artist }}". Multiple entries = multiple spellings being summed.</span>
+</div>
+{% if ald_variants %}
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr><th>artist_name (exact as stored in ALD)</th><th class="num">Distinct ISRCs</th><th class="num">ALD Rows</th><th class="num">ALD Revenue</th></tr></thead>
+<tbody>
+{% for v in ald_variants %}
+<tr {{ 'style="background:rgba(255,159,10,.06)"' if loop.index > 1 }}>
+  <td><code>{{ v[0] }}</code> {{ '⚠ extra variant' if loop.index > 1 else '' }}</td>
+  <td class="num">{{ v[1] }}</td>
+  <td class="num">{{ "{:,}".format(v[2]) }}</td>
+  <td class="num" {{ 'style="color:var(--am)"' if loop.index > 1 }}>${{ "{:,.2f}".format(v[3]|float) }}</td>
+</tr>
+{% endfor %}
+<tr style="background:var(--b1);font-weight:700">
+  <td>TOTAL (all variants combined)</td>
+  <td class="num">—</td>
+  <td class="num">{{ "{:,}".format(ald_variants|sum(attribute=2)) }}</td>
+  <td class="num">${{ "{:,.2f}".format(ald_variants|sum(attribute=3)|float) }}</td>
+</tr>
+</tbody></table></div>
+{% else %}
+<div style="padding:24px;color:var(--t3);text-align:center">No ALD rows found for "{{ artist }}".</div>
+{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:18px">
+<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">royalty_summary — artist_name_csv for these ISRCs
+  <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px">What Believe sent as the artist name(s) for each track. If a name appears twice in the CSV string, that's the source of duplication.</span>
+</div>
+{% if rs_by_isrc %}
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr><th>ISRC</th><th>artist_name_csv (raw from Believe)</th><th class="num">RS Revenue</th></tr></thead>
+<tbody>
+{% for r in rs_by_isrc %}
+{% set csv_val = r[1] or '' %}
+{% set is_dup = ',' in csv_val and csv_val.split(',')[0].strip().lower() in csv_val.split(',')[1].strip().lower() %}
+<tr {{ 'style="background:rgba(255,59,48,.06)"' if is_dup }}>
+  <td style="font-family:monospace;font-size:12px">{{ r[0] }}</td>
+  <td>
+    <code style="font-size:12px">{{ csv_val }}</code>
+    {% if is_dup %}<span style="margin-left:6px;font-size:11px;background:var(--ar);color:#fff;border-radius:4px;padding:1px 5px">name appears twice?</span>{% endif %}
+  </td>
+  <td class="num">${{ "{:,.2f}".format(r[2]|float) }}</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}
+<div style="padding:24px;color:var(--t3);text-align:center">No royalty_summary rows found for these ISRCs.</div>
+{% endif %}
+</div>
+
+{% endif %}
 </div></div></div>""" + _SB_JS + """
 </body></html>"""
 
