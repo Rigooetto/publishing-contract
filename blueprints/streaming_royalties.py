@@ -918,7 +918,7 @@ _ALD_BULK_SQL = """
     INSERT INTO artist_label_detail
         (artist_name, reporting_month, isrc, track_title, platform, country, streams, net_revenue)
     SELECT
-        COALESCE(m.canonical_name, TRIM(a.val)) AS artist_name,
+        an.artist_name,
         rs.reporting_month,
         rs.isrc,
         MAX(rs.track_title_csv)  AS track_title,
@@ -927,12 +927,15 @@ _ALD_BULK_SQL = """
         SUM(rs.streams)          AS streams,
         SUM(rs.net_revenue)      AS net_revenue
     FROM royalty_summary rs
-    CROSS JOIN LATERAL unnest(string_to_array(rs.artist_name_csv, ',')) AS a(val)
-    LEFT JOIN artist_name_map m
-        ON LOWER(TRIM(m.raw_name)) = LOWER(TRIM(a.val))
-       AND m.status = 'confirmed'
+    CROSS JOIN LATERAL (
+        SELECT DISTINCT COALESCE(m.canonical_name, TRIM(a.val)) AS artist_name
+        FROM unnest(string_to_array(rs.artist_name_csv, ',')) AS a(val)
+        LEFT JOIN artist_name_map m
+            ON LOWER(TRIM(m.raw_name)) = LOWER(TRIM(a.val))
+           AND m.status = 'confirmed'
+    ) an
     WHERE rs.reporting_month = :month
-    GROUP BY COALESCE(m.canonical_name, TRIM(a.val)), rs.reporting_month, rs.isrc, rs.platform, rs.country
+    GROUP BY an.artist_name, rs.reporting_month, rs.isrc, rs.platform, rs.country
     ON CONFLICT (artist_name, reporting_month, isrc, platform, country) DO UPDATE SET
         streams     = EXCLUDED.streams,
         net_revenue = EXCLUDED.net_revenue,
