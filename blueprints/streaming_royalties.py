@@ -2163,6 +2163,57 @@ def imports_list():
     return render_template_string(_IMPORTS_HTML, imports=imports, _sidebar_html=_sb())
 
 
+@bp.route("/streaming-royalties/import-coverage")
+def import_coverage():
+    """Diagnostic: which imports contributed rows to which reporting months, and which months overlap."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    eng = _royalties_engine()
+    from sqlalchemy import text as _t
+    with eng.connect() as c:
+        rows = c.execute(_t("""
+            SELECT
+                sr.reporting_month,
+                sr.import_id,
+                si.original_filename,
+                si.uploaded_at,
+                COUNT(*)            AS row_count,
+                SUM(sr.total_net_revenue) AS month_revenue
+            FROM streaming_royalty sr
+            JOIN streaming_import  si ON si.id = sr.import_id
+            GROUP BY sr.reporting_month, sr.import_id, si.original_filename, si.uploaded_at
+            ORDER BY sr.reporting_month DESC, sr.import_id
+        """)).fetchall()
+
+        overlap = c.execute(_t("""
+            SELECT reporting_month, COUNT(DISTINCT import_id) AS n_imports
+            FROM streaming_royalty
+            GROUP BY reporting_month
+            HAVING COUNT(DISTINCT import_id) > 1
+            ORDER BY reporting_month DESC
+        """)).fetchall()
+
+    overlap_months = {r[0] for r in overlap}
+
+    # Group by month for the summary table
+    from collections import OrderedDict
+    by_month = OrderedDict()
+    for r in rows:
+        m = r[0]
+        if m not in by_month:
+            by_month[m] = []
+        by_month[m].append(r)
+
+    return render_template_string(_COVERAGE_HTML,
+        by_month=by_month,
+        overlap_months=overlap_months,
+        _sidebar_html=_sb())
+
+
 @bp.route("/streaming-royalties/import", methods=["GET", "POST"])
 def import_file():
     if auth_required():
@@ -3692,6 +3743,7 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="ph-actions">
   <a href="/streaming-royalties/import" class="btn btn-primary">&#8679; Upload CSV</a>
   <a href="/streaming-royalties/bulk-import" class="btn btn-sec">&#8679; Bulk Import</a>
+  <a href="/streaming-royalties/import-coverage" class="btn btn-sec">&#128202; Coverage Diagnostic</a>
   <a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a>
 </div></div>
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -3813,6 +3865,92 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 })();
 </script>
 </body></html>"""
+
+# ── Import coverage diagnostic ────────────────────────────────────────────────
+
+_COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
+<title>Import Coverage — AfinArte</title>""" + _STYLE + """
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph"><div class="ph-left"><h1 class="ph-title">Import Coverage Diagnostic</h1>
+<p style="color:var(--t3);font-size:13px;margin-top:4px">Months highlighted in red appear in more than one import — this causes double-counting in royalty_summary.</p>
+</div>
+<div class="ph-actions">
+  <a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; Imports</a>
+  <a href="/streaming-royalties" class="btn btn-sec">&#128202; Dashboard</a>
+</div></div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}{% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+{% if overlap_months %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ar);background:rgba(255,59,48,.06)">
+  <div style="padding:14px 18px">
+    <div style="font-weight:700;color:var(--ar);font-size:14px;margin-bottom:6px">&#9888; Double-Counted Months Detected</div>
+    <div style="font-size:13px;color:var(--t2)">The following months have rows from <strong>multiple imports</strong>. Since the upsert is additive, their revenue in <code>royalty_summary</code> is inflated:</div>
+    <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">
+      {% for m in overlap_months|sort(reverse=true) %}
+      <span style="background:rgba(255,59,48,.12);color:var(--ar);border-radius:6px;padding:4px 10px;font-size:13px;font-weight:600">{{ m.strftime('%b %Y') if m else '—' }}</span>
+      {% endfor %}
+    </div>
+    <div style="margin-top:12px;font-size:13px;color:var(--t2)">
+      <strong>Fix:</strong> Delete the overlapping import(s) from the Imports page, then run <em>Rebuild Artist Cache (ARD)</em>.
+      If both imports are needed (e.g., different platforms), verify the raw data does not contain duplicate rows before re-importing.
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ag);background:rgba(52,199,89,.06)">
+  <div style="padding:12px 18px;font-size:13px;color:var(--ag);font-weight:600">&#10003; No overlapping months detected — each reporting month appears in exactly one import.</div>
+</div>
+{% endif %}
+
+<div class="card">
+<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">Month-by-Month Coverage</div>
+{% if by_month %}
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr>
+  <th>Reporting Month</th>
+  <th class="num">Imports</th>
+  <th class="num">Total Rows</th>
+  <th class="num">Total Net Revenue</th>
+  <th>Files</th>
+</tr></thead>
+<tbody>
+{% for month, entries in by_month.items() %}
+{% set is_overlap = month in overlap_months %}
+<tr style="{{ 'background:rgba(255,59,48,.06)' if is_overlap else '' }}">
+  <td style="{{ 'color:var(--ar);font-weight:700' if is_overlap else '' }}">
+    {{ month.strftime('%B %Y') if month else '—' }}
+    {% if is_overlap %}<span style="margin-left:6px;font-size:11px;background:var(--ar);color:#fff;border-radius:4px;padding:1px 5px">OVERLAP</span>{% endif %}
+  </td>
+  <td class="num">{{ entries|length }}</td>
+  <td class="num">{{ "{:,}".format(entries|sum(attribute=4)) }}</td>
+  <td class="num">${{ "{:,.2f}".format(entries|sum(attribute=5)|float) }}</td>
+  <td>
+    <div style="display:flex;flex-direction:column;gap:3px">
+    {% for e in entries %}
+    <div style="font-size:12px;color:var(--t2)">
+      <span style="font-weight:600;color:var(--t1)">#{{ e[1] }}</span>
+      {{ e[2] }}
+      <span style="color:var(--t3)">({{ e[3].strftime('%Y-%m-%d') if e[3] else '' }})</span>
+      — {{ "{:,}".format(e[4]) }} rows · ${{ "{:,.2f}".format(e[5]|float) }}
+    </div>
+    {% endfor %}
+    </div>
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<div style="padding:40px;text-align:center;color:var(--t3)">No royalty data found.</div>
+{% endif %}
+</div>
+</div></div></div>""" + _SB_JS + """
+</body></html>"""
+
 
 # ── Import form ───────────────────────────────────────────────────────────────
 
