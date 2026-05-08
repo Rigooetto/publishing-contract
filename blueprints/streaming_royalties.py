@@ -2447,6 +2447,7 @@ def ald_audit():
             """), {**params, "pat": f"%{artist}%"}).fetchall()
 
             # royalty_summary for the same ISRCs — shows artist_name_csv stored
+            rs_total_for_artist = 0.0
             if ald_by_isrc:
                 isrc_list = [r[0] for r in ald_by_isrc]
                 rs_by_isrc = c.execute(_t(f"""
@@ -2461,6 +2462,15 @@ def ald_audit():
                      LIMIT 100
                 """), {**params, "isrcs": isrc_list}).fetchall()
 
+                # Full RS total for ALL ISRCs belonging to this artist (not just top-50 ALD)
+                rs_total_row = c.execute(_t(f"""
+                    SELECT COALESCE(SUM(rs.net_revenue), 0)
+                      FROM royalty_summary rs
+                     WHERE rs.artist_name_csv ILIKE :pat
+                       {date_cond_rs}
+                """), {**params, "pat": f"%{artist}%"}).fetchone()
+                rs_total_for_artist = float(rs_total_row[0]) if rs_total_row else 0.0
+
             # Duplicate check: ISRCs that appear more than once in ALD for this artist
             dup_rows = c.execute(_t(f"""
                 SELECT ald.isrc, ald.reporting_month, ald.platform, ald.country,
@@ -2474,12 +2484,16 @@ def ald_audit():
                  LIMIT 20
             """), {**params, "pat": f"%{artist}%"}).fetchall()
 
+    ald_total = sum(float(v[3]) for v in ald_variants)
+
     return render_template_string(_ALD_AUDIT_HTML,
         artist=artist, year=year, qtr=qtr,
         ald_variants=ald_variants,
         ald_by_isrc=ald_by_isrc,
         rs_by_isrc=rs_by_isrc,
         dup_rows=dup_rows if artist else [],
+        ald_total=ald_total,
+        rs_total_for_artist=rs_total_for_artist,
         _sidebar_html=_sb())
 
 
@@ -4480,6 +4494,25 @@ _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
 </div>
 
 {% if artist %}
+
+{% set ratio = (ald_total / rs_total_for_artist) if rs_total_for_artist > 0 else 0 %}
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px">
+  <div class="card" style="padding:16px 18px">
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">ALD Total (label view source)</div>
+    <div style="font-size:22px;font-weight:700;color:var(--t1)">${{ "{:,.2f}".format(ald_total) }}</div>
+  </div>
+  <div class="card" style="padding:16px 18px">
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">royalty_summary Total (raw)</div>
+    <div style="font-size:22px;font-weight:700;color:{{ 'var(--ag)' if ratio < 1.02 else 'var(--ar)' }}">${{ "{:,.2f}".format(rs_total_for_artist) }}</div>
+  </div>
+  <div class="card" style="padding:16px 18px;{{ 'border:1px solid var(--ar);background:rgba(255,59,48,.06)' if ratio > 1.02 else 'border:1px solid var(--ag);background:rgba(52,199,89,.06)' }}">
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">ALD / RS Ratio</div>
+    <div style="font-size:22px;font-weight:700;color:{{ 'var(--ar)' if ratio > 1.02 else 'var(--ag)' }}">{{ "%.2f"|format(ratio) }}×</div>
+    <div style="font-size:12px;margin-top:2px;color:var(--t3)">
+      {% if ratio > 1.02 %}ALD is inflated vs raw data{% else %}ALD matches raw data ✓{% endif %}
+    </div>
+  </div>
+</div>
 
 {% if dup_rows %}
 <div class="card" style="margin-bottom:18px;border:1px solid var(--ar);background:rgba(255,59,48,.06)">
