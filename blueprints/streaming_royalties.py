@@ -2279,47 +2279,72 @@ def isrc_detail(isrc):
         flash("Access restricted.", "error")
         return redirect(url_for("publishing.works_list"))
 
+    import datetime as _dt
+    year = (request.args.get("year") or "").strip()
+    qtr  = (request.args.get("quarter") or "").strip()
+    if qtr and not year:
+        year = str(_dt.date.today().year)
+
+    date_cond = ""
+    params: dict = {"isrc": isrc}
+    period_label = "All Time"
+    if year:
+        y = int(year)
+        if qtr:
+            q_ranges = {"1":(1,4),"2":(4,7),"3":(7,10),"4":(10,1)}
+            qs, qe = q_ranges.get(qtr, (1,1))
+            qey = y+1 if qe == 1 else y
+            date_cond = "AND reporting_month >= :qs AND reporting_month < :qe"
+            params["qs"] = f"{y}-{qs:02d}-01"
+            params["qe"] = f"{qey}-{qe:02d}-01"
+            period_label = f"Q{qtr} {y}"
+        else:
+            date_cond = "AND reporting_month >= :ys AND reporting_month < :ye"
+            params["ys"] = f"{y}-01-01"
+            params["ye"] = f"{y+1}-01-01"
+            period_label = str(y)
+
     eng = _royalties_engine()
     from sqlalchemy import text as _t
 
     with eng.connect() as c:
-        by_month = c.execute(_t("""
+        by_month = c.execute(_t(f"""
             SELECT reporting_month, SUM(total_net_revenue) AS rev, SUM(total_quantity) AS qty
-            FROM streaming_royalty WHERE isrc = :isrc
+            FROM streaming_royalty WHERE isrc = :isrc {date_cond}
             GROUP BY reporting_month ORDER BY reporting_month DESC
-        """), {"isrc": isrc}).fetchall()
+        """), params).fetchall()
 
-        by_platform = c.execute(_t("""
+        by_platform = c.execute(_t(f"""
             SELECT platform, SUM(total_net_revenue) AS rev, SUM(total_quantity) AS qty
-            FROM streaming_royalty WHERE isrc = :isrc
+            FROM streaming_royalty WHERE isrc = :isrc {date_cond}
             GROUP BY platform ORDER BY rev DESC
-        """), {"isrc": isrc}).fetchall()
+        """), params).fetchall()
 
-        by_country = c.execute(_t("""
+        by_country = c.execute(_t(f"""
             SELECT country, SUM(total_net_revenue) AS rev
-            FROM streaming_royalty WHERE isrc = :isrc
+            FROM streaming_royalty WHERE isrc = :isrc {date_cond}
             GROUP BY country ORDER BY rev DESC LIMIT 20
-        """), {"isrc": isrc}).fetchall()
+        """), params).fetchall()
 
-        by_sales_type = c.execute(_t("""
+        by_sales_type = c.execute(_t(f"""
             SELECT sales_type, SUM(total_net_revenue) AS rev, SUM(total_quantity) AS qty
-            FROM streaming_royalty WHERE isrc = :isrc
+            FROM streaming_royalty WHERE isrc = :isrc {date_cond}
             GROUP BY sales_type ORDER BY rev DESC
-        """), {"isrc": isrc}).fetchall()
+        """), params).fetchall()
 
-        # Raw rows for spot-check (top 50 by revenue)
-        raw_rows = c.execute(_t("""
+        rs_date_cond = date_cond.replace("reporting_month", "reporting_month")
+        rs_params = {k: v for k, v in params.items()}
+        raw_rows = c.execute(_t(f"""
             SELECT reporting_month, sales_month, platform, country, sales_type,
                    artist_name_csv, track_title_csv, total_quantity, total_net_revenue, import_id
-            FROM streaming_royalty WHERE isrc = :isrc
+            FROM streaming_royalty WHERE isrc = :isrc {date_cond}
             ORDER BY total_net_revenue DESC LIMIT 50
-        """), {"isrc": isrc}).fetchall()
+        """), params).fetchall()
 
-        # Summary from royalty_summary
-        rs_total = c.execute(_t("""
+        rs_total = c.execute(_t(f"""
             SELECT SUM(net_revenue), COUNT(*)
-            FROM royalty_summary WHERE isrc = :isrc
-        """), {"isrc": isrc}).fetchone()
+            FROM royalty_summary WHERE isrc = :isrc {date_cond}
+        """), params).fetchone()
 
         track_info = c.execute(_t("""
             SELECT MAX(artist_name_csv), MAX(track_title_csv)
@@ -2338,6 +2363,8 @@ def isrc_detail(isrc):
         raw_rows=raw_rows,
         rs_total=rs_total,
         grand_total=grand_total,
+        period_label=period_label,
+        year=year, qtr=qtr,
         _sidebar_html=_sb())
 
 
@@ -2364,9 +2391,13 @@ def ald_audit():
         eng = _royalties_engine()
         from sqlalchemy import text as _t
 
-        # Build date filter
+        # Build date filter — default year to current if quarter provided without year
+        import datetime as _dt
+        if qtr and not year:
+            year = str(_dt.date.today().year)
         date_cond_ald = ""
         date_cond_rs  = ""
+        date_cond_sr  = ""
         params: dict = {}
         if year:
             y = int(year)
@@ -2376,11 +2407,13 @@ def ald_audit():
                 qey = y+1 if qe == 1 else y
                 date_cond_ald = "AND ald.reporting_month >= :qs AND ald.reporting_month < :qe"
                 date_cond_rs  = "AND rs.reporting_month  >= :qs AND rs.reporting_month  < :qe"
+                date_cond_sr  = "AND sr.reporting_month  >= :qs AND sr.reporting_month  < :qe"
                 params["qs"] = f"{y}-{qs:02d}-01"
                 params["qe"] = f"{qey}-{qe:02d}-01"
             else:
                 date_cond_ald = "AND ald.reporting_month >= :ys AND ald.reporting_month < :ye"
                 date_cond_rs  = "AND rs.reporting_month  >= :ys AND rs.reporting_month  < :ye"
+                date_cond_sr  = "AND sr.reporting_month  >= :ys AND sr.reporting_month  < :ye"
                 params["ys"] = f"{y}-01-01"
                 params["ye"] = f"{y+1}-01-01"
 
@@ -4287,17 +4320,29 @@ _ISRC_DETAIL_HTML = """<!DOCTYPE html><html lang="en"><head>
   {% if track_info %}
   <p style="color:var(--t2);font-size:14px;margin-top:4px">
     <strong>{{ track_info[1] or '—' }}</strong> &nbsp;·&nbsp; {{ track_info[0] or '—' }}
+    &nbsp;<span style="background:var(--b2);color:var(--t3);border-radius:4px;padding:2px 8px;font-size:12px">{{ period_label }}</span>
   </p>
   {% endif %}
 </div>
 <div class="ph-actions">
+  <form method="get" style="display:flex;gap:6px;align-items:center">
+    <input type="hidden" name="isrc" value="{{ isrc }}">
+    <input name="year" value="{{ year }}" placeholder="Year" style="width:70px;padding:5px 8px;border-radius:6px;border:1px solid var(--b0);background:var(--b1);color:var(--t1);font-size:12px">
+    <select name="quarter" style="padding:5px 8px;border-radius:6px;border:1px solid var(--b0);background:var(--b1);color:var(--t1);font-size:12px">
+      <option value="">All</option>
+      <option value="1" {{ 'selected' if qtr=='1' }}>Q1</option>
+      <option value="2" {{ 'selected' if qtr=='2' }}>Q2</option>
+      <option value="3" {{ 'selected' if qtr=='3' }}>Q3</option>
+      <option value="4" {{ 'selected' if qtr=='4' }}>Q4</option>
+    </select>
+    <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+  </form>
   <a href="javascript:history.back()" class="btn btn-sec">&#8592; Back</a>
-  <a href="/streaming-royalties/ald-audit" class="btn btn-sec">ALD Audit</a>
 </div></div>
 
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px">
   <div class="card" style="padding:16px 18px">
-    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">All-Time Revenue (streaming_royalty)</div>
+    <div style="font-size:12px;color:var(--t3);margin-bottom:4px">{{ period_label }} Revenue (streaming_royalty)</div>
     <div style="font-size:22px;font-weight:700;color:var(--t1)">${{ "{:,.2f}".format(grand_total) }}</div>
   </div>
   <div class="card" style="padding:16px 18px">
@@ -4449,7 +4494,7 @@ _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
     <tbody>
     {% for r in dup_rows %}
     <tr style="background:rgba(255,59,48,.06)">
-      <td style="font-family:monospace"><a href="/streaming-royalties/isrc-detail/{{ r[0] }}" style="color:var(--a)">{{ r[0] }}</a></td>
+      <td style="font-family:monospace"><a href="/streaming-royalties/isrc-detail/{{ r[0] }}?year={{ year }}&quarter={{ qtr }}" style="color:var(--a)">{{ r[0] }}</a></td>
       <td>{{ r[1].strftime('%b %Y') if r[1] else '—' }}</td>
       <td>{{ r[2] }}</td>
       <td>{{ r[3] }}</td>
@@ -4511,7 +4556,7 @@ _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
 {% set csv_val = r[1] or '' %}
 {% set is_dup = ',' in csv_val and csv_val.split(',')[0].strip().lower() in csv_val.split(',')[1].strip().lower() %}
 <tr {{ 'style="background:rgba(255,59,48,.06)"' if is_dup }}>
-  <td style="font-family:monospace;font-size:12px"><a href="/streaming-royalties/isrc-detail/{{ r[0] }}" style="color:var(--a)">{{ r[0] }}</a></td>
+  <td style="font-family:monospace;font-size:12px"><a href="/streaming-royalties/isrc-detail/{{ r[0] }}?year={{ year }}&quarter={{ qtr }}" style="color:var(--a)">{{ r[0] }}</a></td>
   <td>
     <code style="font-size:12px">{{ csv_val }}</code>
     {% if is_dup %}<span style="margin-left:6px;font-size:11px;background:var(--ar);color:#fff;border-radius:4px;padding:1px 5px">name appears twice?</span>{% endif %}
