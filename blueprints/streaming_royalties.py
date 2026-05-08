@@ -2212,6 +2212,20 @@ def import_coverage():
             ORDER BY reporting_month DESC
         """)).fetchall()}
 
+        # Sales month breakdown: for each reporting_month, which sales_months are included?
+        sales_breakdown_rows = c.execute(_t("""
+            SELECT reporting_month, sales_month, SUM(total_net_revenue) AS rev
+            FROM streaming_royalty
+            GROUP BY reporting_month, sales_month
+            ORDER BY reporting_month DESC, sales_month DESC
+        """)).fetchall()
+        sales_breakdown = {}
+        for r in sales_breakdown_rows:
+            rm = r[0]
+            if rm not in sales_breakdown:
+                sales_breakdown[rm] = []
+            sales_breakdown[rm].append({"sales_month": r[1], "rev": float(r[2])})
+
     overlap_months = {r[0] for r in overlap}
 
     # Months where royalty_summary is significantly higher than raw (inflated)
@@ -2236,6 +2250,7 @@ def import_coverage():
         by_month=by_month,
         overlap_months=overlap_months,
         inflated_months=inflated_months,
+        sales_breakdown=sales_breakdown,
         _sidebar_html=_sb())
 
 
@@ -3984,6 +3999,31 @@ _COVERAGE_HTML = """<!DOCTYPE html><html lang="en"><head>
   <td class="num" style="{{ 'color:var(--ar)' if d.inflated else '' }}">${{ "{:,.2f}".format(d.summary) }}</td>
   <td class="num" style="{{ 'color:var(--ar);font-weight:700' if d.inflated else '' }}">{{ "%.2f"|format(d.ratio) }}×</td>
 </tr>
+{% endfor %}
+</tbody></table></div>
+</div>
+
+<div class="card" style="margin-top:18px">
+<div style="padding:14px 18px;border-bottom:1px solid var(--b2);font-weight:600;font-size:14px">
+  Reporting Month vs Sales Month Breakdown
+  <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px">Dashboard filters by Reporting Month (when Believe paid). Each payment run can include streams from prior months.</span>
+</div>
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr><th>Reporting Month</th><th>Sales Month</th><th class="num">Revenue</th><th>Note</th></tr></thead>
+<tbody>
+{% for rm, entries in sales_breakdown.items()|sort(reverse=true) %}
+{% for e in entries %}
+<tr>
+  <td>{{ rm.strftime('%B %Y') if rm else '—' }}</td>
+  <td>{{ e.sales_month.strftime('%B %Y') if e.sales_month else '—' }}</td>
+  <td class="num">${{ "{:,.2f}".format(e.rev) }}</td>
+  <td>
+    {% if e.sales_month and rm and e.sales_month != rm %}
+    <span style="font-size:11px;background:rgba(255,159,10,.15);color:#d97706;border-radius:4px;padding:1px 6px">streams from different month</span>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}
 {% endfor %}
 </tbody></table></div>
 </div>
