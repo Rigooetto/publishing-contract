@@ -2500,6 +2500,124 @@ def ald_audit():
         _sidebar_html=_sb())
 
 
+@bp.route("/streaming-royalties/ald-inflation-check")
+def ald_inflation_check():
+    """Diagnostic: find ALL artists where ALD revenue > royalty_summary revenue (inflation scan)."""
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(_ADMIN_ONLY):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    eng = _royalties_engine()
+    from sqlalchemy import text as _t
+
+    with eng.connect() as c:
+        # Per-artist: compare ALD stored revenue vs the RS row it was built from.
+        # For a clean artist, ald.net_revenue == rs.net_revenue (1.00×).
+        # If artist_name_csv had the artist twice → ald.net_revenue == 2 × rs.net_revenue.
+        inflated = c.execute(_t("""
+            SELECT
+                ald.artist_name,
+                COUNT(DISTINCT ald.isrc)                                     AS isrc_count,
+                SUM(ald.net_revenue)                                         AS ald_total,
+                SUM(rs.net_revenue)                                          AS rs_total,
+                ROUND(SUM(ald.net_revenue)::numeric /
+                      NULLIF(SUM(rs.net_revenue)::numeric, 0), 3)            AS ratio
+            FROM artist_label_detail ald
+            JOIN royalty_summary rs
+              ON rs.isrc             = ald.isrc
+             AND rs.reporting_month  = ald.reporting_month
+             AND rs.platform         = ald.platform
+             AND rs.country          = ald.country
+            GROUP BY ald.artist_name
+            HAVING SUM(ald.net_revenue) > SUM(rs.net_revenue) * 1.05
+            ORDER BY ratio DESC
+            LIMIT 500
+        """)).fetchall()
+
+        # Total artist count in ALD for context
+        total_artists_row = c.execute(_t(
+            "SELECT COUNT(DISTINCT artist_name) FROM artist_label_detail"
+        )).fetchone()
+        total_artists = int(total_artists_row[0]) if total_artists_row else 0
+
+    return render_template_string(_ALD_INFLATION_HTML,
+        inflated=inflated,
+        total_artists=total_artists,
+        _sidebar_html=_sb())
+
+
+_ALD_INFLATION_HTML = """<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png">
+<script src="/static/pwa-nav.js"></script>
+<title>ALD Inflation Check — LabelMind</title>""" + _STYLE + """
+</head><body><div class="app" id="mainApp">{{ _sidebar_html|safe }}
+<div class="main"><div class="page">
+<div class="ph"><div class="ph-left"><h1 class="ph-title">ALD Inflation Check</h1>
+<p style="color:var(--t3);font-size:13px;margin-top:4px">
+  Artists where <code>artist_label_detail</code> revenue &gt; <code>royalty_summary</code> revenue (ratio &gt; 1.05×).
+  A 2.00× ratio means the artist appears twice in <code>artist_name_csv</code> and every track's revenue was doubled in ALD.
+</p>
+</div>
+<div class="ph-actions">
+  <a href="/streaming-royalties/ald-audit" class="btn btn-sec">&#8592; ALD Audit</a>
+</div>
+</div>
+
+{% if inflated %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ar);background:rgba(255,59,48,.06);padding:14px 18px">
+  <span style="font-weight:700;color:var(--ar)">&#9888; {{ inflated|length }} inflated artist{{ 's' if inflated|length != 1 }} found</span>
+  <span style="color:var(--t3);font-size:13px;margin-left:10px">out of {{ total_artists }} total artists in ALD</span>
+  <span style="color:var(--t2);font-size:13px;margin-left:10px">— run <strong>Rebuild Artist Cache (ARD)</strong> after deploying the fix to correct all values</span>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:18px;border:1px solid var(--ag);background:rgba(52,199,89,.06);padding:14px 18px">
+  <span style="font-weight:700;color:var(--ag)">&#10003; No inflated artists found.</span>
+  <span style="color:var(--t3);font-size:13px;margin-left:10px">All {{ total_artists }} artists in ALD match royalty_summary.</span>
+</div>
+{% endif %}
+
+{% if inflated %}
+<div class="card">
+<div class="tbl-wrap"><table class="tbl">
+<thead><tr>
+  <th>Artist Name</th>
+  <th class="num">ISRCs</th>
+  <th class="num">ALD Revenue (stored)</th>
+  <th class="num">RS Revenue (true)</th>
+  <th class="num">Ratio</th>
+  <th class="num">Overcount $</th>
+</tr></thead>
+<tbody>
+{% for r in inflated %}
+{% set overcount = r[2]|float - r[3]|float %}
+<tr>
+  <td><a href="/streaming-royalties/ald-audit?artist={{ r[0]|urlencode }}" style="color:var(--a)">{{ r[0] }}</a></td>
+  <td class="num">{{ "{:,}".format(r[1]) }}</td>
+  <td class="num" style="color:var(--ar)">${{ "{:,.2f}".format(r[2]|float) }}</td>
+  <td class="num">${{ "{:,.2f}".format(r[3]|float) }}</td>
+  <td class="num" style="font-weight:700;color:{{ 'var(--ar)' if r[4]|float > 1.5 else 'var(--am)' }}">{{ "%.2f"|format(r[4]|float) }}×</td>
+  <td class="num" style="color:var(--ar)">+${{ "{:,.2f}".format(overcount) }}</td>
+</tr>
+{% endfor %}
+<tr style="background:var(--b1);font-weight:700">
+  <td>TOTAL OVERCOUNT</td>
+  <td class="num">—</td>
+  <td class="num" style="color:var(--ar)">${{ "{:,.2f}".format(inflated|sum(attribute=2)|float) }}</td>
+  <td class="num">${{ "{:,.2f}".format(inflated|sum(attribute=3)|float) }}</td>
+  <td class="num">—</td>
+  <td class="num" style="color:var(--ar)">+${{ "{:,.2f}".format((inflated|sum(attribute=2)|float) - (inflated|sum(attribute=3)|float)) }}</td>
+</tr>
+</tbody></table></div>
+</div>
+{% endif %}
+
+</div></div></div>""" + _SB_JS + """
+</body></html>"""
+
+
 @bp.route("/streaming-royalties/import", methods=["GET", "POST"])
 def import_file():
     if auth_required():
@@ -4469,7 +4587,10 @@ _ALD_AUDIT_HTML = """<!DOCTYPE html><html lang="en"><head>
 <div class="ph"><div class="ph-left"><h1 class="ph-title">ALD Audit</h1>
 <p style="color:var(--t3);font-size:13px;margin-top:4px">Compare artist_label_detail vs royalty_summary for a specific artist to find duplicate rows.</p>
 </div>
-<div class="ph-actions"><a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; Imports</a></div>
+<div class="ph-actions">
+  <a href="/streaming-royalties/ald-inflation-check" class="btn btn-sec" style="margin-right:6px">Inflation Check (All Artists)</a>
+  <a href="/streaming-royalties/imports" class="btn btn-sec">&#8592; Imports</a>
+</div>
 </div>
 
 <div class="card" style="margin-bottom:18px">
