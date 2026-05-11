@@ -2410,6 +2410,8 @@ def ald_audit():
     ald_variants = []
     rs_by_isrc = []
     ald_by_isrc = []
+    dup_rows = []
+    rs_total_for_artist = 0.0
 
     if artist:
         eng = _royalties_engine()
