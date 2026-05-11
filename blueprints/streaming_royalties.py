@@ -29,6 +29,7 @@ _isrc_csv_cache: dict = {}  # isrc → artist_name_csv string
 _isrc_csv_cache_lock = threading.Lock()
 
 _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artist": ""}
+_rebuild_status: dict = {"phase": "", "done": 0, "total": 0, "running": False}
 _prewarm_lock = threading.Lock()
 _prewarm_counter_lock = threading.Lock()
 _ard_rebuild_lock = threading.Lock()  # prevents concurrent ARD/ALD rebuilds
@@ -960,24 +961,27 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
     try:
         with engine.connect() as conn:
             if months is not None:
-                # Partial by month: delete affected rows then reinsert
+                _rebuild_status.update({"phase": "ARD", "running": True, "done": 0, "total": len(months)})
                 for month in months:
                     conn.execute(_t(
                         "DELETE FROM artist_royalty_detail WHERE reporting_month = :m"
                     ), {"m": month})
                     conn.execute(_t(_ARD_BULK_SQL), {"month": month})
                     conn.commit()
+                    _rebuild_status["done"] += 1
                     _log.warning("ARD rebuild: month %s done", month)
             elif artist_names is None:
                 all_months = [r[0] for r in conn.execute(_t(
                     "SELECT DISTINCT reporting_month FROM royalty_summary ORDER BY 1"
                 )).fetchall()]
+                _rebuild_status.update({"phase": "ARD", "running": True, "done": 0, "total": len(all_months)})
                 _log.warning("ARD full rebuild: %d months to process", len(all_months))
                 conn.execute(_t("DELETE FROM artist_royalty_detail"))
                 conn.commit()
                 for month in all_months:
                     conn.execute(_t(_ARD_BULK_SQL), {"month": month})
                     conn.commit()
+                    _rebuild_status["done"] += 1
                     _log.warning("ARD full rebuild: month %s done", month)
                 _log.warning("ARD full rebuild: complete")
             else:
@@ -990,6 +994,7 @@ def _rebuild_artist_detail(engine, artist_names=None, months=None):
     except Exception as _e:
         _log.warning("_rebuild_artist_detail failed: %s", _e)
     finally:
+        _rebuild_status.update({"running": False, "phase": ""})
         _ard_rebuild_lock.release()
 
 
@@ -1051,26 +1056,32 @@ def _rebuild_artist_label_detail(engine, months=None):
                 all_months = [r[0] for r in conn.execute(_t(
                     "SELECT DISTINCT reporting_month FROM royalty_summary ORDER BY 1"
                 )).fetchall()]
+                _rebuild_status.update({"phase": "ALD", "running": True, "done": 0, "total": len(all_months)})
                 conn.execute(_t("DELETE FROM artist_label_detail"))
                 conn.commit()
                 _log.warning("ALD full rebuild: %d months", len(all_months))
                 for month in all_months:
                     conn.execute(_t(_ALD_BULK_SQL), {"month": month})
                     conn.commit()
+                    _rebuild_status["done"] += 1
                     _log.warning("ALD full rebuild: month %s done", month)
                 _log.warning("ALD full rebuild: complete")
             else:
+                _rebuild_status.update({"phase": "ALD", "running": True, "done": 0, "total": len(months)})
                 for month in months:
                     conn.execute(_t(
                         "DELETE FROM artist_label_detail WHERE reporting_month = :m"
                     ), {"m": month})
                     conn.execute(_t(_ALD_BULK_SQL), {"month": month})
                     conn.commit()
+                    _rebuild_status["done"] += 1
                     _log.warning("ALD rebuild: month %s done", month)
         # Normalize stored artist names to current canonical names so exact lookups work
         _normalize_ald_artist_names(engine)
     except Exception as _e:
         _log.warning("_rebuild_artist_label_detail failed: %s", _e)
+    finally:
+        _rebuild_status.update({"running": False, "phase": ""})
 
 
 def _get_isrc_csv(engine, isrc_set: set) -> dict:
@@ -2966,7 +2977,7 @@ def cache_status():
                 finally:
                     _prewarm_lock.release()
             threading.Thread(target=_run_lazy, daemon=True).start()
-    resp = jsonify(_prewarm_status)
+    resp = jsonify({**_prewarm_status, "rebuild": _rebuild_status})
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -4139,11 +4150,14 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
   <div style="display:flex;align-items:center;gap:12px">
     <span id="cache-status-icon" style="font-size:16px">⏳</span>
     <div style="flex:1">
-      <div id="cache-status-text" style="font-weight:600;color:var(--t1)">Cache warming…</div>
-      <div style="margin-top:6px;height:6px;border-radius:3px;background:var(--b2);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div id="cache-status-text" style="font-weight:600;color:var(--t1)">Rebuilding…</div>
+        <span id="cache-phase-badge" style="display:none;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;background:var(--ac,#4f8ef7);color:#fff"></span>
+      </div>
+      <div style="margin-top:2px;height:6px;border-radius:3px;background:var(--b2);overflow:hidden">
         <div id="cache-progress-bar" style="height:100%;border-radius:3px;background:var(--ac,#4f8ef7);width:0%;transition:width 0.4s ease"></div>
       </div>
-      <div id="cache-progress-label" style="margin-top:4px;color:var(--t3)">0 / 0 combos</div>
+      <div id="cache-progress-label" style="margin-top:4px;color:var(--t3)">0 / 0</div>
     </div>
   </div>
 </div>
@@ -4164,27 +4178,42 @@ _IMPORTS_HTML = """<!DOCTYPE html><html lang="en"><head>
 </div></div></div>""" + _SB_JS + """
 <script>
 (function(){
-  var bar = document.getElementById('cache-status-bar');
-  var txt = document.getElementById('cache-status-text');
-  var prg = document.getElementById('cache-progress-bar');
-  var lbl = document.getElementById('cache-progress-label');
-  var ico = document.getElementById('cache-status-icon');
+  var bar   = document.getElementById('cache-status-bar');
+  var txt   = document.getElementById('cache-status-text');
+  var prg   = document.getElementById('cache-progress-bar');
+  var lbl   = document.getElementById('cache-progress-label');
+  var ico   = document.getElementById('cache-status-icon');
+  var badge = document.getElementById('cache-phase-badge');
   var poll;
 
   function update(){
     fetch(window.location.origin + '/streaming-royalties/cache-status', {credentials: 'omit', mode: 'cors'})
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(d.running){
+        var rb = d.rebuild || {};
+        var phaseLabels = {'ARD': 'Step 1/3 — ARD', 'ALD': 'Step 2/3 — ALD'};
+        if(rb.running){
           bar.style.display = 'block';
           ico.textContent = '⏳';
+          badge.style.display = 'inline';
+          badge.textContent = phaseLabels[rb.phase] || rb.phase;
+          var pct = rb.total > 0 ? Math.round(rb.done / rb.total * 100) : 0;
+          txt.textContent = 'Rebuilding ' + rb.phase + ' — ' + rb.done + ' / ' + rb.total + ' months (' + pct + '%)';
+          prg.style.width = pct + '%';
+          lbl.textContent = 'Step 3 (cache warm) will start automatically when done';
+        } else if(d.running){
+          bar.style.display = 'block';
+          ico.textContent = '⏳';
+          badge.style.display = 'inline';
+          badge.textContent = 'Step 3/3 — Cache';
           var pct = d.total > 0 ? Math.round(d.done / d.total * 100) : 0;
-          txt.textContent = 'Cache warming — ' + (d.current_artist || '…');
+          txt.textContent = 'Warming cache — ' + (d.current_artist || '…');
           prg.style.width = pct + '%';
           lbl.textContent = d.done.toLocaleString() + ' / ' + d.total.toLocaleString() + ' combos (' + pct + '%)';
         } else if(d.total > 0){
           bar.style.display = 'block';
           ico.textContent = '✅';
+          badge.style.display = 'none';
           txt.textContent = 'Cache ready';
           prg.style.width = '100%';
           lbl.textContent = d.total.toLocaleString() + ' combos cached — all artists load instantly';
