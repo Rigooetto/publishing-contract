@@ -1050,6 +1050,7 @@ def _rebuild_artist_label_detail(engine, months=None):
     import logging as _lg_ald
     from sqlalchemy import text as _t
     _log = _lg_ald.getLogger(__name__)
+    _failed_months = []
     try:
         with engine.connect() as conn:
             if months is None:
@@ -1061,21 +1062,40 @@ def _rebuild_artist_label_detail(engine, months=None):
                 conn.commit()
                 _log.warning("ALD full rebuild: %d months", len(all_months))
                 for month in all_months:
-                    conn.execute(_t(_ALD_BULK_SQL), {"month": month})
-                    conn.commit()
-                    _rebuild_status["done"] += 1
-                    _log.warning("ALD full rebuild: month %s done", month)
-                _log.warning("ALD full rebuild: complete")
+                    try:
+                        conn.execute(_t(_ALD_BULK_SQL), {"month": month})
+                        conn.commit()
+                        _rebuild_status["done"] += 1
+                        _log.warning("ALD full rebuild: month %s done", month)
+                    except Exception as _me:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        _failed_months.append(month)
+                        _log.warning("ALD full rebuild: month %s FAILED: %s", month, _me)
+                if _failed_months:
+                    _log.warning("ALD full rebuild: %d months failed: %s", len(_failed_months), _failed_months)
+                else:
+                    _log.warning("ALD full rebuild: complete")
             else:
                 _rebuild_status.update({"phase": "ALD", "running": True, "done": 0, "total": len(months)})
                 for month in months:
-                    conn.execute(_t(
-                        "DELETE FROM artist_label_detail WHERE reporting_month = :m"
-                    ), {"m": month})
-                    conn.execute(_t(_ALD_BULK_SQL), {"month": month})
-                    conn.commit()
-                    _rebuild_status["done"] += 1
-                    _log.warning("ALD rebuild: month %s done", month)
+                    try:
+                        conn.execute(_t(
+                            "DELETE FROM artist_label_detail WHERE reporting_month = :m"
+                        ), {"m": month})
+                        conn.execute(_t(_ALD_BULK_SQL), {"month": month})
+                        conn.commit()
+                        _rebuild_status["done"] += 1
+                        _log.warning("ALD rebuild: month %s done", month)
+                    except Exception as _me:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        _failed_months.append(month)
+                        _log.warning("ALD rebuild: month %s FAILED: %s", month, _me)
         # Normalize stored artist names to current canonical names so exact lookups work
         _normalize_ald_artist_names(engine)
     except Exception as _e:
@@ -1994,18 +2014,8 @@ def ard_rebuild():
                 _rebuild_artist_detail(_eng, months=_missing)
             else:
                 _rebuild_artist_detail(_eng)
-            # ALD: rebuild months missing from artist_label_detail
-            with _eng.connect() as _c2:
-                _ald_missing = [r[0] for r in _c2.execute(_t(
-                    "SELECT DISTINCT reporting_month FROM royalty_summary "
-                    "EXCEPT "
-                    "SELECT DISTINCT reporting_month FROM artist_label_detail "
-                    "ORDER BY 1"
-                )).fetchall()]
-            if _ald_missing:
-                _rebuild_artist_label_detail(_eng, months=_ald_missing)
-            else:
-                _rebuild_artist_label_detail(_eng)
+            # ALD: always do a full rebuild on manual trigger to guarantee data integrity
+            _rebuild_artist_label_detail(_eng)
             _lg.warning("Manual ARD rebuild: complete")
             # Clear stale dashboard cache and rewarm from fresh ALD/ARD data
             _clear_dashboard_cache(_eng)
