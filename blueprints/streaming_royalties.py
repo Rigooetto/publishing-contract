@@ -2007,6 +2007,14 @@ def ard_rebuild():
             else:
                 _rebuild_artist_label_detail(_eng)
             _lg.warning("Manual ARD rebuild: complete")
+            # Clear stale dashboard cache and rewarm from fresh ALD/ARD data
+            _clear_dashboard_cache(_eng)
+            with _eng.connect() as _c3:
+                _all_months = [r[0] for r in _c3.execute(_t(
+                    "SELECT DISTINCT reporting_month FROM royalty_summary ORDER BY 1"
+                )).fetchall()]
+            _prewarm_affected_periods(_eng, _all_months)
+            _lg.warning("Manual ARD rebuild: prewarm complete")
         except Exception as _e:
             _lg.warning("Manual ARD rebuild failed: %s", _e)
         finally:
