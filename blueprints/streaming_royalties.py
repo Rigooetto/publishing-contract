@@ -2001,6 +2001,8 @@ def ard_rebuild():
         from sqlalchemy import text as _t
         _lg = logging.getLogger(__name__)
         _lg.warning("Manual ARD rebuild: starting")
+        # Reset prewarm status so stale "Cache ready" doesn't appear between ARD and ALD phases
+        _prewarm_status.update({"running": False, "done": 0, "total": 0, "current_artist": ""})
         _eng = _ce(_url, poolclass=NullPool)
         try:
             with _eng.connect() as _c:
