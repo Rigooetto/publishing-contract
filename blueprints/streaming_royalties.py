@@ -32,7 +32,8 @@ _prewarm_status: dict = {"running": False, "done": 0, "total": 0, "current_artis
 _rebuild_status: dict = {"phase": "", "done": 0, "total": 0, "running": False}
 _prewarm_lock = threading.Lock()
 _prewarm_counter_lock = threading.Lock()
-_ard_rebuild_lock = threading.Lock()  # prevents concurrent ARD/ALD rebuilds
+_ard_rebuild_lock = threading.Lock()  # prevents concurrent ARD rebuilds
+_ald_rebuild_lock = threading.Lock()  # prevents concurrent ALD rebuilds
 _normalize_lock = threading.Lock()    # prevents concurrent royalty_summary normalization runs
 
 from flask import (
@@ -1050,6 +1051,10 @@ def _rebuild_artist_label_detail(engine, months=None):
     import logging as _lg_ald
     from sqlalchemy import text as _t
     _log = _lg_ald.getLogger(__name__)
+    if not _ald_rebuild_lock.acquire(blocking=True, timeout=10):
+        _log.warning("_rebuild_artist_label_detail: another ALD rebuild already running, skipping.")
+        _rebuild_status.update({"running": False, "phase": ""})
+        return
     _failed_months = []
     _rebuild_status.update({"phase": "ALD", "running": True, "done": 0, "total": 0})
     try:
@@ -1103,6 +1108,7 @@ def _rebuild_artist_label_detail(engine, months=None):
         _log.warning("_rebuild_artist_label_detail failed: %s", _e)
     finally:
         _rebuild_status.update({"running": False, "phase": ""})
+        _ald_rebuild_lock.release()
 
 
 def _get_isrc_csv(engine, isrc_set: set) -> dict:
