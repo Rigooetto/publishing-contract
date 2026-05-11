@@ -1051,6 +1051,7 @@ def _rebuild_artist_label_detail(engine, months=None):
     from sqlalchemy import text as _t
     _log = _lg_ald.getLogger(__name__)
     _failed_months = []
+    _rebuild_status.update({"phase": "ALD", "running": True, "done": 0, "total": 0})
     try:
         with engine.connect() as conn:
             if months is None:
