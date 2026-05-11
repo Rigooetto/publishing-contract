@@ -1537,13 +1537,13 @@ def _prewarm_worker_fn(args):
 
 def _prewarm_affected_periods(engine, months, emit_fn=None):
     """Compute and cache all artist × affected-period × both-view combos in parallel.
-    Skips ("all","all") per-artist — those are warmed on first access or by startup Phase 2.
+    Includes ("all","all") per-artist so all-time is always pre-warmed after import.
     emit_fn(msg) is optional — used by the SSE path to stream progress messages.
     """
     from sqlalchemy import text as _t
     from concurrent.futures import ThreadPoolExecutor as _TPE, as_completed as _asc
 
-    # Derive (year, quarter) pairs for affected months + year totals; skip all|all per-artist
+    # Derive (year, quarter) pairs for affected months + year totals + all-time
     periods = set()
     for m in months:
         y = str(getattr(m, 'year', None) or str(m)[:4])
@@ -1551,14 +1551,16 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
         q = str((mn - 1) // 3 + 1)
         periods.add((y, q))
         periods.add((y, "all"))
-    # Include all|all only for artist="all" (global totals)
     all_time_period = ("all", "all")
 
     try:
         with engine.connect() as _ac:
-            artist_rows = _ac.execute(_t(
-                "SELECT DISTINCT artist_name FROM artist_royalty_detail ORDER BY 1"
-            )).fetchall()
+            artist_rows = _ac.execute(_t("""
+                SELECT DISTINCT artist_name FROM artist_label_detail
+                UNION
+                SELECT DISTINCT artist_name FROM artist_royalty_detail
+                ORDER BY 1
+            """)).fetchall()
         artists = [r[0] for r in artist_rows if r[0]]
     except Exception:
         artists = []
@@ -1569,8 +1571,8 @@ def _prewarm_affected_periods(engine, months, emit_fn=None):
     for (y, q) in sorted(periods | {all_time_period}):
         all_combos.append((engine_url, y, q, "all", "label"))
         all_combos.append((engine_url, y, q, "all", "artist"))
-    # per-artist: only specific year×quarter + year totals (skip all-time — too expensive at import time)
-    for (y, q) in sorted(periods):
+    # per-artist: affected year×quarter + year totals + all-time
+    for (y, q) in sorted(periods | {all_time_period}):
         for artist in artists:
             all_combos.append((engine_url, y, q, artist, "label"))
             all_combos.append((engine_url, y, q, artist, "artist"))
