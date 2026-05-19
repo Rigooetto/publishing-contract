@@ -7,7 +7,7 @@ from flask import Blueprint, render_template_string, request, redirect, url_for,
 from werkzeug.utils import secure_filename
 
 from extensions import db
-from models import Work, ProRegistration, WorkAKA
+from models import Work, WorkWriter, Writer, ProRegistration, WorkAKA
 from utils import auth_required, role_required, FULL_ACCESS_ROLES, normalize_for_match
 from ui import PRO_AUDIT_HTML
 
@@ -450,31 +450,70 @@ def create_works_from_pro():
         flash("Invalid request.", "error")
         return redirect(url_for("audit.pro_audit", tab="orphaned"))
 
+    from sqlalchemy import func as _func
+
     created = 0
     skipped = 0
-    for w in works_data:
-        title = (w.get("title") or "").strip()
-        if not title:
-            continue
-        normalized = _norm(title)
-        if Work.query.filter_by(normalized_title=normalized).first():
-            skipped += 1
-            continue
-        db.session.add(Work(
-            title=title,
-            normalized_title=normalized,
-            iswc=(w.get("iswc") or "").strip(),
-        ))
-        created += 1
+    try:
+        for w in works_data:
+            title = (w.get("title") or "").strip()
+            if not title:
+                continue
+            normalized = _norm(title)
+            if Work.query.filter_by(normalized_title=normalized).first():
+                skipped += 1
+                continue
 
-    if created:
+            work = Work(
+                title=title,
+                normalized_title=normalized,
+                iswc=(w.get("iswc") or "").strip(),
+            )
+            db.session.add(work)
+            db.session.flush()
+
+            publisher     = (w.get("publisher") or "").strip()
+            publisher_ipi = (w.get("publisher_ipi") or "").strip()
+
+            for wr in (w.get("writers") or []):
+                name = (wr.get("name") or "").strip()
+                if not name:
+                    continue
+                ipi   = (wr.get("ipi") or "").strip() or None
+                pro   = (wr.get("pro") or "").strip()
+                split = float(wr.get("split") or 0)
+
+                writer = None
+                if ipi:
+                    writer = Writer.query.filter(
+                        _func.lower(Writer.ipi) == ipi.lower()
+                    ).first()
+                if not writer:
+                    writer = Writer.query.filter(
+                        _func.lower(Writer.full_name) == name.lower()
+                    ).first()
+                if not writer:
+                    writer = Writer(full_name=name, ipi=ipi, pro=pro)
+                    db.session.add(writer)
+                    db.session.flush()
+
+                db.session.add(WorkWriter(
+                    work_id=work.id,
+                    writer_id=writer.id,
+                    writer_percentage=split,
+                    publisher=publisher,
+                    publisher_ipi=publisher_ipi,
+                ))
+
+            created += 1
+
         db.session.commit()
         msg = f"{created} work(s) created from PRO data."
         if skipped:
             msg += f" {skipped} skipped (already exist)."
         flash(msg, "success")
-    else:
+    except Exception as e:
         db.session.rollback()
-        flash(f"No works created — {skipped} already exist." if skipped else "No works selected.", "error")
+        flash(f"Error creating works: {e}", "error")
 
     return redirect(url_for("audit.pro_audit", tab="orphaned"))

@@ -6586,14 +6586,14 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
       <span style="font-size:12px;color:var(--t3);margin-left:8px">May be legacy registrations, title spelling differences, or works not yet entered</span>
     </div>
     {% if orphaned %}
-    <div id="orphanActionBar" style="display:flex;align-items:center;gap:10px;margin-left:auto">
+    <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
       <span id="proSelCount" style="font-size:13px;color:var(--t3)">0 selected</span>
       <form id="proCreateForm" method="post" action="/pro-audit/create-works">
         <input type="hidden" id="proWorksJson" name="works_json" value="[]">
         <button id="proCreateBtn" type="button" disabled
           style="opacity:.45;cursor:not-allowed"
           class="btn btn-primary btn-sm"
-          onclick="submitProWorks()">Create Selected as Works</button>
+          onclick="openProModal()">Create Selected as Works</button>
       </form>
     </div>
     {% endif %}
@@ -6617,6 +6617,9 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
       <td><input type="checkbox" class="orphan-chk"
         data-title="{{ o.title | e }}"
         data-iswc="{{ o.iswc | e }}"
+        data-pro="{{ o.pro | e }}"
+        data-publisher="{{ o.publisher | e }}"
+        data-writers='{{ o.writers | tojson }}'
         onchange="updateOrphanSel()"></td>
       <td><span class="pro-badge pro-{{ o.pro|lower }}">{{ o.pro }}</span></td>
       <td>
@@ -6640,7 +6643,26 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No PRO-only entries found.</div>
   {% endif %}
 </div>
+
+<!-- Create Works Modal -->
+<div id="proCreateModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);overflow-y:auto;padding:32px 16px;align-items:flex-start;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--b0);border-radius:14px;width:100%;max-width:700px;padding:28px 32px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 style="margin:0;font-size:18px;font-weight:700;color:var(--t1)">Create Works from PRO Data</h2>
+      <button onclick="closeProModal()" style="background:none;border:none;color:var(--t3);font-size:22px;cursor:pointer;line-height:1">&#215;</button>
+    </div>
+    <div id="proWorksForms"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--b0)">
+      <button type="button" onclick="closeProModal()" class="btn btn-sec">Cancel</button>
+      <button type="button" onclick="submitProModal()" class="btn btn-primary">Create Works</button>
+    </div>
+  </div>
+</div>
+
 <script>
+var _proWorksData=[];
+function _esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/"/g,'&quot;');}
+
 function updateOrphanSel(){
   var chks=document.querySelectorAll('.orphan-chk');
   var checked=document.querySelectorAll('.orphan-chk:checked');
@@ -6651,16 +6673,88 @@ function updateOrphanSel(){
   btn.style.opacity=n?'1':'0.45';
   btn.style.cursor=n?'pointer':'not-allowed';
   var sa=document.getElementById('orphanSelectAll');
-  if(sa) sa.indeterminate=(n>0&&n<chks.length), sa.checked=(n===chks.length&&n>0);
+  if(sa){sa.indeterminate=(n>0&&n<chks.length);sa.checked=(n===chks.length&&n>0);}
 }
 function toggleAllOrphan(sa){
   document.querySelectorAll('.orphan-chk').forEach(function(c){c.checked=sa.checked;});
   updateOrphanSel();
 }
-function submitProWorks(){
+
+function openProModal(){
   var checked=document.querySelectorAll('.orphan-chk:checked');
+  if(!checked.length) return;
+  _proWorksData=[];
+  checked.forEach(function(chk){
+    var writers=[];
+    try{writers=JSON.parse(chk.dataset.writers||'[]');}catch(e){}
+    if(!writers.length) writers=[''];
+    _proWorksData.push({title:chk.dataset.title,iswc:chk.dataset.iswc||'',pro:chk.dataset.pro||'',publisher:chk.dataset.publisher||'',writers:writers});
+  });
+  var html='';
+  _proWorksData.forEach(function(w,wi){
+    var n=w.writers.length;
+    var split=n>1?(100/n).toFixed(1):'100';
+    html+='<div style="border:1px solid var(--b0);border-radius:10px;padding:16px 18px;margin-bottom:14px">';
+    html+='<div style="font-weight:600;color:var(--t1);font-size:14px;margin-bottom:2px">'+_esc(w.title)+'</div>';
+    html+='<div style="font-size:11px;color:var(--t3);margin-bottom:12px">'+_esc(w.pro)+(w.iswc?' &bull; '+_esc(w.iswc):'')+'</div>';
+    html+='<div style="display:grid;grid-template-columns:2fr 1.4fr 1fr 68px 24px;gap:6px;margin-bottom:4px">'
+      +'<span style="font-size:11px;color:var(--t3)">Writer Name</span>'
+      +'<span style="font-size:11px;color:var(--t3)">IPI #</span>'
+      +'<span style="font-size:11px;color:var(--t3)">PRO</span>'
+      +'<span style="font-size:11px;color:var(--t3)">Split %</span>'
+      +'<span></span></div>';
+    html+='<div id="wrows-'+wi+'">';
+    w.writers.forEach(function(name,ri){html+=_wrRow(wi,ri,name,w.pro,split);});
+    html+='</div>';
+    html+='<button type="button" onclick="addWRow('+wi+')" style="font-size:12px;color:var(--ac,#4f8ef7);background:none;border:none;cursor:pointer;padding:2px 0;margin:6px 0 12px">+ Add Writer</button>';
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Publisher</div>'
+      +'<input id="pub-name-'+wi+'" value="'+_esc(w.publisher)+'" placeholder="Publisher name" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
+    html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Publisher IPI</div>'
+      +'<input id="pub-ipi-'+wi+'" placeholder="Publisher IPI #" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
+    html+='</div></div>';
+  });
+  document.getElementById('proWorksForms').innerHTML=html;
+  document.getElementById('proCreateModal').style.display='flex';
+}
+
+function _wrRow(wi,ri,name,pro,split){
+  var opts=['ASCAP','BMI','SESAC'].map(function(p){return '<option value="'+p+'"'+(p===pro?' selected':'')+'>'+p+'</option>';}).join('');
+  var inp='background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:5px 7px;font-size:12px;width:100%;box-sizing:border-box';
+  return '<div style="display:grid;grid-template-columns:2fr 1.4fr 1fr 68px 24px;gap:6px;margin-bottom:6px;align-items:center" id="wrow-'+wi+'-'+ri+'">'
+    +'<input style="'+inp+'" placeholder="Full name" value="'+_esc(name)+'">'
+    +'<input style="'+inp+'" placeholder="IPI #">'
+    +'<select style="'+inp+'">'+opts+'</select>'
+    +'<input type="number" style="'+inp+'" placeholder="%" value="'+split+'" min="0" max="100" step="0.1">'
+    +'<button type="button" onclick="this.closest(\'[id^=wrow]\').remove()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:0;line-height:1">&#215;</button>'
+    +'</div>';
+}
+
+function addWRow(wi){
+  var c=document.getElementById('wrows-'+wi);
+  if(!c) return;
+  var ri=c.children.length;
+  var pro=_proWorksData[wi]?_proWorksData[wi].pro:'';
+  c.insertAdjacentHTML('beforeend',_wrRow(wi,ri,'',pro,''));
+}
+
+function closeProModal(){document.getElementById('proCreateModal').style.display='none';}
+
+function submitProModal(){
   var works=[];
-  checked.forEach(function(c){works.push({title:c.dataset.title,iswc:c.dataset.iswc});});
+  _proWorksData.forEach(function(w,wi){
+    var c=document.getElementById('wrows-'+wi);
+    var writers=[];
+    if(c) c.querySelectorAll('[id^="wrow-'+wi+'-"]').forEach(function(row){
+      var inp=row.querySelectorAll('input,select');
+      var name=(inp[0]?inp[0].value:'').trim();
+      if(!name) return;
+      writers.push({name:name,ipi:(inp[1]?inp[1].value:'').trim(),pro:inp[2]?inp[2].value:'',split:parseFloat(inp[3]?inp[3].value:0)||0});
+    });
+    var pn=document.getElementById('pub-name-'+wi);
+    var pi=document.getElementById('pub-ipi-'+wi);
+    works.push({title:w.title,iswc:w.iswc,writers:writers,publisher:pn?pn.value:'',publisher_ipi:pi?pi.value:''});
+  });
   document.getElementById('proWorksJson').value=JSON.stringify(works);
   document.getElementById('proCreateForm').submit();
 }
