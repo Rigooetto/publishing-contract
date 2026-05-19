@@ -6580,14 +6580,29 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
 </div>
 {% elif tab == 'orphaned' %}
 <div class="card">
-  <div class="card-hd">
-    <span class="card-title">Works found in PRO exports but not in LabelMind</span>
-    <span style="font-size:12px;color:var(--t3);margin-left:8px">May be legacy registrations, title spelling differences, or works not yet entered</span>
+  <div class="card-hd" style="flex-wrap:wrap;gap:10px">
+    <div>
+      <span class="card-title">Works found in PRO exports but not in LabelMind</span>
+      <span style="font-size:12px;color:var(--t3);margin-left:8px">May be legacy registrations, title spelling differences, or works not yet entered</span>
+    </div>
+    {% if orphaned %}
+    <div id="orphanActionBar" style="display:flex;align-items:center;gap:10px;margin-left:auto">
+      <span id="proSelCount" style="font-size:13px;color:var(--t3)">0 selected</span>
+      <form id="proCreateForm" method="post" action="/pro-audit/create-works">
+        <input type="hidden" id="proWorksJson" name="works_json" value="[]">
+        <button id="proCreateBtn" type="button" disabled
+          style="opacity:.45;cursor:not-allowed"
+          class="btn btn-primary btn-sm"
+          onclick="submitProWorks()">Create Selected as Works</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
   {% if orphaned %}
   <div style="overflow-x:auto">
   <table class="tbl" style="width:100%">
     <thead><tr>
+      <th style="width:32px"><input type="checkbox" id="orphanSelectAll" title="Select all" onclick="toggleAllOrphan(this)"></th>
       <th>PRO</th>
       <th style="min-width:220px">Title (as filed)</th>
       <th style="min-width:160px">Writer(s)</th>
@@ -6599,6 +6614,10 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
     <tbody>
     {% for o in orphaned %}
     <tr>
+      <td><input type="checkbox" class="orphan-chk"
+        data-title="{{ o.title | e }}"
+        data-iswc="{{ o.iswc | e }}"
+        onchange="updateOrphanSel()"></td>
       <td><span class="pro-badge pro-{{ o.pro|lower }}">{{ o.pro }}</span></td>
       <td>
         <div style="font-weight:500;color:var(--t1)">{{ o.title }}</div>
@@ -6621,6 +6640,31 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">No PRO-only entries found.</div>
   {% endif %}
 </div>
+<script>
+function updateOrphanSel(){
+  var chks=document.querySelectorAll('.orphan-chk');
+  var checked=document.querySelectorAll('.orphan-chk:checked');
+  var n=checked.length;
+  var btn=document.getElementById('proCreateBtn');
+  document.getElementById('proSelCount').textContent=n+' selected';
+  btn.disabled=(n===0);
+  btn.style.opacity=n?'1':'0.45';
+  btn.style.cursor=n?'pointer':'not-allowed';
+  var sa=document.getElementById('orphanSelectAll');
+  if(sa) sa.indeterminate=(n>0&&n<chks.length), sa.checked=(n===chks.length&&n>0);
+}
+function toggleAllOrphan(sa){
+  document.querySelectorAll('.orphan-chk').forEach(function(c){c.checked=sa.checked;});
+  updateOrphanSel();
+}
+function submitProWorks(){
+  var checked=document.querySelectorAll('.orphan-chk:checked');
+  var works=[];
+  checked.forEach(function(c){works.push({title:c.dataset.title,iswc:c.dataset.iswc});});
+  document.getElementById('proWorksJson').value=JSON.stringify(works);
+  document.getElementById('proCreateForm').submit();
+}
+</script>
 {% endif %}
 </div></main></div>
 <script>

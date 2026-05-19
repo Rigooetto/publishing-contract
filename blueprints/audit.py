@@ -434,3 +434,47 @@ def apply_title():
         db.session.rollback()
         flash(f"Error: {e}", "error")
     return redirect(url_for("audit.pro_audit", tab="matched"))
+
+
+@bp.route("/pro-audit/create-works", methods=["POST"])
+def create_works_from_pro():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+
+    try:
+        works_data = json.loads(request.form.get("works_json", "[]"))
+    except Exception:
+        flash("Invalid request.", "error")
+        return redirect(url_for("audit.pro_audit", tab="orphaned"))
+
+    created = 0
+    skipped = 0
+    for w in works_data:
+        title = (w.get("title") or "").strip()
+        if not title:
+            continue
+        normalized = _norm(title)
+        if Work.query.filter_by(normalized_title=normalized).first():
+            skipped += 1
+            continue
+        db.session.add(Work(
+            title=title,
+            normalized_title=normalized,
+            iswc=(w.get("iswc") or "").strip(),
+        ))
+        created += 1
+
+    if created:
+        db.session.commit()
+        msg = f"{created} work(s) created from PRO data."
+        if skipped:
+            msg += f" {skipped} skipped (already exist)."
+        flash(msg, "success")
+    else:
+        db.session.rollback()
+        flash(f"No works created — {skipped} already exist." if skipped else "No works selected.", "error")
+
+    return redirect(url_for("audit.pro_audit", tab="orphaned"))
