@@ -100,6 +100,7 @@ def _parse_ascap():
             reg_date   = row.get("Registration Date", "").strip()
             reg_status = row.get("Registration Status", "").strip()
             name    = row.get("Interested Parties", "").strip()
+            ipi     = row.get("IPI Number", "").strip()
             role    = row.get("Role", "").strip().upper()
             if not title or not work_id:
                 continue
@@ -107,12 +108,13 @@ def _parse_ascap():
             if key not in works:
                 works[key] = dict(title=title, work_id=work_id, iswc=iswc,
                                   reg_date=reg_date, reg_status=reg_status,
-                                  writers=[], publisher="")
+                                  writers=[], publisher="", publisher_ipi="")
             if role in ("C", "A", "CA", "AR"):
-                if name and name not in works[key]["writers"]:
-                    works[key]["writers"].append(name)
+                if name and not any(w["name"] == name for w in works[key]["writers"]):
+                    works[key]["writers"].append({"name": name, "ipi": ipi})
             elif role in ("E", "AM") and not works[key]["publisher"]:
                 works[key]["publisher"] = name
+                works[key]["publisher_ipi"] = ipi
     return works
 
 
@@ -130,6 +132,7 @@ def _parse_bmi():
             reg_date   = row.get("RegistrationDate", "").strip()
             reg_status = row.get("SongviewStatus", "").strip()
             name    = row.get("Participant", "").strip()
+            ipi     = row.get("IPNameNumber", "").strip()
             kind    = row.get("WtrPubIndicator", "").strip().upper()
             if not title or not work_id:
                 continue
@@ -137,12 +140,13 @@ def _parse_bmi():
             if key not in works:
                 works[key] = dict(title=title, work_id=work_id, iswc=iswc,
                                   reg_date=reg_date, reg_status=reg_status,
-                                  writers=[], publisher="")
+                                  writers=[], publisher="", publisher_ipi="")
             if kind == "W":
-                if name and name not in works[key]["writers"]:
-                    works[key]["writers"].append(name)
+                if name and not any(w["name"] == name for w in works[key]["writers"]):
+                    works[key]["writers"].append({"name": name, "ipi": ipi})
             elif kind == "P" and not works[key]["publisher"]:
                 works[key]["publisher"] = name
+                works[key]["publisher_ipi"] = ipi
     return works
 
 
@@ -159,6 +163,7 @@ def _parse_sesac():
             iswc    = row.get("ISWC #", "").strip()
             reg_date = row.get("Reg. Date", "").strip()
             name     = row.get("Name", "").strip()
+            ipi      = row.get("Affiliate #", "").strip()
             kind     = row.get("Publisher/Writer", "").strip().upper()
             if not title or not work_id:
                 continue
@@ -166,12 +171,13 @@ def _parse_sesac():
             if key not in works:
                 works[key] = dict(title=title, work_id=work_id, iswc=iswc,
                                   reg_date=reg_date, reg_status="",
-                                  writers=[], publisher="")
+                                  writers=[], publisher="", publisher_ipi="")
             if kind == "W":
-                if name and name not in works[key]["writers"]:
-                    works[key]["writers"].append(name)
+                if name and not any(w["name"] == name for w in works[key]["writers"]):
+                    works[key]["writers"].append({"name": name, "ipi": ipi})
             elif kind == "P" and not works[key]["publisher"]:
                 works[key]["publisher"] = name
+                works[key]["publisher_ipi"] = ipi
     return works
 
 

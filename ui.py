@@ -6619,6 +6619,7 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
         data-iswc="{{ o.iswc | e }}"
         data-pro="{{ o.pro | e }}"
         data-publisher="{{ o.publisher | e }}"
+        data-publisher-ipi="{{ o.publisher_ipi | e }}"
         data-writers='{{ o.writers | tojson }}'
         onchange="updateOrphanSel()"></td>
       <td><span class="pro-badge pro-{{ o.pro|lower }}">{{ o.pro }}</span></td>
@@ -6627,7 +6628,7 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
         {% if o.publisher %}<div style="font-size:11px;color:var(--t3);margin-top:2px">{{ o.publisher }}</div>{% endif %}
       </td>
       <td style="font-size:12px;color:var(--t2)">
-        {% if o.writers %}{{ o.writers | join(\', \') }}{% else %}<span style="color:var(--t3)">&mdash;</span>{% endif %}
+        {% if o.writers %}{{ o.writers | map(attribute=\'name\') | join(\', \') }}{% else %}<span style="color:var(--t3)">&mdash;</span>{% endif %}
       </td>
       <td style="font-size:12px;color:var(--t3);font-family:monospace">{{ o.work_id }}</td>
       <td>{% if o.iswc %}<span class="iswc-tag">{{ o.iswc }}</span>
@@ -6687,8 +6688,8 @@ function openProModal(){
   checked.forEach(function(chk){
     var writers=[];
     try{writers=JSON.parse(chk.dataset.writers||'[]');}catch(e){}
-    if(!writers.length) writers=[''];
-    _proWorksData.push({title:chk.dataset.title,iswc:chk.dataset.iswc||'',pro:chk.dataset.pro||'',publisher:chk.dataset.publisher||'',writers:writers});
+    if(!writers.length) writers=[{name:'',ipi:''}];
+    _proWorksData.push({title:chk.dataset.title,iswc:chk.dataset.iswc||'',pro:chk.dataset.pro||'',publisher:chk.dataset.publisher||'',publisherIpi:chk.dataset.publisherIpi||'',writers:writers});
   });
   var html='';
   _proWorksData.forEach(function(w,wi){
@@ -6704,26 +6705,26 @@ function openProModal(){
       +'<span style="font-size:11px;color:var(--t3)">Split %</span>'
       +'<span></span></div>';
     html+='<div id="wrows-'+wi+'">';
-    w.writers.forEach(function(name,ri){html+=_wrRow(wi,ri,name,w.pro,split);});
+    w.writers.forEach(function(wr,ri){html+=_wrRow(wi,ri,wr.name||wr||'',wr.ipi||'',w.pro,split);});
     html+='</div>';
     html+='<button type="button" onclick="addWRow('+wi+')" style="font-size:12px;color:var(--ac,#4f8ef7);background:none;border:none;cursor:pointer;padding:2px 0;margin:6px 0 12px">+ Add Writer</button>';
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
     html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Publisher</div>'
       +'<input id="pub-name-'+wi+'" value="'+_esc(w.publisher)+'" placeholder="Publisher name" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
     html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Publisher IPI</div>'
-      +'<input id="pub-ipi-'+wi+'" placeholder="Publisher IPI #" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
+      +'<input id="pub-ipi-'+wi+'" value="'+_esc(w.publisherIpi||'')+'" placeholder="Publisher IPI #" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
     html+='</div></div>';
   });
   document.getElementById('proWorksForms').innerHTML=html;
   document.getElementById('proCreateModal').style.display='flex';
 }
 
-function _wrRow(wi,ri,name,pro,split){
+function _wrRow(wi,ri,name,ipi,pro,split){
   var opts=['ASCAP','BMI','SESAC'].map(function(p){return '<option value="'+p+'"'+(p===pro?' selected':'')+'>'+p+'</option>';}).join('');
   var inp='background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:5px 7px;font-size:12px;width:100%;box-sizing:border-box';
   return '<div style="display:grid;grid-template-columns:2fr 1.4fr 1fr 68px 24px;gap:6px;margin-bottom:6px;align-items:center" id="wrow-'+wi+'-'+ri+'">'
     +'<input style="'+inp+'" placeholder="Full name" value="'+_esc(name)+'">'
-    +'<input style="'+inp+'" placeholder="IPI #">'
+    +'<input style="'+inp+'" placeholder="IPI #" value="'+_esc(ipi)+'">'
     +'<select style="'+inp+'">'+opts+'</select>'
     +'<input type="number" style="'+inp+'" placeholder="%" value="'+split+'" min="0" max="100" step="0.1">'
     +'<button type="button" onclick="this.closest(\\'[id^=wrow]\\').remove()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:0;line-height:1">&#215;</button>'
@@ -6735,7 +6736,7 @@ function addWRow(wi){
   if(!c) return;
   var ri=c.children.length;
   var pro=_proWorksData[wi]?_proWorksData[wi].pro:'';
-  c.insertAdjacentHTML('beforeend',_wrRow(wi,ri,'',pro,''));
+  c.insertAdjacentHTML('beforeend',_wrRow(wi,ri,'','',pro,''));
 }
 
 function closeProModal(){document.getElementById('proCreateModal').style.display='none';}
