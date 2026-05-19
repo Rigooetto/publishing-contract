@@ -6726,7 +6726,7 @@ function _wrRow(wi,ri,name,pro,split){
     +'<input style="'+inp+'" placeholder="IPI #">'
     +'<select style="'+inp+'">'+opts+'</select>'
     +'<input type="number" style="'+inp+'" placeholder="%" value="'+split+'" min="0" max="100" step="0.1">'
-    +'<button type="button" onclick="this.closest(\'[id^=wrow]\').remove()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:0;line-height:1">&#215;</button>'
+    +'<button type="button" onclick="this.closest(\\'[id^=wrow]\\').remove()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:0;line-height:1">&#215;</button>'
     +'</div>';
 }
 
