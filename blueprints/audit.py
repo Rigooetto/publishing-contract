@@ -470,10 +470,18 @@ def create_works_from_pro():
                 skipped += 1
                 continue
 
+            cd_raw = (w.get("contract_date") or "").strip()
+            cd = None
+            if cd_raw:
+                try:
+                    cd = datetime.datetime.strptime(cd_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
             work = Work(
                 title=title,
                 normalized_title=normalized,
                 iswc=(w.get("iswc") or "").strip(),
+                contract_date=cd,
             )
             db.session.add(work)
             db.session.flush()

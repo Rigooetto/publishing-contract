@@ -6620,6 +6620,7 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
         data-pro="{{ o.pro | e }}"
         data-publisher="{{ o.publisher | e }}"
         data-publisher-ipi="{{ o.publisher_ipi | e }}"
+        data-reg-date="{{ o.reg_date | e }}"
         data-writers='{{ o.writers | tojson }}'
         onchange="updateOrphanSel()"></td>
       <td><span class="pro-badge pro-{{ o.pro|lower }}">{{ o.pro }}</span></td>
@@ -6689,7 +6690,9 @@ function openProModal(){
     var writers=[];
     try{writers=JSON.parse(chk.dataset.writers||'[]');}catch(e){}
     if(!writers.length) writers=[{name:'',ipi:''}];
-    _proWorksData.push({title:chk.dataset.title,iswc:chk.dataset.iswc||'',pro:chk.dataset.pro||'',publisher:chk.dataset.publisher||'',publisherIpi:chk.dataset.publisherIpi||'',writers:writers});
+    var rd=chk.dataset.regDate||'';
+    var rdIso='';if(rd){var p=rd.split('/');if(p.length===3)rdIso=p[2]+'-'+p[0].padStart(2,'0')+'-'+p[1].padStart(2,'0');}
+    _proWorksData.push({title:chk.dataset.title,iswc:chk.dataset.iswc||'',pro:chk.dataset.pro||'',publisher:chk.dataset.publisher||'',publisherIpi:chk.dataset.publisherIpi||'',contractDate:rdIso,writers:writers});
   });
   var html='';
   _proWorksData.forEach(function(w,wi){
@@ -6708,11 +6711,13 @@ function openProModal(){
     w.writers.forEach(function(wr,ri){html+=_wrRow(wi,ri,wr.name||wr||'',wr.ipi||'',w.pro,split);});
     html+='</div>';
     html+='<button type="button" onclick="addWRow('+wi+')" style="font-size:12px;color:var(--ac,#4f8ef7);background:none;border:none;cursor:pointer;padding:2px 0;margin:6px 0 12px">+ Add Writer</button>';
-    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
     html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Publisher</div>'
       +'<input id="pub-name-'+wi+'" value="'+_esc(w.publisher)+'" placeholder="Publisher name" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
     html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Publisher IPI</div>'
       +'<input id="pub-ipi-'+wi+'" value="'+_esc(w.publisherIpi||'')+'" placeholder="Publisher IPI #" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
+    html+='<div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Contract Date</div>'
+      +'<input type="date" id="contract-date-'+wi+'" value="'+_esc(w.contractDate||'')+'" style="width:100%;box-sizing:border-box;background:var(--b1);border:1px solid var(--b0);border-radius:6px;color:var(--t1);padding:6px 8px;font-size:13px"></div>';
     html+='</div></div>';
   });
   document.getElementById('proWorksForms').innerHTML=html;
@@ -6754,7 +6759,8 @@ function submitProModal(){
     });
     var pn=document.getElementById('pub-name-'+wi);
     var pi=document.getElementById('pub-ipi-'+wi);
-    works.push({title:w.title,iswc:w.iswc,writers:writers,publisher:pn?pn.value:'',publisher_ipi:pi?pi.value:''});
+    var cd=document.getElementById('contract-date-'+wi);
+    works.push({title:w.title,iswc:w.iswc,writers:writers,publisher:pn?pn.value:'',publisher_ipi:pi?pi.value:'',contract_date:cd?cd.value:''});
   });
   document.getElementById('proWorksJson').value=JSON.stringify(works);
   document.getElementById('proCreateForm').submit();
