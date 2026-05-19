@@ -6647,7 +6647,7 @@ PRO_AUDIT_HTML = """<!DOCTYPE html>
 
 <!-- Create Works Modal -->
 <div id="proCreateModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);overflow-y:auto;padding:32px 16px;align-items:flex-start;justify-content:center">
-  <div style="background:var(--s1);border:1px solid var(--b0);border-radius:14px;width:100%;max-width:700px;padding:28px 32px;margin:0 auto">
+  <div style="background:#0f172a;border:1px solid rgba(255,255,255,.12);border-radius:14px;width:100%;max-width:700px;padding:28px 32px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,.45)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
       <h2 style="margin:0;font-size:18px;font-weight:700;color:var(--t1)">Create Works from PRO Data</h2>
       <button onclick="closeProModal()" style="background:none;border:none;color:var(--t3);font-size:22px;cursor:pointer;line-height:1">&#215;</button>
