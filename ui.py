@@ -6928,8 +6928,10 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
   <a href="?tab=matched_both" class="audit-tab {% if tab=='matched_both' %}on{% endif %}">Matched Both <span class="cnt">{{ stats.matched_both }}</span></a>
   <a href="?tab=mlc_only"     class="audit-tab {% if tab=='mlc_only' %}on{% endif %}">MLC Only <span class="cnt">{{ stats.mlc_only }}</span></a>
   <a href="?tab=mri_only"     class="audit-tab {% if tab=='mri_only' %}on{% endif %}">MRI Only <span class="cnt">{{ stats.mri_only }}</span></a>
-  <a href="?tab=unregistered" class="audit-tab {% if tab=='unregistered' %}on{% endif %}">Unregistered <span class="cnt">{{ stats.unregistered }}</span></a>
-  <a href="?tab=orphaned"     class="audit-tab {% if tab=='orphaned' %}on{% endif %}">Source-Only (not in DB) <span class="cnt">{{ stats.orphaned }}</span></a>
+  <a href="?tab=unregistered"     class="audit-tab {% if tab=='unregistered' %}on{% endif %}">Unregistered <span class="cnt">{{ stats.unregistered }}</span></a>
+  <a href="?tab=mlc_unregistered" class="audit-tab {% if tab=='mlc_unregistered' %}on{% endif %}">MLC (Unregistered) <span class="cnt">{{ stats.mlc_unregistered }}</span></a>
+  <a href="?tab=mri_unregistered" class="audit-tab {% if tab=='mri_unregistered' %}on{% endif %}">MRI (Unregistered) <span class="cnt">{{ stats.mri_unregistered }}</span></a>
+  <a href="?tab=orphaned"         class="audit-tab {% if tab=='orphaned' %}on{% endif %}">Source-Only (not in DB) <span class="cnt">{{ stats.orphaned }}</span></a>
 </div>
 
 {% macro work_row(e) %}
@@ -7075,6 +7077,89 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
   {{ pagination_bar(pagination.total, 'works') }}
   {% else %}
   <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are registered for mechanicals. &#9989;</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'mlc_unregistered' %}
+<div class="card">
+  <div class="card-hd">
+    <div>
+      <span class="card-title">Works not registered with MLC</span>
+      <span style="font-size:12px;color:#e05c5c;margin-left:8px">Submit these to MLC for mechanical royalty collection</span>
+    </div>
+    <a href="/mechanical-audit/export/mlc-unregistered" class="btn btn-primary btn-sm" style="margin-left:auto">&#8659; Export MLC Template</a>
+  </div>
+  {% if mlc_unregistered %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:220px">Work Title</th>
+      <th>LabelMind ID</th>
+      <th>ISWC</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+    </tr></thead>
+    <tbody>
+    {% for e in mlc_unregistered %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td style="font-size:12px;color:var(--t3);font-family:monospace">LM{{ '%06d' % e.work.id }}</td>
+      <td>{% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in e.work.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">
+        {% if e.work.contract_date %}{{ e.work.contract_date.strftime('%m/%d/%Y') }}{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ pagination_bar(pagination.total, 'works') }}
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are registered with MLC. &#9989;</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'mri_unregistered' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Works not registered with Music Reports</span>
+    <span style="font-size:12px;color:#e05c5c;margin-left:8px">Submit these to Music Reports for mechanical royalty collection</span>
+  </div>
+  {% if mri_unregistered %}
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%">
+    <thead><tr>
+      <th style="min-width:220px">Work Title</th>
+      <th>LabelMind ID</th>
+      <th>ISWC</th>
+      <th>Writers</th>
+      <th>Contract Date</th>
+    </tr></thead>
+    <tbody>
+    {% for e in mri_unregistered %}
+    <tr>
+      <td style="font-weight:500"><a href="/works/{{ e.work.id }}" style="color:var(--t1)">{{ e.work.title }}</a></td>
+      <td style="font-size:12px;color:var(--t3);font-family:monospace">LM{{ '%06d' % e.work.id }}</td>
+      <td>{% if e.work.iswc %}<span class="iswc-tag">{{ e.work.iswc }}</span>
+          {% else %}<span style="color:var(--t3);font-size:12px">&mdash;</span>{% endif %}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in e.work.work_writers %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">
+        {% if e.work.contract_date %}{{ e.work.contract_date.strftime('%m/%d/%Y') }}{% else %}&mdash;{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ pagination_bar(pagination.total, 'works') }}
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All works are registered with Music Reports. &#9989;</div>
   {% endif %}
 </div>
 

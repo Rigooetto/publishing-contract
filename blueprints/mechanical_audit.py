@@ -6,10 +6,14 @@ import json
 import os
 import re
 
-from flask import Blueprint, render_template_string, request, redirect, url_for, flash
+import json as _json
+
+from flask import Blueprint, render_template_string, request, redirect, url_for, flash, send_file
+from flask import current_app
+from sqlalchemy import func as _func
 
 from extensions import db
-from models import Work, ProRegistration, WorkAKA
+from models import Work, WorkWriter, ProRegistration, WorkAKA, PublisherConfig, Track, TrackWork
 from utils import auth_required, paginate_list, role_required, FULL_ACCESS_ROLES, normalize_for_match
 from ui import MECHANICAL_AUDIT_HTML
 
@@ -322,6 +326,9 @@ def mechanical_audit():
 
     matched_both, mlc_only, mri_only, unregistered, orphaned, mlc, mri = _build_audit()
 
+    mlc_unregistered = mri_only + unregistered   # not in MLC → needs MLC registration
+    mri_unregistered = mlc_only + unregistered   # not in MRI → needs MRI registration
+
     stats = dict(
         mlc_total=len(mlc),
         mri_total=len(mri),
@@ -331,6 +338,8 @@ def mechanical_audit():
         mri_only=len(mri_only),
         unregistered=len(unregistered),
         orphaned=len(orphaned),
+        mlc_unregistered=len(mlc_unregistered),
+        mri_unregistered=len(mri_unregistered),
     )
 
     upload_meta = {"mlc": _read_meta("mlc"), "mri": _read_meta("mri")}
@@ -349,6 +358,12 @@ def mechanical_audit():
     elif tab == "unregistered":
         pagination = paginate_list(unregistered, page)
         unregistered = pagination.items
+    elif tab == "mlc_unregistered":
+        pagination = paginate_list(mlc_unregistered, page)
+        mlc_unregistered = pagination.items
+    elif tab == "mri_unregistered":
+        pagination = paginate_list(mri_unregistered, page)
+        mri_unregistered = pagination.items
     else:
         pagination = paginate_list(orphaned, page)
         orphaned = pagination.items
@@ -357,6 +372,7 @@ def mechanical_audit():
         MECHANICAL_AUDIT_HTML,
         matched_both=matched_both, mlc_only=mlc_only, mri_only=mri_only,
         unregistered=unregistered, orphaned=orphaned,
+        mlc_unregistered=mlc_unregistered, mri_unregistered=mri_unregistered,
         stats=stats, tab=tab, upload_meta=upload_meta, pagination=pagination,
     )
 
@@ -514,3 +530,88 @@ def apply_title():
         db.session.rollback()
         flash(f"Error: {e}", "error")
     return redirect(url_for("mechanical_audit.mechanical_audit", tab="matched_both"))
+
+
+@bp.route("/mechanical-audit/export/mlc-unregistered")
+def export_mlc_unregistered():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+    try:
+        import openpyxl
+
+        _mb, mlc_only, mri_only, unregistered, _o, _mlc, _mri = _build_audit()
+        entries = mri_only + unregistered
+
+        template_path = os.path.join(_TEMPLATE_DIR, "MLCBulkWork_V1.2-2.xlsx")
+        wb = openpyxl.load_workbook(template_path)
+        ws = wb["Format"]
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            for cell in row:
+                cell.value = None
+
+        row_idx = 2
+        for entry in entries:
+            work = entry["work"]
+            writers = WorkWriter.query.filter_by(work_id=work.id).all()
+            if not writers:
+                ws.cell(row=row_idx, column=1).value = work.title
+                ws.cell(row=row_idx, column=3).value = f"LM{work.id:06d}"
+                ws.cell(row=row_idx, column=4).value = work.iswc or None
+                row_idx += 1
+                continue
+            first = True
+            for ww in writers:
+                w = ww.writer
+                pub_config = PublisherConfig.query.filter(
+                    _func.lower(PublisherConfig.publisher_name) == (ww.publisher or "").lower()
+                ).first()
+                mlc_pub_num = pub_config.mlc_publisher_number if pub_config else ""
+
+                tracks = (Track.query
+                          .join(TrackWork, TrackWork.track_id == Track.id)
+                          .filter(TrackWork.work_id == work.id).all())
+                rec_title  = tracks[0].primary_title if tracks else ""
+                rec_isrc   = tracks[0].isrc if tracks else ""
+                rec_label  = tracks[0].track_label if tracks else ""
+                rec_artist = ""
+                if tracks:
+                    try:
+                        rec_artist = ", ".join(_json.loads(tracks[0].artists or "[]"))
+                    except Exception:
+                        pass
+
+                ws.cell(row=row_idx, column=1).value  = work.title if first else None
+                ws.cell(row=row_idx, column=2).value  = None
+                ws.cell(row=row_idx, column=3).value  = f"LM{work.id:06d}"
+                ws.cell(row=row_idx, column=4).value  = work.iswc or None
+                ws.cell(row=row_idx, column=7).value  = w.last_names
+                ws.cell(row=row_idx, column=8).value  = w.first_name
+                ws.cell(row=row_idx, column=9).value  = w.ipi or None
+                ws.cell(row=row_idx, column=10).value = ww.writer_role_code or "CA"
+                ws.cell(row=row_idx, column=11).value = mlc_pub_num or None
+                ws.cell(row=row_idx, column=12).value = ww.publisher or None
+                ws.cell(row=row_idx, column=13).value = ww.publisher_ipi or None
+                ws.cell(row=row_idx, column=15).value = ww.administrator_name or None
+                ws.cell(row=row_idx, column=16).value = ww.administrator_ipi or None
+                ws.cell(row=row_idx, column=17).value = ww.writer_percentage or None
+                ws.cell(row=row_idx, column=18).value = rec_title or None
+                ws.cell(row=row_idx, column=19).value = rec_artist or None
+                ws.cell(row=row_idx, column=20).value = rec_isrc or None
+                ws.cell(row=row_idx, column=21).value = rec_label or None
+                row_idx += 1
+                first = False
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename = f"MLC_Unregistered_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
+        return send_file(output, download_name=filename,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         as_attachment=True)
+    except Exception as e:
+        current_app.logger.error("MLC unregistered export error: %s", e)
+        flash("Error generating export: " + str(e), "error")
+        return redirect(url_for("mechanical_audit.mechanical_audit", tab="mlc_unregistered"))
