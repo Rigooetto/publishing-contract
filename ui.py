@@ -7126,8 +7126,11 @@ MECHANICAL_AUDIT_HTML = """<!DOCTYPE html>
 {% elif tab == 'mri_unregistered' %}
 <div class="card">
   <div class="card-hd">
-    <span class="card-title">Works not registered with Music Reports</span>
-    <span style="font-size:12px;color:#e05c5c;margin-left:8px">Submit these to Music Reports for mechanical royalty collection</span>
+    <div>
+      <span class="card-title">Works not registered with Music Reports</span>
+      <span style="font-size:12px;color:#e05c5c;margin-left:8px">Submit these to Music Reports for mechanical royalty collection</span>
+    </div>
+    <a href="/mechanical-audit/export/mri-unregistered" class="btn btn-primary btn-sm" style="margin-left:auto">&#8659; Export MRI Template</a>
   </div>
   {% if mri_unregistered %}
   <div style="overflow-x:auto">

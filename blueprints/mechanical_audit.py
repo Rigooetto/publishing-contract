@@ -615,3 +615,114 @@ def export_mlc_unregistered():
         current_app.logger.error("MLC unregistered export error: %s", e)
         flash("Error generating export: " + str(e), "error")
         return redirect(url_for("mechanical_audit.mechanical_audit", tab="mlc_unregistered"))
+
+
+@bp.route("/mechanical-audit/export/mri-unregistered")
+def export_mri_unregistered():
+    if auth_required():
+        return redirect(url_for("publishing.login"))
+    if role_required(FULL_ACCESS_ROLES):
+        flash("Access restricted.", "error")
+        return redirect(url_for("publishing.works_list"))
+    try:
+        from blueprints.export_helpers import open_xls_template
+
+        _mb, mlc_only, mri_only, unregistered, _o, _mlc, _mri = _build_audit()
+        entries = mlc_only + unregistered  # not in MRI
+
+        template_path = os.path.join(_TEMPLATE_DIR, "MusicReportspublishing_catalog_template-3.xls")
+        wb = open_xls_template(template_path)
+        ws = wb.get_sheet(0)
+
+        _afinarte = ["songs of afinarte", "melodies of afinarte", "music of afinarte"]
+        def _ctrl(pub):
+            return any(a in (pub or "").lower() for a in _afinarte)
+
+        row_idx = 1
+        for entry in entries:
+            work = entry["work"]
+            writers = WorkWriter.query.filter_by(work_id=work.id).all()
+            tracks = (Track.query
+                      .join(TrackWork, TrackWork.track_id == Track.id)
+                      .filter(TrackWork.work_id == work.id)
+                      .all())
+            rec_artist = rec_isrc = rec_label = upc = ""
+            if tracks:
+                try:
+                    al = _json.loads(tracks[0].artists or "[]")
+                    rec_artist = ", ".join(al)
+                except Exception:
+                    pass
+                rec_isrc = tracks[0].isrc or ""
+                rec_label = tracks[0].track_label or ""
+                if tracks[0].release:
+                    upc = tracks[0].release.upc or ""
+
+            if not writers:
+                ws.write(row_idx, 0, work.title)
+                ws.write(row_idx, 3, f"LM{work.id:06d}")
+                ws.write(row_idx, 4, work.iswc or "")
+                row_idx += 1
+                continue
+
+            first = True
+            for ww in writers:
+                w = ww.writer
+                pub_config = PublisherConfig.query.filter(
+                    _func.lower(PublisherConfig.publisher_name) == (ww.publisher or "").lower()
+                ).first()
+                pub_address = pub_contact = pub_pro = ""
+                if pub_config:
+                    parts = [pub_config.address, pub_config.city]
+                    if pub_config.state:
+                        parts.append(pub_config.state)
+                    if pub_config.zip_code:
+                        parts.append(pub_config.zip_code)
+                    pub_address = ", ".join(p for p in parts if p)
+                    pub_contact = pub_config.contact_email or pub_config.contact_phone or ""
+                    pub_pro = pub_config.pro or ""
+
+                controlled = "Y" if _ctrl(ww.publisher) else "N"
+
+                ws.write(row_idx, 0, work.title if first else "")
+                ws.write(row_idx, 1, work.aka_title or "")
+                ws.write(row_idx, 2, work.mri_song_id or "")
+                ws.write(row_idx, 3, f"LM{work.id:06d}")
+                ws.write(row_idx, 4, work.iswc or "")
+                ws.write(row_idx, 5, w.last_names or "")
+                ws.write(row_idx, 6, w.first_name or "")
+                ws.write(row_idx, 7, w.middle_name or "")
+                ws.write(row_idx, 8, w.pro or "")
+                ws.write(row_idx, 9, w.ipi or "")
+                ws.write(row_idx, 10, controlled)
+                ws.write(row_idx, 11, ww.writer_percentage or 0)
+                ws.write(row_idx, 12, ww.writer_role_code or "CA")
+                ws.write(row_idx, 13, ww.publisher or "")
+                ws.write(row_idx, 14, pub_pro)
+                ws.write(row_idx, 15, ww.publisher_ipi or "")
+                ws.write(row_idx, 16, controlled)
+                ws.write(row_idx, 17, ww.administrator_name or "")
+                ws.write(row_idx, 18, ww.writer_percentage or 0)
+                ws.write(row_idx, 19, ww.territory_controlled or "World")
+                ws.write(row_idx, 20, "")
+                ws.write(row_idx, 21, pub_address)
+                ws.write(row_idx, 22, pub_contact)
+                ws.write(row_idx, 23, rec_artist if first else "")
+                ws.write(row_idx, 24, rec_label if first else "")
+                ws.write(row_idx, 25, rec_isrc if first else "")
+                ws.write(row_idx, 26, upc if first else "")
+
+                row_idx += 1
+                first = False
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename = f"MRI_Unregistered_{datetime.date.today().strftime('%Y%m%d')}.xls"
+        return send_file(output, download_name=filename,
+                         mimetype="application/vnd.ms-excel",
+                         as_attachment=True)
+    except Exception as e:
+        current_app.logger.error("MRI unregistered export error: %s", e)
+        flash("Error generating export: " + str(e), "error")
+        return redirect(url_for("mechanical_audit.mechanical_audit", tab="mri_unregistered"))
