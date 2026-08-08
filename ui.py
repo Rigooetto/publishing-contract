@@ -2464,8 +2464,10 @@ function stopGenSpin() {
   var btn = document.getElementById('genBtn');
   if (!btn) return;
   btn.disabled = false;
-  document.getElementById('genSpin').classList.remove('on');
-  document.getElementById('genLabel').textContent = 'Generate Docs';
+  var spin = document.getElementById('genSpin');
+  if (spin) spin.classList.remove('on');
+  var lbl = document.getElementById('genLabel');
+  if (lbl) lbl.textContent = 'Generate Docs';
 }
 
 function bindDs() {
@@ -2491,11 +2493,16 @@ document.addEventListener('DOMContentLoaded', function() {
   if (gf) {
     gf.addEventListener('submit', function(e) {
       e.preventDefault();
-      var btn = gf.querySelector('button');
-      if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+      var btn = document.getElementById('genBtn');
+      var lbl = document.getElementById('genLabel');
+      if (btn) btn.disabled = true;
+      if (lbl) lbl.textContent = 'Generating…';
       setTimeout(function() { gf.submit(); }, 150);
-      // No page reload here — the form submit navigates on its own (file download or
-      // redirect), and the polling interval below keeps the docs table current.
+      // Re-enable after 3 min in case the response never comes back
+      setTimeout(function() {
+        if (btn) btn.disabled = false;
+        if (lbl) lbl.textContent = 'Generate Docs';
+      }, 180000);
     });
   }
   _pollTimer = setInterval(poll, 5000);
@@ -2505,8 +2512,8 @@ document.addEventListener('DOMContentLoaded', function() {
   <a href="/?batch_id={{ batch.id }}" class="btn btn-sec">+ Add Work</a>
   <div class="ab-space"></div>
   <form method="post" action="/batches/{{ batch.id }}/generate" id="genFormMobile" style="flex:1 1 auto;display:flex">
-    <button type="submit" class="btn btn-primary" style="flex:1 1 auto;justify-content:center">
-      <span>Generate Docs</span>
+    <button type="submit" id="genBtn" class="btn btn-primary" style="flex:1 1 auto;justify-content:center">
+      <span id="genLabel">Generate Docs</span>
     </button>
   </form>
 </div>
