@@ -2494,7 +2494,8 @@ document.addEventListener('DOMContentLoaded', function() {
       var btn = gf.querySelector('button');
       if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
       setTimeout(function() { gf.submit(); }, 150);
-      setTimeout(function() { window.location.reload(); }, 5000);
+      // No page reload here — the form submit navigates on its own (file download or
+      // redirect), and the polling interval below keeps the docs table current.
     });
   }
   _pollTimer = setInterval(poll, 5000);
