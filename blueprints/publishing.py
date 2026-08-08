@@ -722,7 +722,11 @@ def generate_batch_documents(batch_id):
     )
 
     if not work_writers:
-        flash("No works found in this session.")
+        works_count = Work.query.filter_by(batch_id=batch.id).count()
+        if works_count:
+            flash(f"Session has {works_count} work(s) but none have writer splits assigned. Open each work, add writers and percentages, then generate again.")
+        else:
+            flash("No works found in this session. Add works before generating documents.")
         return redirect(url_for(".batch_detail", batch_id=batch.id))
 
     grouped = {}

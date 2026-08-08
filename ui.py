@@ -2300,6 +2300,11 @@ BATCH_DETAIL_HTML = """<!DOCTYPE html>
       </tbody>
     </table>
   </div>
+  {% if not writer_summary and works %}
+  <div style="margin:0 16px 16px;padding:12px 16px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:13px;color:#f59e0b">
+    &#9888; {{ works|length }} work(s) in this session have no writer splits — open each work and add writers before generating documents.
+  </div>
+  {% endif %}
 </div>
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128196;</div><span class="card-title">Generated Documents</span></div>
