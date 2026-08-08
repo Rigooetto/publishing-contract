@@ -205,6 +205,17 @@ with app.app_context():
     except Exception as _col_e:
         app.logger.warning("user column migration: %s", _col_e)
 
+    # Widen work_title_snapshot from VARCHAR(255) to TEXT (sessions with many works overflow)
+    try:
+        from sqlalchemy import text as _text_main
+        with db.engine.connect() as _mc:
+            _mc.execute(_text_main(
+                'ALTER TABLE contract_document ALTER COLUMN work_title_snapshot TYPE TEXT'
+            ))
+            _mc.commit()
+    except Exception as _col_e:
+        app.logger.warning("contract_document work_title_snapshot migration: %s", _col_e)
+
     _run_artist_backfill()
     # Create royalties DB tables if they don't exist yet
     if raw_royalties_url:

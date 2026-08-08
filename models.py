@@ -89,7 +89,7 @@ class ContractDocument(db.Model):
     document_type = db.Column(db.String(50), nullable=False)
     file_name = db.Column(db.String(255), nullable=False)
     writer_name_snapshot = db.Column(db.String(250), nullable=False)
-    work_title_snapshot = db.Column(db.String(255), nullable=False)
+    work_title_snapshot = db.Column(db.Text, nullable=False)
     drive_file_id = db.Column(db.String(255), nullable=True)
     drive_web_view_link = db.Column(db.String(500), nullable=True)
     signed_file_name = db.Column(db.String(255), nullable=True)
