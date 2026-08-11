@@ -1772,12 +1772,15 @@ def work_detail(work_id):
         return redirect(url_for(".login"))
     work = Work.query.get_or_404(work_id)
     writer_ids = [ww.writer_id for ww in work.work_writers]
-    if writer_ids and work.batch_id:
+    if writer_ids:
         documents = (
             ContractDocument.query
             .filter(
                 ContractDocument.writer_id.in_(writer_ids),
-                ContractDocument.batch_id == work.batch_id,
+                or_(
+                    ContractDocument.batch_id == work.batch_id,
+                    ContractDocument.batch_id.is_(None),
+                ),
             )
             .order_by(ContractDocument.generated_at.desc())
             .all()
