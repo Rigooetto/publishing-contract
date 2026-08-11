@@ -3344,6 +3344,23 @@ WRITERS_LIST_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+  <div style="flex:1;min-width:180px;background:var(--s1);border:1px solid var(--b0);border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px">
+    <div style="width:38px;height:38px;border-radius:10px;background:rgba(99,133,255,.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">&#128196;</div>
+    <div>
+      <div style="font-size:22px;font-weight:700;color:var(--t1);line-height:1.1">{{ contracted_writers }}<span style="font-size:14px;font-weight:400;color:var(--t3)"> / {{ total_writers }}</span></div>
+      <div style="font-size:12px;color:var(--t3);margin-top:2px">Full Contracts Signed</div>
+    </div>
+  </div>
+  <div style="flex:1;min-width:180px;background:var(--s1);border:1px solid var(--b0);border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px">
+    <div style="width:38px;height:38px;border-radius:10px;background:rgba(76,175,138,.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">&#128395;</div>
+    <div>
+      <div style="font-size:22px;font-weight:700;color:var(--t1);line-height:1.1">{{ works_under_contract }}<span style="font-size:14px;font-weight:400;color:var(--t3)"> / {{ total_works }}</span></div>
+      <div style="font-size:12px;color:var(--t3);margin-top:2px">Works Under Contract</div>
+    </div>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-hd"><div class="card-ico">&#128269;</div><span class="card-title">Search</span></div>
   <div class="card-body">

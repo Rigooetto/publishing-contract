@@ -1149,11 +1149,25 @@ def writers_list():
     except (ValueError, TypeError):
         page = 1
     writers, pagination = get_writer_directory_rows(q, page=page)
+
+    total_writers = Writer.query.count()
+    contracted_writers = Writer.query.filter_by(has_master_contract=True).count()
+    total_works = Work.query.count()
+    contracted_batch_ids = [
+        r[0] for r in db.session.query(func.distinct(ContractDocument.batch_id))
+        .filter(ContractDocument.batch_id.isnot(None)).all()
+    ]
+    works_under_contract = Work.query.filter(Work.batch_id.in_(contracted_batch_ids)).count() if contracted_batch_ids else 0
+
     return render_template_string(
         WRITERS_LIST_HTML,
         writers=writers,
         q=q,
         pagination=pagination,
+        total_writers=total_writers,
+        contracted_writers=contracted_writers,
+        total_works=total_works,
+        works_under_contract=works_under_contract,
     )
 
 
