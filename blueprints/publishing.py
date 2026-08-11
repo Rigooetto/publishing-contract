@@ -708,6 +708,15 @@ def batch_status_json(batch_id):
     })
 
 
+def _doc_back(document):
+    """Return the appropriate redirect URL for document action responses."""
+    if document and document.batch_id:
+        return url_for(".batch_detail", batch_id=document.batch_id)
+    if document and document.writer_id:
+        return url_for(".writer_detail", writer_id=document.writer_id)
+    return url_for(".batches_list")
+
+
 @bp.route("/batches/<int:batch_id>/generate", methods=["POST"])
 def generate_batch_documents(batch_id):
     if auth_required():
@@ -735,12 +744,6 @@ def generate_batch_documents(batch_id):
             grouped[ww.writer_id] = {"writer": ww.writer, "rows": []}
         grouped[ww.writer_id]["rows"].append(ww)
 
-    # Snapshot which writers already had a master contract BEFORE this generation,
-    # so re-generating a session doesn't incorrectly flip the flag again.
-    writers_with_existing_master = {
-        ww.writer_id for ww in work_writers if ww.writer and ww.writer.has_master_contract
-    }
-
     zip_buffer = io.BytesIO()
     try:
       existing_docs = ContractDocument.query.filter_by(batch_id=batch.id).all()
@@ -749,7 +752,7 @@ def generate_batch_documents(batch_id):
       db.session.flush()
 
       with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for writer_id, item in grouped.items():
+        for _, item in grouped.items():
             writer = item["writer"]
             rows = item["rows"]
 
@@ -840,11 +843,6 @@ def generate_batch_documents(batch_id):
                 status="generated",
             )
             db.session.add(doc_record)
-
-            # Only promote to master contract if they didn't already have one
-            # before this generation run (prevents re-generate from double-flipping)
-            if document_type == "full_contract" and writer_id not in writers_with_existing_master:
-                writer.has_master_contract = True
 
       batch.status = "docs_generated"
       db.session.commit()
@@ -946,6 +944,11 @@ def docusign_webhook():
             document.completed_at = datetime.datetime.utcnow()
             document.status = "signed"
 
+            if document.document_type == "full_contract":
+                _w = Writer.query.get(document.writer_id)
+                if _w:
+                    _w.has_master_contract = True
+
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -969,16 +972,16 @@ def send_document_docusign(document_id):
 
         if not writer:
             flash("Writer not found.")
-            return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+            return redirect(_doc_back(document))
         if not getattr(writer, "email", None):
             flash("Writer email is required before sending to DocuSign.")
-            return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+            return redirect(_doc_back(document))
         if not document.drive_file_id:
             flash("Generated document file is missing.")
-            return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+            return redirect(_doc_back(document))
         if not DOCUSIGN_ACCOUNT_ID or not DOCUSIGN_INTEGRATION_KEY or not DOCUSIGN_USER_ID or not DOCUSIGN_PRIVATE_KEY:
             flash("DocuSign environment variables are not fully configured.")
-            return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+            return redirect(_doc_back(document))
 
         service = get_drive_service()
         file_bytes = service.files().get_media(fileId=document.drive_file_id, supportsAllDrives=True).execute()
@@ -1050,7 +1053,7 @@ def send_document_docusign(document_id):
         db.session.commit()
 
         flash("Sent to DocuSign successfully.")
-        return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+        return redirect(_doc_back(document))
 
     except Exception as e:
         db.session.rollback()
@@ -1058,7 +1061,7 @@ def send_document_docusign(document_id):
         current_app.logger.error(traceback.format_exc())
         flash("DocuSign send failed: " + str(e))
         if document:
-            return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+            return redirect(_doc_back(document))
         return redirect(request.referrer or url_for(".batches_list"))
 
 
@@ -1072,10 +1075,10 @@ def upload_signed_document(document_id):
 
     if not uploaded_file or not uploaded_file.filename:
         flash("Please choose a signed file to upload.")
-        return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+        return redirect(_doc_back(document))
     if not GOOGLE_DRIVE_FOLDER_ID or not GOOGLE_SERVICE_ACCOUNT_JSON:
         flash("Google Drive is not configured yet.")
-        return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+        return redirect(_doc_back(document))
 
     file_bytes = uploaded_file.read()
     file_name = uploaded_file.filename
@@ -1090,7 +1093,7 @@ def upload_signed_document(document_id):
         )
     except Exception as e:
         flash("Signed upload failed: " + str(e))
-        return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+        return redirect(_doc_back(document))
 
     document.signed_file_name = file_name
     document.signed_drive_file_id = drive_info["file_id"]
@@ -1098,12 +1101,18 @@ def upload_signed_document(document_id):
     document.signed_uploaded_at = datetime.datetime.utcnow()
     document.status = "signed_uploaded"
 
-    batch_docs = ContractDocument.query.filter_by(batch_id=document.batch_id).all()
-    if document.batch:
-        if batch_docs and all(doc.status == "signed_uploaded" for doc in batch_docs):
-            document.batch.status = "signed_complete"
-        else:
-            document.batch.status = "signed_partial"
+    if document.document_type == "full_contract":
+        _w = Writer.query.get(document.writer_id)
+        if _w:
+            _w.has_master_contract = True
+
+    if document.batch_id:
+        batch_docs = ContractDocument.query.filter_by(batch_id=document.batch_id).all()
+        if document.batch:
+            if batch_docs and all(doc.status == "signed_uploaded" for doc in batch_docs):
+                document.batch.status = "signed_complete"
+            else:
+                document.batch.status = "signed_partial"
 
     try:
         db.session.commit()
@@ -1111,10 +1120,10 @@ def upload_signed_document(document_id):
         db.session.rollback()
         current_app.logger.error("upload_signed_document commit error: %s", e)
         flash("Error saving document status. Please try again.")
-        return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+        return redirect(_doc_back(document))
 
     flash("Signed file uploaded successfully.")
-    return redirect(url_for(".batch_detail", batch_id=document.batch_id))
+    return redirect(_doc_back(document))
 
 @bp.route("/writers")
 def writers_list():
@@ -1148,12 +1157,151 @@ def writer_detail(writer_id):
         .order_by(Work.created_at.desc())
         .all()
     )
+    contract_docs = (
+        ContractDocument.query
+        .filter_by(writer_id=writer.id)
+        .order_by(ContractDocument.generated_at.desc())
+        .all()
+    )
 
     return render_template_string(
         WRITER_DETAIL_HTML,
         writer=writer,
         work_writers=work_writers,
+        contract_docs=contract_docs,
+        today_iso=datetime.date.today().isoformat(),
     )
+
+
+@bp.route("/writers/<int:writer_id>/generate-contract", methods=["POST"])
+def generate_writer_contract(writer_id):
+    if auth_required():
+        return redirect(url_for(".login"))
+
+    writer = Writer.query.get_or_404(writer_id)
+
+    raw_date = (request.form.get("contract_date") or "").strip()
+    try:
+        contract_date = datetime.date.fromisoformat(raw_date)
+    except ValueError:
+        contract_date = datetime.date.today()
+
+    work_id_strs = request.form.getlist("work_ids")
+    try:
+        selected_work_ids = [int(x) for x in work_id_strs if x]
+    except ValueError:
+        selected_work_ids = []
+
+    rows = WorkWriter.query.filter_by(writer_id=writer.id).all()
+    if selected_work_ids:
+        rows = [r for r in rows if r.work_id in selected_work_ids]
+
+    if not rows:
+        flash("No works selected for this writer.")
+        return redirect(url_for(".writer_detail", writer_id=writer.id))
+
+    if writer.has_master_contract:
+        document_type = "schedule_1"
+        template_path = SCHEDULE_1_TEMPLATE
+        prefix = "S1"
+    else:
+        document_type = "full_contract"
+        template_path = FULL_CONTRACT_TEMPLATE
+        prefix = "FULL"
+
+    first_work_writer = rows[0]
+    first_work = first_work_writer.work
+
+    works_for_table = [
+        {
+            "work_title": ww.work.title,
+            "writer_name": writer.full_name,
+            "writer_percentage": str(round(ww.writer_percentage or 0, 2)) + "%",
+            "publisher": ww.publisher or "",
+            "publisher_percentage": str(round(ww.writer_percentage or 0, 2)) + "%",
+        }
+        for ww in rows
+    ]
+
+    day = contract_date.day
+    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    data = {
+        "Date": contract_date.strftime("%B") + " " + str(day) + suffix + ", " + str(contract_date.year),
+        "Fecha": format_date(contract_date, format="d 'de' MMMM 'del' y", locale="es"),
+        "WriterName": writer.full_name,
+        "WriterFirstName": writer.first_name or "",
+        "WriterMiddleName": writer.middle_name or "",
+        "WriterLastNames": writer.last_names or "",
+        "WriterAKA": writer.writer_aka or "",
+        "WriterIPI": writer.ipi or "",
+        "WriterAddress": writer.address or "",
+        "WriterCity": writer.city or "",
+        "WriterState": writer.state or "",
+        "WriterZipCode": writer.zip_code or "",
+        "PRO": writer.pro or "",
+        "PublisherName": first_work_writer.publisher or "",
+        "PublisherIPI": first_work_writer.publisher_ipi or "",
+        "PublisherAddress": first_work_writer.publisher_address or "",
+        "PublisherCity": first_work_writer.publisher_city or "",
+        "PublisherState": first_work_writer.publisher_state or "",
+        "PublisherZipCode": first_work_writer.publisher_zip_code or "",
+        "WorkTitle": first_work.title if first_work else "",
+    }
+
+    try:
+        file_buffer = render_docx_template(template_path, data, works_for_table=works_for_table)
+        file_bytes = file_buffer.getvalue()
+    except Exception as e:
+        current_app.logger.error("generate_writer_contract render error: %s", e)
+        flash("Error generating document: " + str(e))
+        return redirect(url_for(".writer_detail", writer_id=writer.id))
+
+    batch_label = slugify(writer.full_name)
+    file_name = f"{prefix}_{batch_label}_{contract_date.isoformat()}.docx"
+
+    drive_info = {"file_id": None, "web_view_link": None}
+    if GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON:
+        try:
+            drive_info = upload_bytes_to_drive(
+                file_name=file_name,
+                file_bytes=file_bytes,
+                parent_folder_id=GOOGLE_DRIVE_FOLDER_ID,
+                mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        except Exception as e:
+            current_app.logger.error("generate_writer_contract drive error: %s", e)
+
+    work_title_snapshot = ", ".join(sorted({ww.work.title for ww in rows if ww.work}))
+    doc_record = ContractDocument(
+        batch_id=None,
+        work_id=first_work.id if first_work else None,
+        writer_id=writer.id,
+        document_type=document_type,
+        file_name=file_name,
+        writer_name_snapshot=writer.full_name,
+        work_title_snapshot=work_title_snapshot,
+        drive_file_id=drive_info["file_id"],
+        drive_web_view_link=drive_info["web_view_link"],
+        status="generated",
+    )
+    try:
+        db.session.add(doc_record)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("generate_writer_contract db error: %s", e)
+        flash("Document uploaded to Drive but could not be saved to LabelMind: " + str(e))
+        return redirect(url_for(".writer_detail", writer_id=writer.id))
+
+    output = io.BytesIO(file_bytes)
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=file_name,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
 
 @bp.route("/writers/new", methods=["GET", "POST"])
 def writer_new():
@@ -1623,17 +1771,24 @@ def work_detail(work_id):
     if auth_required():
         return redirect(url_for(".login"))
     work = Work.query.get_or_404(work_id)
-    documents = (
-        ContractDocument.query
-        .filter_by(work_id=work.id)
-        .order_by(ContractDocument.generated_at.desc())
-        .all()
-    )
+    writer_ids = [ww.writer_id for ww in work.work_writers]
+    if writer_ids and work.batch_id:
+        documents = (
+            ContractDocument.query
+            .filter(
+                ContractDocument.writer_id.in_(writer_ids),
+                ContractDocument.batch_id == work.batch_id,
+            )
+            .order_by(ContractDocument.generated_at.desc())
+            .all()
+        )
+    else:
+        documents = []
     return render_template_string(
-    WORK_DETAIL_HTML,
-    work=work,
-    documents=documents
-)
+        WORK_DETAIL_HTML,
+        work=work,
+        documents=documents,
+    )
 
 
 @bp.route("/works/<int:work_id>/delete", methods=["POST"])

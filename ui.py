@@ -2641,14 +2641,14 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
       <thead>
         <tr>
           <th>Writer</th><th>Type</th><th>File</th><th>Generated At</th>
-          <th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Signed PDF</th><th>Status</th>
+          <th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Upload Signed</th><th>Signed PDF</th><th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for doc in documents %}
         <tr data-doc-id="{{ doc.id }}">
           <td data-label="Writer" style="font-weight:600">{{ doc.writer_name_snapshot }}</td>
-          <td data-label="Type"><span class="tag tag-full">{{ doc.document_type }}</span></td>
+          <td data-label="Type"><span class="tag tag-full">{{ 'Full Contract' if doc.document_type == 'full_contract' else 'Schedule 1' }}</span></td>
           <td data-label="File" data-hide-mobile>
             {% if doc.drive_web_view_link %}
               <a href="{{ doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ doc.file_name }}">&#128196; {{ doc.file_name | truncate(30,true,'...') }}</a>
@@ -2667,6 +2667,12 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
           </td>
           <td data-label="DS Status">{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}--{% endif %}</td>
           <td data-label="Certificate" data-hide-mobile>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert</a>{% else %}--{% endif %}</td>
+          <td data-label="Upload Signed">
+            <form method="post" action="/documents/{{ doc.id }}/upload-signed" enctype="multipart/form-data" class="upl-form">
+              <input type="file" name="signed_file" class="upl-inp" required>
+              <button type="submit" class="btn btn-success btn-xs">Upload</button>
+            </form>
+          </td>
           <td data-label="Signed PDF">
             {% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
             {% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
@@ -2675,7 +2681,7 @@ WORK_DETAIL_HTML = """<!DOCTYPE html>
           <td data-label="Status">{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}--{% endif %}</td>
         </tr>
         {% endfor %}
-        {% if not documents %}<tr class="empty"><td colspan="9">No documents generated yet.</td></tr>{% endif %}
+        {% if not documents %}<tr class="empty"><td colspan="10">No documents generated yet. Generate from the session page.</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
@@ -3468,8 +3474,46 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <div class="ph-actions">
-    <a href="/writers/{{ writer.id }}/edit" class="btn btn-primary btn-sm">Edit Writer</a>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('genContractModal').style.display='flex'">Generate Contract</button>
+    <a href="/writers/{{ writer.id }}/edit" class="btn btn-sec btn-sm">Edit Writer</a>
     <a href="/writers" class="btn btn-sec btn-sm">Back</a>
+  </div>
+</div>
+
+<div id="genContractModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--b0);border-radius:14px;padding:28px 28px 24px;width:min(520px,94vw);max-height:80vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:700;margin-bottom:18px">Generate Contract — {{ writer.full_name }}</div>
+    <form method="post" action="/writers/{{ writer.id }}/generate-contract">
+      <div class="field" style="margin-bottom:14px">
+        <label class="label">Contract Date</label>
+        <input class="inp" type="date" name="contract_date" value="{{ today_iso }}" required>
+      </div>
+      <div class="field" style="margin-bottom:18px">
+        <label class="label" style="margin-bottom:8px">Works to Include</label>
+        {% if work_writers %}
+        <div style="display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto;padding:10px 12px;background:var(--bg);border:1px solid var(--b0);border-radius:8px">
+          {% for ww in work_writers %}
+          {% if ww.work %}
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="work_ids" value="{{ ww.work.id }}" checked style="width:15px;height:15px;flex-shrink:0">
+            <span style="color:var(--t1)">{{ ww.work.title }}</span>
+            <span style="color:var(--t3);font-size:11px;margin-left:auto;white-space:nowrap">{{ ww.work.contract_date.strftime('%b %Y') if ww.work.contract_date else '' }}</span>
+          </label>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="font-size:13px;color:var(--t3);padding:10px">No works found for this writer.</div>
+        {% endif %}
+      </div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:16px">
+        {% if writer.has_master_contract %}Generates a <strong style="color:var(--a)">Schedule 1</strong> — writer has a signed Full Contract on file.{% else %}Generates a <strong style="color:var(--a)">Full Contract</strong> — writer has not yet signed one.{% endif %}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" class="btn btn-sec btn-sm" onclick="document.getElementById('genContractModal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Generate &amp; Download</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -3569,6 +3613,61 @@ WRITER_DETAIL_HTML = """<!DOCTYPE html>
     </table>
   </div>
 </div>
+
+<div class="card">
+  <div class="card-hd"><div class="card-ico">&#128196;</div><span class="card-title">Contracts</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl tbl-docs">
+      <thead>
+        <tr>
+          <th>Type</th><th>Session</th><th>Works</th><th>File</th><th>Generated</th>
+          <th>DocuSign</th><th>DS Status</th><th>Certificate</th><th>Upload Signed</th><th>Signed PDF</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in contract_docs %}
+        <tr>
+          <td data-label="Type"><span class="tag tag-full">{{ 'Full Contract' if doc.document_type == 'full_contract' else 'Schedule 1' }}</span></td>
+          <td data-label="Session">
+            {% if doc.batch_id %}<a href="/batches/{{ doc.batch_id }}" style="color:var(--a)">{{ doc.batch.session_name if doc.batch and doc.batch.session_name else 'Session #' ~ doc.batch_id }}</a>
+            {% else %}<span style="color:var(--t3);font-size:12px">Standalone</span>{% endif %}
+          </td>
+          <td data-label="Works" style="font-size:12px;color:var(--t2);max-width:180px;white-space:normal">{{ doc.work_title_snapshot | truncate(60,true,'…') }}</td>
+          <td data-label="File" data-hide-mobile>
+            {% if doc.drive_web_view_link %}
+              <a href="{{ doc.drive_web_view_link }}" target="_blank" class="file-link" title="{{ doc.file_name }}">&#128196; {{ doc.file_name | truncate(28,true,'...') }}</a>
+            {% else %}<span class="file-link-plain">{{ doc.file_name | truncate(28,true,'...') }}</span>{% endif %}
+          </td>
+          <td data-label="Generated" data-hide-mobile style="color:var(--t3);font-size:11.5px;white-space:nowrap">{{ doc.generated_at.strftime('%b %d, %Y') if doc.generated_at else '--' }}</td>
+          <td data-label="DocuSign">
+            <form method="post" action="/documents/{{ doc.id }}/send-docusign" class="ds-form">
+              <button type="submit" class="btn btn-sec btn-xs ds-btn">
+                <span class="ds-lbl">{% if doc.docusign_status == 'completed' %}Resend{% elif doc.docusign_status == 'sent' %}Sent{% elif doc.docusign_status == 'delivered' %}Delivered{% else %}Send{% endif %}</span>
+                <span class="spin ds-spin"></span>
+              </button>
+            </form>
+          </td>
+          <td data-label="DS Status">{% if doc.docusign_status %}<span class="status s-{{ doc.docusign_status }}"><span class="status-dot"></span>{{ doc.docusign_status | title }}</span>{% else %}--{% endif %}</td>
+          <td data-label="Certificate" data-hide-mobile>{% if doc.certificate_drive_web_view_link %}<a href="{{ doc.certificate_drive_web_view_link }}" target="_blank" class="btn btn-sec btn-xs">Cert</a>{% else %}--{% endif %}</td>
+          <td data-label="Upload Signed">
+            <form method="post" action="/documents/{{ doc.id }}/upload-signed" enctype="multipart/form-data" class="upl-form">
+              <input type="file" name="signed_file" class="upl-inp" required>
+              <button type="submit" class="btn btn-success btn-xs">Upload</button>
+            </form>
+          </td>
+          <td data-label="Signed PDF">
+            {% if doc.signed_pdf_drive_web_view_link %}<a href="{{ doc.signed_pdf_drive_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
+            {% elif doc.signed_web_view_link %}<a href="{{ doc.signed_web_view_link }}" target="_blank" class="file-link">&#128209; Signed</a>
+            {% else %}--{% endif %}
+          </td>
+          <td data-label="Status">{% if doc.status %}<span class="status s-{{ doc.status }}"><span class="status-dot"></span>{{ doc.status | replace('_',' ') | title }}</span>{% else %}--{% endif %}</td>
+        </tr>
+        {% endfor %}
+        {% if not contract_docs %}<tr class="empty"><td colspan="11">No contracts generated yet.</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
 </div>
 </main>
 </div>
@@ -3586,6 +3685,21 @@ function toggleWk(id) {
     row.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 }
+document.querySelectorAll('.ds-form').forEach(function(f) {
+  f.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = f.querySelector('.ds-btn');
+    var spin = f.querySelector('.ds-spin');
+    var lbl = f.querySelector('.ds-lbl');
+    if (btn) btn.disabled = true;
+    if (spin) spin.classList.add('on');
+    if (lbl) lbl.textContent = 'Sending...';
+    setTimeout(function() { f.submit(); }, 150);
+  });
+});
+document.getElementById('genContractModal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
 </script>
 """ + _mobile_nav() + """
 </body></html>"""
