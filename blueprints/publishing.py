@@ -675,7 +675,13 @@ def batch_detail(batch_id):
         return redirect(url_for(".login"))
     batch = GenerationBatch.query.get_or_404(batch_id)
     works = Work.query.filter_by(batch_id=batch.id).order_by(Work.created_at.asc()).all()
-    documents = ContractDocument.query.filter_by(batch_id=batch.id).order_by(ContractDocument.generated_at.desc()).all()
+    session_writer_ids = list({ww.writer_id for w in works for ww in w.work_writers})
+    documents = ContractDocument.query.filter(
+        or_(
+            ContractDocument.batch_id == batch.id,
+            (ContractDocument.batch_id.is_(None) & ContractDocument.writer_id.in_(session_writer_ids))
+        )
+    ).order_by(ContractDocument.generated_at.desc()).all()
     writer_summary = get_batch_writer_summary(batch.id)
     return render_template_string(BATCH_DETAIL_HTML, batch=batch, works=works, documents=documents, writer_summary=writer_summary)
 
@@ -685,7 +691,14 @@ def batch_status_json(batch_id):
     if auth_required():
         return jsonify({"error": "unauthorized"}), 401
     batch = GenerationBatch.query.get_or_404(batch_id)
-    documents = ContractDocument.query.filter_by(batch_id=batch.id).order_by(ContractDocument.generated_at.asc()).all()
+    _sworks = Work.query.filter_by(batch_id=batch.id).all()
+    _swids = list({ww.writer_id for w in _sworks for ww in w.work_writers})
+    documents = ContractDocument.query.filter(
+        or_(
+            ContractDocument.batch_id == batch.id,
+            (ContractDocument.batch_id.is_(None) & ContractDocument.writer_id.in_(_swids))
+        )
+    ).order_by(ContractDocument.generated_at.asc()).all()
     return jsonify({
         "batch_id": batch.id,
         "status": batch.status,
