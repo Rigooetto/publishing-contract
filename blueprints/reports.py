@@ -28,6 +28,10 @@ def _attach_track_info(work):
     work._tracks = tracks
     work._first_track = tracks[0] if tracks else None
     work._first_release = tracks[0].release if tracks and tracks[0].release else None
+    try:
+        work._artist_display = ", ".join(_json.loads(tracks[0].artists or "[]")) if tracks else ""
+    except Exception:
+        work._artist_display = ""
 
 
 def _attach_track_info_bulk(works):
@@ -48,6 +52,10 @@ def _attach_track_info_bulk(works):
         w._tracks = tracks
         w._first_track = tracks[0] if tracks else None
         w._first_release = tracks[0].release if tracks and tracks[0].release else None
+        try:
+            w._artist_display = ", ".join(_json.loads(tracks[0].artists or "[]")) if tracks else ""
+        except Exception:
+            w._artist_display = ""
 
 
 def _is_controlled(publisher_name):

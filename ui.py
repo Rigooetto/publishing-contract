@@ -6342,6 +6342,7 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
       <th style="width:36px"><input type="checkbox" id="chkAll" onclick="document.querySelectorAll(\'.work-chk\').forEach(function(c){c.checked=this.checked;},this)"></th>
       <th>Work Title</th>
       <th>Writers</th>
+      <th>Artist</th>
       <th>Publisher</th>
       <th id="pro-th-date" onclick="toggleProDateSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="pro-date-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
     </tr></thead>
@@ -6363,13 +6364,14 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
         {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
         {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
       </td>
+      <td style="font-size:12px;color:var(--t2)">{{ w._artist_display or '—' }}</td>
       <td style="font-size:12px;color:var(--t2)">
         {% for ww in w.work_writers %}{% if ww.publisher in [\'Songs of Afinarte\',\'Melodies of Afinarte\',\'Music of Afinarte\'] %}<span style="display:block">{{ ww.publisher }}</span>{% endif %}{% endfor %}
       </td>
       <td style="font-size:12px;color:var(--t3)">{{ w._first_release.release_date.strftime(\'%m/%d/%Y\') if w._first_release and w._first_release.release_date else \'\xe2\x80\x94\' }}</td>
     </tr>
     <tr class="work-detail-row" id="pro-detail-{{ w.id }}">
-      <td colspan="5">
+      <td colspan="6">
         <div class="work-detail-inner" style="grid-template-columns:1.2fr 2.8fr 1fr;padding-left:12px">
           <div class="wd-section">
             <div class="wd-label">Work Info</div>
@@ -6379,6 +6381,7 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
               <span style="color:var(--t3)">ISWC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w.iswc or '' }}</span>
               <span style="color:var(--t3)">Duration</span><span style="color:var(--t2)">{{ w._first_track.duration if w._first_track and w._first_track.duration else '' }}</span>
               <span style="color:var(--t3)">Recording Title</span><span style="color:var(--t2)">{{ w._first_track.recording_title if w._first_track and w._first_track.recording_title else (w._first_track.primary_title if w._first_track else '') }}</span>
+              {% if w._artist_display %}<span style="color:var(--t3)">Artist</span><span style="color:var(--t2)">{{ w._artist_display }}</span>{% endif %}
             </div>
           </div>
           <div class="wd-section">
