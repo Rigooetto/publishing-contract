@@ -6272,8 +6272,6 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
 .pro-filter-input{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t1);font-size:12px;min-width:130px;flex:1}
 .pro-filter-input::placeholder{color:var(--t3)}
 .pro-filter-input:focus{outline:none;border-color:var(--accent)}
-.pro-sort-btn{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t2);font-size:11px;cursor:pointer;white-space:nowrap}
-.pro-sort-btn.active{background:rgba(99,133,255,.15);color:#6385ff;border-color:rgba(99,133,255,.3)}
 </style>
 </head>
 <body>
@@ -6337,7 +6335,6 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
     <input class="pro-filter-input" id="pflt-title" placeholder="Filter by title…" oninput="applyProFilter()">
     <input class="pro-filter-input" id="pflt-writer" placeholder="Filter by writer…" oninput="applyProFilter()">
     <input class="pro-filter-input" id="pflt-pub" placeholder="Filter by publisher…" oninput="applyProFilter()">
-    <button type="button" class="pro-sort-btn" id="pro-sort-date" onclick="toggleProDateSort()">Release Date ↕</button>
   </div>
   <div style="overflow-x:auto">
   <table class="tbl" style="width:100%" id="pro-unreg-table">
@@ -6346,7 +6343,7 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
       <th>Work Title</th>
       <th>Writers</th>
       <th>Publisher</th>
-      <th>Release Date</th>
+      <th id="pro-th-date" onclick="toggleProDateSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="pro-date-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
     </tr></thead>
     <tbody>
     {% for w in unregistered %}
@@ -6515,9 +6512,11 @@ function applyProFilter() {
 var _proDateSort = 0;
 function toggleProDateSort() {
   _proDateSort = (_proDateSort + 1) % 3;
-  var btn = document.getElementById('pro-sort-date');
-  var labels = ['Release Date ↕', 'Release Date ↑', 'Release Date ↓'];
-  if (btn) { btn.textContent = labels[_proDateSort]; btn.classList.toggle('active', _proDateSort > 0); }
+  var arrow = document.getElementById('pro-date-arrow');
+  var arrows = ['↕', '↑', '↓'];
+  if (arrow) { arrow.textContent = arrows[_proDateSort]; arrow.style.color = _proDateSort > 0 ? 'var(--accent)' : 'var(--t3)'; }
+  var th = document.getElementById('pro-th-date');
+  if (th) th.style.color = _proDateSort > 0 ? 'var(--accent)' : '';
   var tbody = document.querySelector('#pro-unreg-table tbody');
   if (!tbody) return;
   var workRows = Array.from(tbody.querySelectorAll('.work-row'));
