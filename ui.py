@@ -6267,6 +6267,14 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
 <title>PRO Registration - LabelMind</title>""" + _STYLE + """
+<style>
+.pro-filter-bar{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--b1);flex-wrap:wrap;align-items:center}
+.pro-filter-input{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t1);font-size:12px;min-width:130px;flex:1}
+.pro-filter-input::placeholder{color:var(--t3)}
+.pro-filter-input:focus{outline:none;border-color:var(--accent)}
+.pro-sort-btn{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t2);font-size:11px;cursor:pointer;white-space:nowrap}
+.pro-sort-btn.active{background:rgba(99,133,255,.15);color:#6385ff;border-color:rgba(99,133,255,.3)}
+</style>
 </head>
 <body>
 <div class="app" id="mainApp">
@@ -6325,18 +6333,29 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
       <input class="inp" name="notes" placeholder="Optional">
     </div>
   </div>
+  <div class="pro-filter-bar">
+    <input class="pro-filter-input" id="pflt-title" placeholder="Filter by title…" oninput="applyProFilter()">
+    <input class="pro-filter-input" id="pflt-writer" placeholder="Filter by writer…" oninput="applyProFilter()">
+    <input class="pro-filter-input" id="pflt-pub" placeholder="Filter by publisher…" oninput="applyProFilter()">
+    <button type="button" class="pro-sort-btn" id="pro-sort-date" onclick="toggleProDateSort()">Release Date ↕</button>
+  </div>
   <div style="overflow-x:auto">
-  <table class="tbl" style="width:100%">
+  <table class="tbl" style="width:100%" id="pro-unreg-table">
     <thead><tr>
       <th style="width:36px"><input type="checkbox" id="chkAll" onclick="document.querySelectorAll(\'.work-chk\').forEach(function(c){c.checked=this.checked;},this)"></th>
       <th>Work Title</th>
       <th>Writers</th>
       <th>Publisher</th>
-      <th>Contract Date</th>
+      <th>Release Date</th>
     </tr></thead>
     <tbody>
     {% for w in unregistered %}
-    <tr class="work-row" data-pro-work="{{ w.id }}" onclick="toggleProWork({{ w.id }}, event)" style="cursor:pointer">
+    <tr class="work-row" data-pro-work="{{ w.id }}" data-idx="{{ loop.index0 }}"
+        data-title="{{ w.title | lower }}"
+        data-writers="{% for ww in w.work_writers %}{{ ww.writer.full_name | lower }}{% if not loop.last %} {% endif %}{% endfor %}"
+        data-pub="{% for ww in w.work_writers %}{{ ww.publisher | lower }}{% if not loop.last %} {% endif %}{% endfor %}"
+        data-rel="{{ w._first_release.release_date.strftime('%Y-%m-%d') if w._first_release and w._first_release.release_date else '' }}"
+        onclick="toggleProWork({{ w.id }}, event)" style="cursor:pointer">
       <td onclick="event.stopPropagation()"><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="work-chk"></td>
       <td>
         <span class="expand-chevron">&#9658;</span>
@@ -6350,7 +6369,7 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
       <td style="font-size:12px;color:var(--t2)">
         {% for ww in w.work_writers %}{% if ww.publisher in [\'Songs of Afinarte\',\'Melodies of Afinarte\',\'Music of Afinarte\'] %}<span style="display:block">{{ ww.publisher }}</span>{% endif %}{% endfor %}
       </td>
-      <td style="font-size:12px;color:var(--t3)">{{ w.contract_date.strftime(\'%m/%d/%Y\') if w.contract_date else \'\xe2\x80\x94\' }}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ w._first_release.release_date.strftime(\'%m/%d/%Y\') if w._first_release and w._first_release.release_date else \'\xe2\x80\x94\' }}</td>
     </tr>
     <tr class="work-detail-row" id="pro-detail-{{ w.id }}">
       <td colspan="5">
@@ -6476,6 +6495,46 @@ function toggleProWork(id, e) {
     hdr.classList.add('open');
     row.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
+}
+
+function applyProFilter() {
+  var title  = (document.getElementById('pflt-title')  || {value:''}).value.toLowerCase().trim();
+  var writer = (document.getElementById('pflt-writer') || {value:''}).value.toLowerCase().trim();
+  var pub    = (document.getElementById('pflt-pub')    || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#pro-unreg-table .work-row').forEach(function(row) {
+    var id = row.dataset.proWork;
+    var detail = document.getElementById('pro-detail-' + id);
+    var ok = (!title  || (row.dataset.title   || '').indexOf(title)  >= 0)
+          && (!writer || (row.dataset.writers || '').indexOf(writer) >= 0)
+          && (!pub    || (row.dataset.pub     || '').indexOf(pub)    >= 0);
+    row.style.display = ok ? '' : 'none';
+    if (detail) detail.style.display = ok ? '' : 'none';
+  });
+}
+
+var _proDateSort = 0;
+function toggleProDateSort() {
+  _proDateSort = (_proDateSort + 1) % 3;
+  var btn = document.getElementById('pro-sort-date');
+  var labels = ['Release Date ↕', 'Release Date ↑', 'Release Date ↓'];
+  if (btn) { btn.textContent = labels[_proDateSort]; btn.classList.toggle('active', _proDateSort > 0); }
+  var tbody = document.querySelector('#pro-unreg-table tbody');
+  if (!tbody) return;
+  var workRows = Array.from(tbody.querySelectorAll('.work-row'));
+  if (_proDateSort === 0) {
+    workRows.sort(function(a, b) { return (parseInt(a.dataset.idx)||0) - (parseInt(b.dataset.idx)||0); });
+  } else {
+    workRows.sort(function(a, b) {
+      var da = a.dataset.rel || '', db = b.dataset.rel || '';
+      if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
+      return _proDateSort === 1 ? da.localeCompare(db) : db.localeCompare(da);
+    });
+  }
+  workRows.forEach(function(wr) {
+    var detail = document.getElementById('pro-detail-' + wr.dataset.proWork);
+    tbody.appendChild(wr);
+    if (detail) tbody.appendChild(detail);
+  });
 }
 </script>
 """ + _SB_JS + """
