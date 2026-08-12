@@ -6591,6 +6591,15 @@ function toggleProDateSort() {
     if (detail) tbody.appendChild(detail);
   });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('pro-unreg-table')) {
+    toggleProDateSort(); toggleProDateSort(); // 0→1→2 = newest first
+  }
+  if (document.getElementById('reg-table')) {
+    toggleRegRelSort(); toggleRegRelSort(); // 0→1→2 = newest first
+  }
+});
 </script>
 """ + _SB_JS + """
 """ + _mobile_nav() + """
