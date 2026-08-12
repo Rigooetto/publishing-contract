@@ -6446,20 +6446,30 @@ PRO_REGISTRATION_HTML = """<!DOCTYPE html>
 <div class="card">
   <div class="card-hd"><span class="card-title">Registered Works</span></div>
   {% if registered %}
+  <div class="pro-filter-bar">
+    <input class="pro-filter-input" id="rflt-title" placeholder="Filter by title…" oninput="applyRegFilter()">
+  </div>
   <div style="overflow-x:auto">
-  <table class="tbl" style="width:100%">
+  <table class="tbl" style="width:100%" id="reg-table">
     <thead><tr>
-      <th>Work Title</th><th>PRO</th><th>PRO Work #</th><th>MLC Code</th><th>Date</th><th>By</th><th></th>
+      <th style="min-width:200px">Work Title</th>
+      <th>PRO</th>
+      <th id="reg-th-rel" onclick="toggleRegRelSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="reg-rel-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+      <th id="reg-th-date" onclick="toggleRegDateSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Registered Date <span id="reg-date-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+      <th>By</th><th></th>
     </tr></thead>
     <tbody>
+    {% set ns = namespace(idx=0) %}
     {% for w in registered %}{% for reg in w.registrations %}
-    <tr>
-      {% if loop.first %}<td rowspan="{{ w.registrations|length }}" style="vertical-align:top;font-weight:500;padding-top:12px">
-        <a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>{% endif %}
+    {% set _rel_date = w._first_release.release_date if w._first_release and w._first_release.release_date else None %}
+    <tr data-title="{{ w.title | lower }}"
+        data-rel="{{ _rel_date.strftime(\'%Y-%m-%d\') if _rel_date else \'\' }}"
+        data-reg="{{ reg.registered_at.strftime(\'%Y-%m-%d\') if reg.registered_at else \'\' }}"
+        data-idx="{{ ns.idx }}">{% set ns.idx = ns.idx + 1 %}
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
       <td><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(99,133,255,.15);color:#6385ff">{{ reg.pro }}</span></td>
-      <td style="font-size:12px;color:var(--t2)">{{ reg.pro_work_number or \'\xe2\x80\x94\' }}</td>
-      <td style="font-size:12px;color:var(--t2)">{{ reg.mlc_song_code or \'\xe2\x80\x94\' }}</td>
-      <td style="font-size:12px;color:var(--t3)">{{ reg.registered_at.strftime(\'%m/%d/%Y\') }}</td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime(\'%m/%d/%Y\') if _rel_date else \'\xe2\x80\x94\' }}</td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ reg.registered_at.strftime(\'%m/%d/%Y\') if reg.registered_at else \'\xe2\x80\x94\' }}</td>
       <td style="font-size:12px;color:var(--t3)">{{ reg.registered_by or \'\xe2\x80\x94\' }}</td>
       <td><form method="post" action="/pro-registration/{{ reg.id }}/delete"
             onsubmit="return confirm(\'Remove this registration record?\')" style="margin:0">
@@ -6510,6 +6520,49 @@ function applyProFilter() {
     row.style.display = ok ? '' : 'none';
     if (detail) detail.style.display = ok ? '' : 'none';
   });
+}
+
+function applyRegFilter() {
+  var title = (document.getElementById('rflt-title') || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#reg-table tbody tr').forEach(function(row) {
+    row.style.display = (!title || (row.dataset.title || '').indexOf(title) >= 0) ? '' : 'none';
+  });
+}
+
+function _sortRegTable(key, dir) {
+  var tbody = document.querySelector('#reg-table tbody');
+  if (!tbody) return;
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  if (dir === 0) {
+    rows.sort(function(a,b){ return (parseInt(a.dataset.idx)||0)-(parseInt(b.dataset.idx)||0); });
+  } else {
+    rows.sort(function(a,b){
+      var da=a.dataset[key]||'', db=b.dataset[key]||'';
+      if(!da&&!db) return 0; if(!da) return 1; if(!db) return -1;
+      return dir===1 ? da.localeCompare(db) : db.localeCompare(da);
+    });
+  }
+  rows.forEach(function(r){ tbody.appendChild(r); });
+}
+
+var _regRelSort=0, _regDateSort=0;
+function toggleRegRelSort() {
+  _regRelSort=(_regRelSort+1)%3; _regDateSort=0;
+  var darrow=document.getElementById('reg-date-arrow'); if(darrow){darrow.textContent='↕';darrow.style.color='var(--t3)';}
+  var dth=document.getElementById('reg-th-date'); if(dth) dth.style.color='';
+  var arrow=document.getElementById('reg-rel-arrow'); var arrows=['↕','↑','↓'];
+  if(arrow){arrow.textContent=arrows[_regRelSort];arrow.style.color=_regRelSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('reg-th-rel'); if(th) th.style.color=_regRelSort>0?'var(--accent)':'';
+  _sortRegTable('rel', _regRelSort);
+}
+function toggleRegDateSort() {
+  _regDateSort=(_regDateSort+1)%3; _regRelSort=0;
+  var rarrow=document.getElementById('reg-rel-arrow'); if(rarrow){rarrow.textContent='↕';rarrow.style.color='var(--t3)';}
+  var rth=document.getElementById('reg-th-rel'); if(rth) rth.style.color='';
+  var arrow=document.getElementById('reg-date-arrow'); var arrows=['↕','↑','↓'];
+  if(arrow){arrow.textContent=arrows[_regDateSort];arrow.style.color=_regDateSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('reg-th-date'); if(th) th.style.color=_regDateSort>0?'var(--accent)':'';
+  _sortRegTable('reg', _regDateSort);
 }
 
 var _proDateSort = 0;
