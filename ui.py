@@ -8140,6 +8140,12 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
 .rr-tab .cnt{display:inline-block;background:var(--s2);border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:5px;color:var(--t2)}
 .rr-tab.on .cnt{background:rgba(99,133,255,.18);color:#6385ff}
 .sel-all{font-size:12px;color:var(--accent);cursor:pointer;margin-left:8px}
+.rr-filter-bar{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--b1);flex-wrap:wrap;align-items:center}
+.rr-filter-input{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t1);font-size:12px;min-width:130px;flex:1}
+.rr-filter-input::placeholder{color:var(--t3)}
+.rr-filter-input:focus{outline:none;border-color:var(--accent)}
+.rr-sort-btn{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t2);font-size:11px;cursor:pointer;white-space:nowrap}
+.rr-sort-btn.active{background:rgba(99,133,255,.15);color:#6385ff;border-color:rgba(99,133,255,.3)}
 </style>
 </head>
 <body>
@@ -8193,26 +8199,36 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     <span class="sel-all" onclick="toggleAll('frmNew',true)">Select all</span>
     <span class="sel-all" onclick="toggleAll('frmNew',false)">Deselect all</span>
   </div>
+  <div class="rr-filter-bar">
+    <input class="rr-filter-input" id="flt-title" placeholder="Filter by title…" oninput="applyRrFilter()">
+    <input class="rr-filter-input" id="flt-writer" placeholder="Filter by writer…" oninput="applyRrFilter()">
+    <input class="rr-filter-input" id="flt-pub" placeholder="Filter by publisher…" oninput="applyRrFilter()">
+    <button type="button" class="rr-sort-btn" id="sort-date" onclick="toggleDateSort()">Release Date ↕</button>
+  </div>
   <div style="overflow-x:auto">
-  <table class="tbl" style="width:100%">
+  <table class="tbl" style="width:100%" id="rr-table">
     <thead><tr>
       <th style="width:36px"></th>
-      <th style="min-width:220px">Work Title</th>
+      <th style="min-width:200px">Work Title</th>
       <th>ISWC</th>
       <th>Writers</th>
-      <th>Contract Date</th>
+      <th>Publisher</th>
+      <th>Release Date</th>
       <th>AKAs</th>
     </tr></thead>
     <tbody>
     {% for w in new_works %}
-    <tr>
+    {% set _rel_date = None %}{% if w.track_works %}{% set _tw = w.track_works[0] %}{% if _tw.track and _tw.track.release %}{% set _rel_date = _tw.track.release.release_date %}{% endif %}{% endif %}
+    {% set ns = namespace(pubs=[]) %}{% for ww in w.work_writers %}{% if ww.publisher and ww.publisher not in ns.pubs %}{% set ns.pubs = ns.pubs + [ww.publisher] %}{% endif %}{% endfor %}
+    <tr data-idx="{{ loop.index0 }}" data-title="{{ w.title | lower }}" data-writers="{% for ww in w.work_writers %}{{ ww.writer.full_name | lower }}{% if not loop.last %} {% endif %}{% endfor %}" data-pub="{{ ns.pubs | join(' ') | lower }}" data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}">
       <td style="text-align:center"><input type="checkbox" name="work_ids" value="{{ w.id }}" style="width:15px;height:15px"></td>
       <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
       <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
       <td style="font-size:11px;color:var(--t2)">
         {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
       </td>
-      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}</td>
+      <td style="font-size:11px;color:var(--t2)">{{ ns.pubs | join(', ') or '—' }}</td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
       <td style="font-size:11px;color:var(--t3)">
         {% if w.aka_titles %}{{ w.aka_titles | map(attribute='title') | join(', ') }}{% else %}&mdash;{% endif %}
       </td>
@@ -8242,26 +8258,36 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     <span class="sel-all" onclick="toggleAll('frmSub',true)">Select all</span>
     <span class="sel-all" onclick="toggleAll('frmSub',false)">Deselect all</span>
   </div>
+  <div class="rr-filter-bar">
+    <input class="rr-filter-input" id="flt-title" placeholder="Filter by title…" oninput="applyRrFilter()">
+    <input class="rr-filter-input" id="flt-writer" placeholder="Filter by writer…" oninput="applyRrFilter()">
+    <input class="rr-filter-input" id="flt-pub" placeholder="Filter by publisher…" oninput="applyRrFilter()">
+    <button type="button" class="rr-sort-btn" id="sort-date" onclick="toggleDateSort()">Release Date ↕</button>
+  </div>
   <div style="overflow-x:auto">
-  <table class="tbl" style="width:100%">
+  <table class="tbl" style="width:100%" id="rr-table">
     <thead><tr>
       <th style="width:36px"></th>
-      <th style="min-width:220px">Work Title</th>
+      <th style="min-width:200px">Work Title</th>
       <th>ISWC</th>
       <th>Writers</th>
-      <th>Contract Date</th>
+      <th>Publisher</th>
+      <th>Release Date</th>
       <th>AKAs</th>
     </tr></thead>
     <tbody>
     {% for w in submitted_works %}
-    <tr>
+    {% set _rel_date = None %}{% if w.track_works %}{% set _tw = w.track_works[0] %}{% if _tw.track and _tw.track.release %}{% set _rel_date = _tw.track.release.release_date %}{% endif %}{% endif %}
+    {% set ns = namespace(pubs=[]) %}{% for ww in w.work_writers %}{% if ww.publisher and ww.publisher not in ns.pubs %}{% set ns.pubs = ns.pubs + [ww.publisher] %}{% endif %}{% endfor %}
+    <tr data-idx="{{ loop.index0 }}" data-title="{{ w.title | lower }}" data-writers="{% for ww in w.work_writers %}{{ ww.writer.full_name | lower }}{% if not loop.last %} {% endif %}{% endfor %}" data-pub="{{ ns.pubs | join(' ') | lower }}" data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}">
       <td style="text-align:center"><input type="checkbox" name="work_ids" value="{{ w.id }}" style="width:15px;height:15px"></td>
       <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
       <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
       <td style="font-size:11px;color:var(--t2)">
         {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
       </td>
-      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}</td>
+      <td style="font-size:11px;color:var(--t2)">{{ ns.pubs | join(', ') or '—' }}</td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
       <td style="font-size:11px;color:var(--t3)">
         {% if w.aka_titles %}{{ w.aka_titles | map(attribute='title') | join(', ') }}{% else %}&mdash;{% endif %}
       </td>
@@ -8282,25 +8308,35 @@ REGISTRATION_REPORT_HTML = """<!DOCTYPE html>
     <span class="card-title">Works confirmed by PRO or MLC catalog export</span>
   </div>
   {% if confirmed_works %}
+  <div class="rr-filter-bar">
+    <input class="rr-filter-input" id="flt-title" placeholder="Filter by title…" oninput="applyRrFilter()">
+    <input class="rr-filter-input" id="flt-writer" placeholder="Filter by writer…" oninput="applyRrFilter()">
+    <input class="rr-filter-input" id="flt-pub" placeholder="Filter by publisher…" oninput="applyRrFilter()">
+    <button type="button" class="rr-sort-btn" id="sort-date" onclick="toggleDateSort()">Release Date ↕</button>
+  </div>
   <div style="overflow-x:auto">
-  <table class="tbl" style="width:100%">
+  <table class="tbl" style="width:100%" id="rr-table">
     <thead><tr>
-      <th style="min-width:220px">Work Title</th>
+      <th style="min-width:200px">Work Title</th>
       <th>ISWC</th>
       <th>MRI Song ID</th>
       <th>Writers</th>
-      <th>Contract Date</th>
+      <th>Publisher</th>
+      <th>Release Date</th>
     </tr></thead>
     <tbody>
     {% for w in confirmed_works %}
-    <tr>
+    {% set _rel_date = None %}{% if w.track_works %}{% set _tw = w.track_works[0] %}{% if _tw.track and _tw.track.release %}{% set _rel_date = _tw.track.release.release_date %}{% endif %}{% endif %}
+    {% set ns = namespace(pubs=[]) %}{% for ww in w.work_writers %}{% if ww.publisher and ww.publisher not in ns.pubs %}{% set ns.pubs = ns.pubs + [ww.publisher] %}{% endif %}{% endfor %}
+    <tr data-idx="{{ loop.index0 }}" data-title="{{ w.title | lower }}" data-writers="{% for ww in w.work_writers %}{{ ww.writer.full_name | lower }}{% if not loop.last %} {% endif %}{% endfor %}" data-pub="{{ ns.pubs | join(' ') | lower }}" data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}">
       <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
       <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
       <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.mri_song_id or '—' }}</td>
       <td style="font-size:11px;color:var(--t2)">
         {% for ww in w.work_writers %}{{ ww.writer.full_name }} ({{ "%.0f"|format(ww.writer_percentage) }}%){% if not loop.last %}, {% endif %}{% endfor %}
       </td>
-      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ w.contract_date.strftime('%m/%d/%Y') if w.contract_date else '—' }}</td>
+      <td style="font-size:11px;color:var(--t2)">{{ ns.pubs | join(', ') or '—' }}</td>
+      <td style="font-size:11px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
     </tr>
     {% endfor %}
     </tbody>
@@ -8318,6 +8354,41 @@ function toggleAll(formId, check) {
   document.querySelectorAll('#' + formId + ' input[type=checkbox]').forEach(function(cb) {
     cb.checked = check;
   });
+}
+
+function applyRrFilter() {
+  var title  = (document.getElementById('flt-title')  || {value:''}).value.toLowerCase().trim();
+  var writer = (document.getElementById('flt-writer') || {value:''}).value.toLowerCase().trim();
+  var pub    = (document.getElementById('flt-pub')    || {value:''}).value.toLowerCase().trim();
+  var tbody  = document.querySelector('#rr-table tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('tr').forEach(function(row) {
+    var ok = (!title  || (row.dataset.title   || '').indexOf(title)  >= 0)
+          && (!writer || (row.dataset.writers || '').indexOf(writer) >= 0)
+          && (!pub    || (row.dataset.pub     || '').indexOf(pub)    >= 0);
+    row.style.display = ok ? '' : 'none';
+  });
+}
+
+var _rrDateSort = 0;
+function toggleDateSort() {
+  _rrDateSort = (_rrDateSort + 1) % 3;
+  var btn = document.getElementById('sort-date');
+  var labels = ['Release Date ↕', 'Release Date ↑', 'Release Date ↓'];
+  if (btn) { btn.textContent = labels[_rrDateSort]; btn.classList.toggle('active', _rrDateSort > 0); }
+  var tbody = document.querySelector('#rr-table tbody');
+  if (!tbody) return;
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  if (_rrDateSort === 0) {
+    rows.sort(function(a, b) { return (parseInt(a.dataset.idx) || 0) - (parseInt(b.dataset.idx) || 0); });
+  } else {
+    rows.sort(function(a, b) {
+      var da = a.dataset.rel || '', db = b.dataset.rel || '';
+      if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
+      return _rrDateSort === 1 ? da.localeCompare(db) : db.localeCompare(da);
+    });
+  }
+  rows.forEach(function(r) { tbody.appendChild(r); });
 }
 </script>
 """ + _SB_JS + """
