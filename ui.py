@@ -8513,6 +8513,12 @@ function toggleDateSort() {
   }
   rows.forEach(function(r) { tbody.appendChild(r); });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('rr-table')) {
+    toggleDateSort(); toggleDateSort();
+  }
+});
 </script>
 """ + _SB_JS + """
 """ + _mobile_nav() + """

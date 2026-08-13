@@ -7,28 +7,50 @@ import datetime
 from flask import Blueprint, render_template_string, request, redirect, url_for, flash, make_response, current_app
 
 from extensions import db
-from models import Work, WorkWriter
+from models import Work, WorkWriter, TrackWork, Track
 from utils import auth_required, role_required, FULL_ACCESS_ROLES
 from ui import REGISTRATION_REPORT_HTML
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "template")
 
+AFINARTE_PUBLISHERS = ["Songs of Afinarte", "Melodies of Afinarte", "Music of Afinarte"]
+
 bp = Blueprint("registration_report", __name__)
 
 
-def _works_by_status(status):
-    return (
+def _build_report():
+    works_with_release = (
+        db.session.query(TrackWork.work_id)
+        .join(Track, Track.id == TrackWork.track_id)
+        .distinct()
+    )
+
+    new_works = (
         Work.query
-        .filter_by(registration_status=status)
+        .join(WorkWriter, WorkWriter.work_id == Work.id)
+        .filter(WorkWriter.publisher.in_(AFINARTE_PUBLISHERS))
+        .filter(Work.registration_status == "new")
+        .filter(Work.id.in_(works_with_release))
+        .distinct()
+        .order_by(Work.created_at.desc())
+        .all()
+    )
+
+    submitted_works = (
+        Work.query
+        .filter(Work.registration_status == "submitted")
+        .filter(Work.id.in_(works_with_release))
         .order_by(Work.title)
         .all()
     )
 
+    confirmed_works = (
+        Work.query
+        .filter_by(registration_status="confirmed")
+        .order_by(Work.title)
+        .all()
+    )
 
-def _build_report():
-    new_works       = _works_by_status("new")
-    submitted_works = _works_by_status("submitted")
-    confirmed_works = _works_by_status("confirmed")
     return new_works, submitted_works, confirmed_works
 
 
