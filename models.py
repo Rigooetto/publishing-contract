@@ -52,8 +52,10 @@ class Work(db.Model):
     mri_song_id = db.Column(db.String(50), default="")    # assigned by Music Reports portal
     aka_title = db.Column(db.String(255), default="")
     aka_title_type_code = db.Column(db.String(5), default="")  # AT, OT, FT, etc.
-    # Registration workflow: new → submitted → confirmed
+    # Registration workflow: new → (pro_submitted via ProRegistration rows) → submitted → confirmed
     registration_status = db.Column(db.String(20), nullable=False, default="new", index=True)
+    mlc_submitted_at = db.Column(db.DateTime, nullable=True)
+    mri_submitted_at = db.Column(db.DateTime, nullable=True)
     batch = db.relationship("GenerationBatch", foreign_keys=[batch_id], lazy="select")
     work_writers = db.relationship("WorkWriter", backref="work", lazy=True, cascade="all, delete-orphan")
     contract_documents = db.relationship("ContractDocument", backref="work", lazy=True, cascade="all, delete-orphan")

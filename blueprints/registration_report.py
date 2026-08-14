@@ -58,6 +58,14 @@ def _build_report():
 
 @bp.route("/registration-report")
 def registration_report():
+    """Legacy redirect — old bookmarks go to the new Works Registration page."""
+    tab = request.args.get("tab", "new")
+    tab_map = {"new": "unregistered", "submitted": "submitted_to_mlc", "confirmed": "confirmed"}
+    return redirect(url_for("reports.works_registration", tab=tab_map.get(tab, "unregistered")))
+
+
+@bp.route("/registration-report-classic")
+def registration_report_classic():
     if auth_required():
         return redirect(url_for("publishing.login"))
     if role_required(FULL_ACCESS_ROLES):
@@ -96,7 +104,7 @@ def mark_submitted():
     work_ids = request.form.getlist("work_ids", type=int)
     if not work_ids:
         flash("No works selected.", "error")
-        return redirect(url_for("registration_report.registration_report", tab="new"))
+        return redirect(url_for("reports.works_registration", tab="unregistered"))
 
     updated = (
         Work.query
@@ -113,7 +121,7 @@ def mark_submitted():
         db.session.rollback()
         flash(f"Error: {e}", "error")
 
-    return redirect(url_for("registration_report.registration_report", tab="new"))
+    return redirect(url_for("reports.works_registration", tab="unregistered"))
 
 
 @bp.route("/registration-report/mark-new", methods=["POST"])
@@ -128,7 +136,7 @@ def mark_new():
     work_ids = request.form.getlist("work_ids", type=int)
     if not work_ids:
         flash("No works selected.", "error")
-        return redirect(url_for("registration_report.registration_report", tab="submitted"))
+        return redirect(url_for("reports.works_registration", tab="submitted_to_mlc"))
 
     updated = (
         Work.query
@@ -145,7 +153,7 @@ def mark_new():
         db.session.rollback()
         flash(f"Error: {e}", "error")
 
-    return redirect(url_for("registration_report.registration_report", tab="submitted"))
+    return redirect(url_for("reports.works_registration", tab="submitted_to_mlc"))
 
 
 @bp.route("/registration-report/export-csv")
@@ -342,7 +350,7 @@ def export_mlc():
     except Exception as e:
         current_app.logger.error("MLC smart export error: %s", e)
         flash("Error generating MLC export: " + str(e), "error")
-        return redirect(url_for("registration_report.registration_report"))
+        return redirect(url_for("reports.works_registration"))
 
 
 @bp.route("/registration-report/export-mri")
@@ -418,7 +426,7 @@ def export_mri():
     except Exception as e:
         current_app.logger.error("MRI smart export error: %s", e)
         flash("Error generating Music Reports export: " + str(e), "error")
-        return redirect(url_for("registration_report.registration_report"))
+        return redirect(url_for("reports.works_registration"))
 
 
 @bp.route("/registration-report/export-soundexchange")
@@ -499,4 +507,4 @@ def export_soundexchange():
     except Exception as e:
         current_app.logger.error("SoundExchange smart export error: %s", e)
         flash("Error generating SoundExchange export: " + str(e), "error")
-        return redirect(url_for("registration_report.registration_report"))
+        return redirect(url_for("reports.works_registration"))

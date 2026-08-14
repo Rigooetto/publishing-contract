@@ -916,12 +916,11 @@ def _sidebar(active):
     html += "<div class='sb-sec'>Reporting</div>"
     html += "<nav class='sb-nav'>"
     html += "<a href='/reports'" + (" class='on'" if active == "reports" else "") + " title='Reports'><span class='ni'>&#128202;</span><span class='nl'>Reports</span></a>"
-    html += "<a href='/pro-registration'" + (" class='on'" if active == "pro_registration" else "") + " title='PRO Registration'><span class='ni'>&#9989;</span><span class='nl'>PRO Registration</span></a>"
+    html += "<a href='/works-registration'" + (" class='on'" if active in ("works_registration", "pro_registration", "registration_report") else "") + " title='Works Registration'><span class='ni'>&#128228;</span><span class='nl'>Works Registration</span></a>"
     html += "<a href='/pro-audit'" + (" class='on'" if active == "pro_audit" else "") + " title='PRO Audit'><span class='ni'>&#128269;</span><span class='nl'>PRO Audit</span></a>"
     html += "<a href='/mechanical-audit'" + (" class='on'" if active == "mechanical_audit" else "") + " title='Mechanical Audit'><span class='ni'>&#127926;</span><span class='nl'>Mechanical Audit</span></a>"
     html += "<a href='/neighboring-rights-audit'" + (" class='on'" if active == "neighboring_rights_audit" else "") + " title='Neighboring Rights Audit'><span class='ni'>&#127911;</span><span class='nl'>Neighboring Rights</span></a>"
     html += "<a href='/title-review'" + (" class='on'" if active == "title_review" else "") + " title='Title Review'><span class='ni'>&#9997;</span><span class='nl'>Title Review</span></a>"
-    html += "<a href='/registration-report'" + (" class='on'" if active == "registration_report" else "") + " title='Registration Report'><span class='ni'>&#128228;</span><span class='nl'>Registration Report</span></a>"
     html += "{% if current_role == 'admin' %}"
     streaming_active = active in ("streaming_royalties","streaming_imports","streaming_catalog","streaming_artist_names","streaming_split_gaps")
     html += "<div class='sb-group" + (" open" if streaming_active else "") + "' id='sbStreaming'>"
@@ -999,12 +998,11 @@ def _mobile_nav():
   {% if current_role in ('admin', 'label_manager', 'publishing_manager') %}
   <div class="mnav-more-sec">Reporting</div>
   <a href="/reports" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128202;</span>Reports</a>
-  <a href="/pro-registration" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#9989;</span>PRO Registration</a>
+  <a href="/works-registration" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128228;</span>Works Registration</a>
   <a href="/pro-audit" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128269;</span>PRO Audit</a>
   <a href="/mechanical-audit" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#127926;</span>Mechanical Audit</a>
   <a href="/neighboring-rights-audit" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#127911;</span>Neighboring Rights</a>
   <a href="/title-review" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#9997;</span>Title Review</a>
-  <a href="/registration-report" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#128228;</span>Registration Report</a>
   {% if current_role == 'admin' %}
   <div class="mnav-more-sec">Streaming</div>
   <a href="/streaming-royalties" class="mnav-more-link" onclick="pwaNav(this,event)"><span>&#127925;</span>Streaming Royalties</a>
@@ -6605,6 +6603,647 @@ document.addEventListener('DOMContentLoaded', function() {
 """ + _mobile_nav() + """
 </body></html>"""
 
+
+WORKS_REGISTRATION_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/static/manifest.json"><link rel="apple-touch-icon" href="/static/labelmind-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="LabelMind"><script src="/static/pwa-nav.js"></script>
+<title>Works Registration - LabelMind</title>""" + _STYLE + """
+<style>
+.wr-filter-bar{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--b1);flex-wrap:wrap;align-items:center}
+.wr-filter-input{background:var(--s2);border:1px solid var(--b0);border-radius:6px;padding:5px 10px;color:var(--t1);font-size:12px;min-width:130px;flex:1}
+.wr-filter-input::placeholder{color:var(--t3)}
+.wr-filter-input:focus{outline:none;border-color:var(--accent)}
+.sub-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px}
+.sub-badge.mlc{background:rgba(76,175,138,.15);color:#4caf8a}
+.sub-badge.mri{background:rgba(240,165,0,.15);color:#f0a500}
+</style>
+</head>
+<body>
+<div class="app" id="mainApp">
+""" + _sidebar("works_registration") + """
+<main class="main">
+""" + _topbar() + """
+<div class="page">
+{% with messages = get_flashed_messages() %}{% if messages %}
+<div class="flash-list">{% for m in messages %}<div class="flash-item">&#9888; {{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<div class="ph">
+  <div class="ph-left">
+    <div class="ph-icon">&#128228;</div>
+    <div><div class="ph-title">Works Registration</div>
+    <div class="ph-sub">Full pipeline: PRO registration → MLC &amp; MRI submission → mechanical confirmation</div></div>
+  </div>
+  <div class="ph-actions"><a href="/reports" class="btn btn-sec">Back to Reports</a></div>
+</div>
+
+<div style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--b0);padding-bottom:0">
+  <a href="/works-registration?tab=unregistered{% if q %}&amp;q={{ q }}{% endif %}"
+     style="padding:8px 14px;font-size:13px;font-weight:500;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:{% if tab=='unregistered' %}var(--t1){% else %}var(--t3){% endif %};border-bottom-color:{% if tab=='unregistered' %}var(--accent){% else %}transparent{% endif %}">
+    Unregistered <span style="font-size:10px;background:var(--s2);border-radius:20px;padding:1px 7px;margin-left:4px">{{ unregistered_count }}</span></a>
+  <a href="/works-registration?tab=submitted_to_pros{% if q %}&amp;q={{ q }}{% endif %}"
+     style="padding:8px 14px;font-size:13px;font-weight:500;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:{% if tab=='submitted_to_pros' %}var(--t1){% else %}var(--t3){% endif %};border-bottom-color:{% if tab=='submitted_to_pros' %}var(--accent){% else %}transparent{% endif %}">
+    Submitted to PROs <span style="font-size:10px;background:var(--s2);border-radius:20px;padding:1px 7px;margin-left:4px">{{ submitted_pros_count }}</span></a>
+  <a href="/works-registration?tab=submitted_to_mlc{% if q %}&amp;q={{ q }}{% endif %}"
+     style="padding:8px 14px;font-size:13px;font-weight:500;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:{% if tab=='submitted_to_mlc' %}var(--t1){% else %}var(--t3){% endif %};border-bottom-color:{% if tab=='submitted_to_mlc' %}var(--accent){% else %}transparent{% endif %}">
+    Submitted to MLC <span style="font-size:10px;background:rgba(76,175,138,.12);color:#4caf8a;border-radius:20px;padding:1px 7px;margin-left:4px">{{ submitted_mlc_count }}</span></a>
+  <a href="/works-registration?tab=submitted_to_mri{% if q %}&amp;q={{ q }}{% endif %}"
+     style="padding:8px 14px;font-size:13px;font-weight:500;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:{% if tab=='submitted_to_mri' %}var(--t1){% else %}var(--t3){% endif %};border-bottom-color:{% if tab=='submitted_to_mri' %}var(--accent){% else %}transparent{% endif %}">
+    Submitted to MRI <span style="font-size:10px;background:rgba(240,165,0,.12);color:#f0a500;border-radius:20px;padding:1px 7px;margin-left:4px">{{ submitted_mri_count }}</span></a>
+  <a href="/works-registration?tab=confirmed{% if q %}&amp;q={{ q }}{% endif %}"
+     style="padding:8px 14px;font-size:13px;font-weight:500;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:{% if tab=='confirmed' %}var(--t1){% else %}var(--t3){% endif %};border-bottom-color:{% if tab=='confirmed' %}var(--accent){% else %}transparent{% endif %}">
+    Confirmed <span style="font-size:10px;background:rgba(76,175,138,.12);color:#4caf8a;border-radius:20px;padding:1px 7px;margin-left:4px">{{ confirmed_count }}</span></a>
+  <form method="get" style="margin-left:auto;display:flex;gap:6px;padding-bottom:8px">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input class="inp" name="q" value="{{ q }}" placeholder="Search works…" style="width:180px;font-size:12px">
+    <button class="btn btn-sec btn-sm" type="submit">Search</button>
+  </form>
+</div>
+
+{# ═══════════════════════ UNREGISTERED TAB ═══════════════════════ #}
+{% if tab == 'unregistered' %}
+<form method="post" action="/works-registration/mark" id="markForm">
+<div class="card">
+  <div class="card-hd"><span class="card-title">Unregistered Controlled Works</span>
+    <span style="font-size:11px;color:var(--t3);margin-left:8px">(publisher = Songs / Melodies / Music of Afinarte, linked to a release)</span>
+  </div>
+  {% if unregistered %}
+  <div style="padding:14px 16px;border-bottom:1px solid var(--b0);display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div class="field" style="min-width:130px"><label class="label">PRO *</label>
+      <select class="inp" name="pro" required>
+        <option value="">-- Select PRO --</option>
+        <option>BMI</option><option>ASCAP</option><option>SESAC</option>
+      </select>
+    </div>
+    <div class="field"><label class="label">Registration Date</label>
+      <input class="inp" type="date" name="registered_at" value="{{ today }}">
+    </div>
+    <div class="field"><label class="label">Registered By</label>
+      <input class="inp" name="registered_by" value="Omar">
+    </div>
+    <div class="field" style="min-width:160px"><label class="label">PRO Work # <span style="color:var(--t3)">(optional)</span></label>
+      <input class="inp" name="pro_work_number" placeholder="Assigned by PRO after submission">
+    </div>
+    <div class="field" style="min-width:130px"><label class="label">MLC Song Code <span style="color:var(--t3)">(optional)</span></label>
+      <input class="inp" name="mlc_song_code" placeholder="e.g. H12345">
+    </div>
+    <div class="field" style="min-width:160px"><label class="label">Notes</label>
+      <input class="inp" name="notes" placeholder="Optional">
+    </div>
+  </div>
+  <div class="wr-filter-bar">
+    <input class="wr-filter-input" id="pflt-title" placeholder="Filter by title…" oninput="applyUnregFilter()">
+    <input class="wr-filter-input" id="pflt-writer" placeholder="Filter by writer…" oninput="applyUnregFilter()">
+    <input class="wr-filter-input" id="pflt-pub" placeholder="Filter by publisher…" oninput="applyUnregFilter()">
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%" id="unreg-table">
+    <thead><tr>
+      <th style="width:36px"><input type="checkbox" id="chkAllUnreg" onclick="document.querySelectorAll(\'.work-chk\').forEach(function(c){c.checked=this.checked;},this)"></th>
+      <th>Work Title</th>
+      <th>Writers</th>
+      <th>Artist</th>
+      <th>Publisher</th>
+      <th id="unreg-th-date" onclick="toggleUnregDateSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="unreg-date-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+    </tr></thead>
+    <tbody>
+    {% for w in unregistered %}
+    <tr class="work-row" data-work-id="{{ w.id }}" data-idx="{{ loop.index0 }}"
+        data-title="{{ w.title | lower }}"
+        data-writers="{% for ww in w.work_writers %}{{ ww.writer.full_name | lower }}{% if not loop.last %} {% endif %}{% endfor %}"
+        data-pub="{% for ww in w.work_writers %}{{ ww.publisher | lower }}{% if not loop.last %} {% endif %}{% endfor %}"
+        data-rel="{{ w._first_release.release_date.strftime('%Y-%m-%d') if w._first_release and w._first_release.release_date else '' }}"
+        onclick="toggleWrWork({{ w.id }}, event)" style="cursor:pointer">
+      <td onclick="event.stopPropagation()"><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="work-chk"></td>
+      <td>
+        <span class="expand-chevron">&#9658;</span>
+        <span style="font-weight:600">{{ w.title }}</span>
+        {% if w.aka_title %}<div style="font-size:11px;color:var(--t3);margin-left:16px;margin-top:2px">AKA: {{ w.aka_title }}</div>{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">{{ w._artist_display or '—' }}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers %}{% if ww.publisher in ['Songs of Afinarte','Melodies of Afinarte','Music of Afinarte'] %}<span style="display:block">{{ ww.publisher }}</span>{% endif %}{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t3)">{{ w._first_release.release_date.strftime('%m/%d/%Y') if w._first_release and w._first_release.release_date else '—' }}</td>
+    </tr>
+    <tr class="work-detail-row" id="wr-detail-{{ w.id }}">
+      <td colspan="6">
+        <div class="work-detail-inner" style="grid-template-columns:1.2fr 2.8fr 1fr;padding-left:12px">
+          <div class="wd-section">
+            <div class="wd-label">Work Info</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+              <span style="color:var(--t3)">Title</span><span style="color:var(--t1);font-weight:600">{{ w.title }}</span>
+              {% if w.aka_title %}<span style="color:var(--t3)">AKA</span><span style="color:var(--t2)">{{ w.aka_title }}</span>{% endif %}
+              <span style="color:var(--t3)">ISWC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w.iswc or '' }}</span>
+              <span style="color:var(--t3)">Duration</span><span style="color:var(--t2)">{{ w._first_track.duration if w._first_track and w._first_track.duration else '' }}</span>
+              <span style="color:var(--t3)">Recording Title</span><span style="color:var(--t2)">{{ w._first_track.recording_title if w._first_track and w._first_track.recording_title else (w._first_track.primary_title if w._first_track else '') }}</span>
+              {% if w._artist_display %}<span style="color:var(--t3)">Artist</span><span style="color:var(--t2)">{{ w._artist_display }}</span>{% endif %}
+            </div>
+          </div>
+          <div class="wd-section">
+            <div class="wd-label">Writers &amp; Publishers</div>
+            <table class="wd-writers-tbl" style="width:100%">
+              <thead><tr><th>Writer</th><th>IPI</th><th>PRO</th><th>Share</th><th>Publisher</th><th>Pub IPI</th></tr></thead>
+              <tbody>
+              {% for ww in w.work_writers %}
+              <tr>
+                <td style="font-weight:600">{{ ww.writer.full_name }}</td>
+                <td style="font-family:var(--fm)">{{ ww.writer.ipi or '' }}</td>
+                <td>{{ ww.writer.pro or '' }}</td>
+                <td style="color:var(--a);font-weight:700">{{ "%.2f"|format(ww.writer_percentage) }}%</td>
+                <td style="font-size:11px;color:var(--t2)">{{ ww.publisher or '' }}</td>
+                <td style="font-family:var(--fm);font-size:11px;color:var(--t3)">{{ ww.publisher_ipi or '' }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="wd-section">
+            <div class="wd-label">Recording &amp; Release</div>
+            {% if w._first_release %}
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+              <span style="color:var(--t3)">Release Type</span><span style="color:var(--t2)">{{ w._first_release.release_type }}</span>
+              <span style="color:var(--t3)">Release Date</span><span style="color:var(--t2)">{{ w._first_release.release_date.strftime('%m/%d/%Y') if w._first_release.release_date else '' }}</span>
+              <span style="color:var(--t3)">Record Label</span><span style="color:var(--t2)">{{ w._first_track.track_label or '' }}</span>
+              <span style="color:var(--t3)">ISRC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_track.isrc or '' }}</span>
+              <span style="color:var(--t3)">UPC</span><span style="color:var(--t2);font-family:var(--fm)">{{ w._first_release.upc or '' }}</span>
+            </div>
+            {% if w._tracks|length > 1 %}
+            <div style="font-size:11px;color:var(--t3);margin-top:8px">+{{ w._tracks|length - 1 }} more recording(s)</div>
+            {% endif %}
+            {% else %}
+            <div style="font-size:12px;color:var(--t3)">No linked release</div>
+            {% endif %}
+          </div>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <button type="submit" class="btn btn-primary"
+      onclick="var c=document.querySelectorAll('.work-chk:checked').length;var p=document.querySelector('[name=pro]').value;if(!c){alert('Select at least one work.');return false;}if(!p){alert('Select a PRO.');return false;}return true;">
+      Mark Selected as Registered with PRO
+    </button>
+    {% if pagination.pages > 1 %}
+    <span style="font-size:12px;color:var(--t3)">{{ pagination.total }} works &mdash; page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_prev %}<a href="?tab=unregistered&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=unregistered&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    {% endif %}
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">All controlled works have been submitted to PROs. &#9989;</div>
+  {% endif %}
+</div>
+</form>
+
+{# ═══════════════════════ SUBMITTED TO PROs TAB ═══════════════════════ #}
+{% elif tab == 'submitted_to_pros' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Submitted to PROs — Ready for Mechanical Submission</span>
+    <span style="font-size:11px;color:var(--t3);margin-left:8px">Select works and generate MLC or MRI export. Works move to the corresponding tab after export.</span>
+  </div>
+  {% if submitted_pros %}
+  <form method="post" id="prosForm">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--b1);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:12px;color:var(--t3)">Selected works:</span>
+    <button type="submit" formaction="/works-registration/submit-both" class="btn btn-primary btn-sm"
+      onclick="return prosCheck();">&#8659; Submit to Both MLC + MRI</button>
+    <button type="submit" formaction="/works-registration/submit-mlc" class="btn btn-sec btn-sm"
+      onclick="return prosCheck();">&#8659; MLC Only</button>
+    <button type="submit" formaction="/works-registration/submit-mri" class="btn btn-sec btn-sm"
+      onclick="return prosCheck();">&#8659; MRI Only</button>
+    <span style="margin-left:auto;font-size:11px;color:var(--t3)">
+      <span class="sub-badge mlc">MLC &#10003;</span> = already submitted
+      <span class="sub-badge mri" style="margin-left:6px">MRI &#10003;</span> = already submitted
+    </span>
+  </div>
+  <div class="wr-filter-bar">
+    <input class="wr-filter-input" id="pros-flt-title" placeholder="Filter by title…" oninput="applyProsFilter()">
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%" id="pros-table">
+    <thead><tr>
+      <th style="width:36px"><input type="checkbox" onclick="document.querySelectorAll('.pros-chk').forEach(function(c){c.checked=this.checked;},this)"></th>
+      <th style="min-width:200px">Work Title</th>
+      <th>PRO(s) Registered</th>
+      <th>Writers</th>
+      <th id="pros-th-rel" onclick="toggleProsRelSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="pros-rel-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+      <th>Submitted By</th>
+      <th>Mechanical</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% set ns = namespace(idx=0) %}
+    {% for w in submitted_pros %}
+    {% set _rel_date = w._first_release.release_date if w._first_release and w._first_release.release_date else None %}
+    <tr data-idx="{{ ns.idx }}" data-title="{{ w.title | lower }}" data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}">
+      {% set ns.idx = ns.idx + 1 %}
+      <td><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="pros-chk"></td>
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td>
+        {% for reg in w.registrations %}<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(99,133,255,.15);color:#6385ff;display:inline-block;margin:1px">{{ reg.pro }}</span>{% endfor %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
+      <td style="font-size:12px;color:var(--t3)">{{ w.registrations[0].registered_by if w.registrations else '—' }}</td>
+      <td style="white-space:nowrap">
+        {% if w.mlc_submitted_at %}<span class="sub-badge mlc">MLC &#10003;</span>{% endif %}
+        {% if w.mri_submitted_at %}<span class="sub-badge mri">MRI &#10003;</span>{% endif %}
+        {% if not w.mlc_submitted_at and not w.mri_submitted_at %}<span style="font-size:11px;color:var(--t3)">Pending</span>{% endif %}
+      </td>
+      <td>
+        <form method="post" action="/works-registration/{{ w.registrations[0].id if w.registrations else 0 }}/delete"
+              onsubmit="return confirm('Remove this PRO registration record?')" style="margin:0">
+          <button type="submit" class="btn btn-danger btn-xs">Remove PRO</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="padding:10px 16px;font-size:12px;color:var(--t3)">
+    {{ pagination.total }} work(s) awaiting mechanical submission
+    {% if pagination.pages > 1 %}
+    &mdash; page {{ pagination.page }} of {{ pagination.pages }}
+    {% if pagination.has_prev %}<a href="?tab=submitted_to_pros&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm" style="margin-left:8px">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=submitted_to_pros&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    {% endif %}
+  </div>
+  </form>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">No works waiting for mechanical submission.</div>
+  {% endif %}
+</div>
+
+{# ═══════════════════════ SUBMITTED TO MLC TAB ═══════════════════════ #}
+{% elif tab == 'submitted_to_mlc' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Submitted to MLC — Awaiting Catalog Confirmation</span>
+    <span style="font-size:11px;color:var(--t3);margin-left:8px">Works move to Confirmed automatically when the mechanical audit finds them in an MLC catalog export.</span>
+  </div>
+  {% if submitted_mlc %}
+  <form method="post" action="/works-registration/resubmit-mlc" id="mlcForm">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--b1);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button type="submit" class="btn btn-sec btn-sm" onclick="return mlcCheck();">&#8592; Resubmit Selected to MLC</button>
+    <span style="font-size:11px;color:var(--t3)">Resubmitting clears the submission date and moves the work back to Submitted to PROs for a fresh MLC export.</span>
+  </div>
+  <div class="wr-filter-bar">
+    <input class="wr-filter-input" id="mlc-flt-title" placeholder="Filter by title…" oninput="applyMlcFilter()">
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%" id="mlc-table">
+    <thead><tr>
+      <th style="width:36px"><input type="checkbox" onclick="document.querySelectorAll('.mlc-chk').forEach(function(c){c.checked=this.checked;},this)"></th>
+      <th style="min-width:200px">Work Title</th>
+      <th>ISWC</th>
+      <th>Writers</th>
+      <th>Publisher</th>
+      <th id="mlc-th-rel" onclick="toggleMlcRelSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="mlc-rel-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+      <th id="mlc-th-sub" onclick="toggleMlcSubSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Submitted <span id="mlc-sub-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+    </tr></thead>
+    <tbody>
+    {% for w in submitted_mlc %}
+    {% set _rel_date = w._first_release.release_date if w._first_release and w._first_release.release_date else None %}
+    <tr data-idx="{{ loop.index0 }}" data-title="{{ w.title | lower }}"
+        data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}"
+        data-sub="{{ w.mlc_submitted_at.strftime('%Y-%m-%d') if w.mlc_submitted_at else '' }}">
+      <td><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="mlc-chk"></td>
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% set ns2 = namespace(pubs=[]) %}{% for ww in w.work_writers %}{% if ww.publisher and ww.publisher not in ns2.pubs %}{% set ns2.pubs = ns2.pubs + [ww.publisher] %}{% endif %}{% endfor %}
+        {{ ns2.pubs | join(', ') or '—' }}
+      </td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ w.mlc_submitted_at.strftime('%m/%d/%Y') if w.mlc_submitted_at else '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="padding:10px 16px;font-size:12px;color:var(--t3)">
+    {{ pagination.total }} work(s) pending MLC confirmation
+    {% if pagination.pages > 1 %}
+    &mdash; page {{ pagination.page }} of {{ pagination.pages }}
+    {% if pagination.has_prev %}<a href="?tab=submitted_to_mlc&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm" style="margin-left:8px">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=submitted_to_mlc&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    {% endif %}
+  </div>
+  </form>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">No works pending MLC confirmation.</div>
+  {% endif %}
+</div>
+
+{# ═══════════════════════ SUBMITTED TO MRI TAB ═══════════════════════ #}
+{% elif tab == 'submitted_to_mri' %}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Submitted to MRI — Awaiting Catalog Confirmation</span>
+    <span style="font-size:11px;color:var(--t3);margin-left:8px">Works move to Confirmed automatically when the mechanical audit finds them in an MRI catalog export.</span>
+  </div>
+  {% if submitted_mri %}
+  <form method="post" action="/works-registration/resubmit-mri" id="mriForm">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--b1);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button type="submit" class="btn btn-sec btn-sm" onclick="return mriCheck();">&#8592; Resubmit Selected to MRI</button>
+    <span style="font-size:11px;color:var(--t3)">Resubmitting clears the submission date and moves the work back to Submitted to PROs for a fresh MRI export.</span>
+  </div>
+  <div class="wr-filter-bar">
+    <input class="wr-filter-input" id="mri-flt-title" placeholder="Filter by title…" oninput="applyMriFilter()">
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%" id="mri-table">
+    <thead><tr>
+      <th style="width:36px"><input type="checkbox" onclick="document.querySelectorAll('.mri-chk').forEach(function(c){c.checked=this.checked;},this)"></th>
+      <th style="min-width:200px">Work Title</th>
+      <th>ISWC</th>
+      <th>MRI Song ID</th>
+      <th>Writers</th>
+      <th>Publisher</th>
+      <th id="mri-th-rel" onclick="toggleMriRelSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="mri-rel-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+      <th id="mri-th-sub" onclick="toggleMriSubSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Submitted <span id="mri-sub-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+    </tr></thead>
+    <tbody>
+    {% for w in submitted_mri %}
+    {% set _rel_date = w._first_release.release_date if w._first_release and w._first_release.release_date else None %}
+    <tr data-idx="{{ loop.index0 }}" data-title="{{ w.title | lower }}"
+        data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}"
+        data-sub="{{ w.mri_submitted_at.strftime('%Y-%m-%d') if w.mri_submitted_at else '' }}">
+      <td><input type="checkbox" name="work_ids[]" value="{{ w.id }}" class="mri-chk"></td>
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.mri_song_id or '—' }}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% set ns3 = namespace(pubs=[]) %}{% for ww in w.work_writers %}{% if ww.publisher and ww.publisher not in ns3.pubs %}{% set ns3.pubs = ns3.pubs + [ww.publisher] %}{% endif %}{% endfor %}
+        {{ ns3.pubs | join(', ') or '—' }}
+      </td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ w.mri_submitted_at.strftime('%m/%d/%Y') if w.mri_submitted_at else '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="padding:10px 16px;font-size:12px;color:var(--t3)">
+    {{ pagination.total }} work(s) pending MRI confirmation
+    {% if pagination.pages > 1 %}
+    &mdash; page {{ pagination.page }} of {{ pagination.pages }}
+    {% if pagination.has_prev %}<a href="?tab=submitted_to_mri&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm" style="margin-left:8px">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=submitted_to_mri&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    {% endif %}
+  </div>
+  </form>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">No works pending MRI confirmation.</div>
+  {% endif %}
+</div>
+
+{# ═══════════════════════ CONFIRMED TAB ═══════════════════════ #}
+{% elif tab == 'confirmed' %}
+<div class="card">
+  <div class="card-hd"><span class="card-title">Confirmed — Verified by Mechanical Audit</span></div>
+  {% if confirmed %}
+  <div class="wr-filter-bar">
+    <input class="wr-filter-input" id="conf-flt-title" placeholder="Filter by title…" oninput="applyConfFilter()">
+  </div>
+  <div style="overflow-x:auto">
+  <table class="tbl" style="width:100%" id="conf-table">
+    <thead><tr>
+      <th style="min-width:200px">Work Title</th>
+      <th>ISWC</th>
+      <th>MRI Song ID</th>
+      <th>Writers</th>
+      <th>Publisher</th>
+      <th id="conf-th-rel" onclick="toggleConfRelSort()" style="cursor:pointer;user-select:none;white-space:nowrap">Release Date <span id="conf-rel-arrow" style="font-size:10px;color:var(--t3)">↕</span></th>
+    </tr></thead>
+    <tbody>
+    {% for w in confirmed %}
+    {% set _rel_date = w._first_release.release_date if w._first_release and w._first_release.release_date else None %}
+    {% set ns4 = namespace(pubs=[]) %}{% for ww in w.work_writers %}{% if ww.publisher and ww.publisher not in ns4.pubs %}{% set ns4.pubs = ns4.pubs + [ww.publisher] %}{% endif %}{% endfor %}
+    <tr data-idx="{{ loop.index0 }}" data-title="{{ w.title | lower }}" data-rel="{{ _rel_date.strftime('%Y-%m-%d') if _rel_date else '' }}">
+      <td style="font-weight:500"><a href="/works/{{ w.id }}" style="color:var(--t1)">{{ w.title }}</a></td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.iswc or '—' }}</td>
+      <td style="font-size:12px;font-family:monospace;color:var(--t2)">{{ w.mri_song_id or '—' }}</td>
+      <td style="font-size:12px;color:var(--t2)">
+        {% for ww in w.work_writers[:2] %}{{ ww.writer.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if w.work_writers|length > 2 %} +{{ w.work_writers|length - 2 }} more{% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--t2)">{{ ns4.pubs | join(', ') or '—' }}</td>
+      <td style="font-size:12px;color:var(--t3);white-space:nowrap">{{ _rel_date.strftime('%m/%d/%Y') if _rel_date else '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div style="padding:10px 16px;font-size:12px;color:var(--t3)">
+    {{ pagination.total }} confirmed work(s)
+    {% if pagination.pages > 1 %}
+    &mdash; page {{ pagination.page }} of {{ pagination.pages }}
+    {% if pagination.has_prev %}<a href="?tab=confirmed&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm" style="margin-left:8px">&#8592; Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?tab=confirmed&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
+    {% endif %}
+  </div>
+  {% else %}
+  <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">No confirmed works yet. Run Sync on the Mechanical Audit to auto-confirm matched works.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+</div></main></div>
+<script>
+function toggleWrWork(id, e) {
+  if (e && e.target && (e.target.type === 'checkbox' || e.target.tagName === 'A' || e.target.tagName === 'BUTTON')) return;
+  var row = document.getElementById('wr-detail-' + id);
+  var hdr = document.querySelector('[data-work-id="' + id + '"]');
+  if (!row) return;
+  var isOpen = row.classList.contains('open');
+  document.querySelectorAll('.work-detail-row.open').forEach(function(r){ r.classList.remove('open'); });
+  document.querySelectorAll('.work-row.open').forEach(function(r){ r.classList.remove('open'); });
+  if (!isOpen) { row.classList.add('open'); hdr.classList.add('open'); row.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+}
+
+function prosCheck() {
+  if (!document.querySelectorAll('.pros-chk:checked').length) { alert('Select at least one work.'); return false; }
+  return true;
+}
+function mlcCheck() {
+  if (!document.querySelectorAll('.mlc-chk:checked').length) { alert('Select at least one work.'); return false; }
+  return true;
+}
+function mriCheck() {
+  if (!document.querySelectorAll('.mri-chk:checked').length) { alert('Select at least one work.'); return false; }
+  return true;
+}
+
+function applyUnregFilter() {
+  var title  = (document.getElementById('pflt-title')  || {value:''}).value.toLowerCase().trim();
+  var writer = (document.getElementById('pflt-writer') || {value:''}).value.toLowerCase().trim();
+  var pub    = (document.getElementById('pflt-pub')    || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#unreg-table .work-row').forEach(function(row) {
+    var id = row.dataset.workId;
+    var detail = document.getElementById('wr-detail-' + id);
+    var ok = (!title  || (row.dataset.title   || '').indexOf(title)  >= 0)
+          && (!writer || (row.dataset.writers || '').indexOf(writer) >= 0)
+          && (!pub    || (row.dataset.pub     || '').indexOf(pub)    >= 0);
+    row.style.display = ok ? '' : 'none';
+    if (detail) detail.style.display = ok ? '' : 'none';
+  });
+}
+
+function applyProsFilter() {
+  var t = (document.getElementById('pros-flt-title') || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#pros-table tbody tr').forEach(function(r){
+    r.style.display = (!t || (r.dataset.title||'').indexOf(t)>=0) ? '' : 'none';
+  });
+}
+function applyMlcFilter() {
+  var t = (document.getElementById('mlc-flt-title') || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#mlc-table tbody tr').forEach(function(r){
+    r.style.display = (!t || (r.dataset.title||'').indexOf(t)>=0) ? '' : 'none';
+  });
+}
+function applyMriFilter() {
+  var t = (document.getElementById('mri-flt-title') || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#mri-table tbody tr').forEach(function(r){
+    r.style.display = (!t || (r.dataset.title||'').indexOf(t)>=0) ? '' : 'none';
+  });
+}
+function applyConfFilter() {
+  var t = (document.getElementById('conf-flt-title') || {value:''}).value.toLowerCase().trim();
+  document.querySelectorAll('#conf-table tbody tr').forEach(function(r){
+    r.style.display = (!t || (r.dataset.title||'').indexOf(t)>=0) ? '' : 'none';
+  });
+}
+
+function _sortTable(tbodyId, key, dir) {
+  var tbody = document.querySelector('#' + tbodyId + ' tbody');
+  if (!tbody) return;
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  if (dir === 0) {
+    rows.sort(function(a,b){ return (parseInt(a.dataset.idx)||0)-(parseInt(b.dataset.idx)||0); });
+  } else {
+    rows.sort(function(a,b){
+      var da=a.dataset[key]||'', db=b.dataset[key]||'';
+      if(!da&&!db) return 0; if(!da) return 1; if(!db) return -1;
+      return dir===1 ? da.localeCompare(db) : db.localeCompare(da);
+    });
+  }
+  rows.forEach(function(r){ tbody.appendChild(r); });
+}
+
+var _unregDateSort=0;
+function toggleUnregDateSort() {
+  _unregDateSort=(_unregDateSort+1)%3;
+  var arr=document.getElementById('unreg-date-arrow'); var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_unregDateSort];arr.style.color=_unregDateSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('unreg-th-date'); if(th) th.style.color=_unregDateSort>0?'var(--accent)':'';
+  var tbody=document.querySelector('#unreg-table tbody'); if(!tbody) return;
+  var workRows=Array.from(tbody.querySelectorAll('.work-row'));
+  if(_unregDateSort===0){workRows.sort(function(a,b){return(parseInt(a.dataset.idx)||0)-(parseInt(b.dataset.idx)||0);});}
+  else{workRows.sort(function(a,b){var da=a.dataset.rel||'',db=b.dataset.rel||'';if(!da&&!db)return 0;if(!da)return 1;if(!db)return-1;return _unregDateSort===1?da.localeCompare(db):db.localeCompare(da);});}
+  workRows.forEach(function(wr){var det=document.getElementById('wr-detail-'+wr.dataset.workId);tbody.appendChild(wr);if(det)tbody.appendChild(det);});
+}
+
+var _prosRelSort=0;
+function toggleProsRelSort() {
+  _prosRelSort=(_prosRelSort+1)%3;
+  var arr=document.getElementById('pros-rel-arrow'); var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_prosRelSort];arr.style.color=_prosRelSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('pros-th-rel'); if(th) th.style.color=_prosRelSort>0?'var(--accent)':'';
+  _sortTable('pros-table','rel',_prosRelSort);
+}
+
+var _mlcRelSort=0,_mlcSubSort=0;
+function toggleMlcRelSort() {
+  _mlcRelSort=(_mlcRelSort+1)%3; _mlcSubSort=0;
+  var sarr=document.getElementById('mlc-sub-arrow');if(sarr){sarr.textContent='↕';sarr.style.color='var(--t3)';}
+  var sth=document.getElementById('mlc-th-sub');if(sth)sth.style.color='';
+  var arr=document.getElementById('mlc-rel-arrow');var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_mlcRelSort];arr.style.color=_mlcRelSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('mlc-th-rel');if(th)th.style.color=_mlcRelSort>0?'var(--accent)':'';
+  _sortTable('mlc-table','rel',_mlcRelSort);
+}
+function toggleMlcSubSort() {
+  _mlcSubSort=(_mlcSubSort+1)%3; _mlcRelSort=0;
+  var rarr=document.getElementById('mlc-rel-arrow');if(rarr){rarr.textContent='↕';rarr.style.color='var(--t3)';}
+  var rth=document.getElementById('mlc-th-rel');if(rth)rth.style.color='';
+  var arr=document.getElementById('mlc-sub-arrow');var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_mlcSubSort];arr.style.color=_mlcSubSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('mlc-th-sub');if(th)th.style.color=_mlcSubSort>0?'var(--accent)':'';
+  _sortTable('mlc-table','sub',_mlcSubSort);
+}
+
+var _mriRelSort=0,_mriSubSort=0;
+function toggleMriRelSort() {
+  _mriRelSort=(_mriRelSort+1)%3; _mriSubSort=0;
+  var sarr=document.getElementById('mri-sub-arrow');if(sarr){sarr.textContent='↕';sarr.style.color='var(--t3)';}
+  var sth=document.getElementById('mri-th-sub');if(sth)sth.style.color='';
+  var arr=document.getElementById('mri-rel-arrow');var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_mriRelSort];arr.style.color=_mriRelSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('mri-th-rel');if(th)th.style.color=_mriRelSort>0?'var(--accent)':'';
+  _sortTable('mri-table','rel',_mriRelSort);
+}
+function toggleMriSubSort() {
+  _mriSubSort=(_mriSubSort+1)%3; _mriRelSort=0;
+  var rarr=document.getElementById('mri-rel-arrow');if(rarr){rarr.textContent='↕';rarr.style.color='var(--t3)';}
+  var rth=document.getElementById('mri-th-rel');if(rth)rth.style.color='';
+  var arr=document.getElementById('mri-sub-arrow');var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_mriSubSort];arr.style.color=_mriSubSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('mri-th-sub');if(th)th.style.color=_mriSubSort>0?'var(--accent)':'';
+  _sortTable('mri-table','sub',_mriSubSort);
+}
+
+var _confRelSort=0;
+function toggleConfRelSort() {
+  _confRelSort=(_confRelSort+1)%3;
+  var arr=document.getElementById('conf-rel-arrow');var arrows=['↕','↑','↓'];
+  if(arr){arr.textContent=arrows[_confRelSort];arr.style.color=_confRelSort>0?'var(--accent)':'var(--t3)';}
+  var th=document.getElementById('conf-th-rel');if(th)th.style.color=_confRelSort>0?'var(--accent)':'';
+  _sortTable('conf-table','rel',_confRelSort);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('unreg-table')) {
+    toggleUnregDateSort(); toggleUnregDateSort();
+  }
+  if (document.getElementById('pros-table')) {
+    toggleProsRelSort(); toggleProsRelSort();
+  }
+  if (document.getElementById('mlc-table')) {
+    toggleMlcSubSort(); toggleMlcSubSort();
+  }
+  if (document.getElementById('mri-table')) {
+    toggleMriSubSort(); toggleMriSubSort();
+  }
+  if (document.getElementById('conf-table')) {
+    toggleConfRelSort(); toggleConfRelSort();
+  }
+});
+</script>
+""" + _SB_JS + """
+""" + _mobile_nav() + """
+</body></html>"""
 
 
 PRO_AUDIT_HTML = """<!DOCTYPE html>
