@@ -6874,12 +6874,7 @@ WORKS_REGISTRATION_HTML = """<!DOCTYPE html>
   </table>
   </div>
   <div style="padding:10px 16px;font-size:12px;color:var(--t3)">
-    {{ pagination.total }} work(s) awaiting mechanical submission
-    {% if pagination.pages > 1 %}
-    &mdash; page {{ pagination.page }} of {{ pagination.pages }}
-    {% if pagination.has_prev %}<a href="?tab=submitted_to_pros&q={{ q }}&page={{ pagination.prev_num }}" class="btn btn-sec btn-sm" style="margin-left:8px">&#8592; Prev</a>{% endif %}
-    {% if pagination.has_next %}<a href="?tab=submitted_to_pros&q={{ q }}&page={{ pagination.next_num }}" class="btn btn-sec btn-sm">Next &#8594;</a>{% endif %}
-    {% endif %}
+    {{ submitted_pros|length }} work(s) awaiting mechanical submission
   </div>
   </form>
   {% else %}

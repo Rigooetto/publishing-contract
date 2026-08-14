@@ -225,8 +225,9 @@ def works_registration():
     pagination = None
 
     if tab == "submitted_to_pros":
-        pagination = submitted_pros_q.paginate(page=page, per_page=per_page, error_out=False)
-        submitted_pros = pagination.items
+        # No pagination — all works must be visible so one MLC/MRI export covers them all
+        submitted_pros = submitted_pros_q.all()
+        pagination = None
         reg_ids_map = [w.id for w in submitted_pros]
         all_regs = (ProRegistration.query
                     .filter(ProRegistration.work_id.in_(reg_ids_map))
