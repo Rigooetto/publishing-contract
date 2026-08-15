@@ -548,6 +548,7 @@ def _generate_mri_bytes(work_ids):
     for work in works:
         wws = WorkWriter.query.filter_by(work_id=work.id).all()
         rec_title, rec_artist, rec_isrc, rec_label, upc = _track_info_for_export(work.id)
+        rec_isrc = (rec_isrc or "").replace("-", "")
         first_writer = True
         for ww in wws:
             wr = ww.writer
@@ -754,7 +755,7 @@ def export_music_reports():
                     rec_artist = ", ".join(al)
                 except Exception:
                     pass
-                rec_isrc = tracks[0].isrc or ""
+                rec_isrc = (tracks[0].isrc or "").replace("-", "")
                 rec_label = tracks[0].track_label or ""
                 if tracks[0].release:
                     upc = tracks[0].release.upc or ""
