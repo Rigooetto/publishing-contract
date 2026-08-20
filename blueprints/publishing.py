@@ -578,10 +578,12 @@ def works_list():
             query
             .outerjoin(WorkWriter, WorkWriter.work_id == Work.id)
             .outerjoin(Writer, Writer.id == WorkWriter.writer_id)
+            .outerjoin(WorkAKA, WorkAKA.work_id == Work.id)
             .filter(
                 or_(
                     func.lower(Work.title).like(like_q),
                     func.lower(Work.aka_title).like(like_q),
+                    func.lower(WorkAKA.title).like(like_q),
                     func.lower(Writer.full_name).like(like_q),
                     func.lower(Writer.ipi).like(like_q)
                 )
