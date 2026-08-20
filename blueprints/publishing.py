@@ -581,6 +581,7 @@ def works_list():
             .filter(
                 or_(
                     func.lower(Work.title).like(like_q),
+                    func.lower(Work.aka_title).like(like_q),
                     func.lower(Writer.full_name).like(like_q),
                     func.lower(Writer.ipi).like(like_q)
                 )
